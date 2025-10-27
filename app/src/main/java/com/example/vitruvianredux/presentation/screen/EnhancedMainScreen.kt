@@ -158,6 +158,9 @@ fun EnhancedMainScreen(
                 viewModel.stopScanning()
                 showDeviceSelector = false
             },
+            onRescan = {
+                viewModel.startScanning()
+            },
             onDismiss = {
                 viewModel.stopScanning()
                 showDeviceSelector = false
@@ -217,6 +220,7 @@ fun DeviceSelectorDialog(
     devices: List<ScannedDevice>,
     isScanning: Boolean,
     onDeviceSelected: (ScannedDevice) -> Unit,
+    onRescan: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -240,11 +244,22 @@ fun DeviceSelectorDialog(
                 }
 
                 if (devices.isEmpty()) {
-                    Text(
-                        "No devices found yet...",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            if (isScanning) {
+                                "Scanning for Vitruvian devices...\nMake sure your trainer is powered on."
+                            } else {
+                                "No devices found.\nTry scanning again."
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
@@ -286,7 +301,15 @@ fun DeviceSelectorDialog(
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            if (!isScanning) {
+                TextButton(onClick = onRescan) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Rescan")
+                }
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")

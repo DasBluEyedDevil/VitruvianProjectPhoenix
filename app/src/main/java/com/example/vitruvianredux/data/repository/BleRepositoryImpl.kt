@@ -73,38 +73,51 @@ class BleRepositoryImpl @Inject constructor(
     @SuppressLint("MissingPermission")
     override suspend fun startScanning(): Result<Unit> = withContext(Dispatchers.Main) {
         try {
+            Timber.d("startScanning() called")
+            
             if (bluetoothAdapter == null) {
+                Timber.e("Bluetooth adapter is null")
                 return@withContext Result.failure(Exception("Bluetooth not available"))
             }
 
             if (!bluetoothAdapter.isEnabled) {
+                Timber.e("Bluetooth is disabled")
                 return@withContext Result.failure(Exception("Bluetooth is disabled"))
             }
 
             if (isScanning) {
+                Timber.d("Already scanning, returning")
                 return@withContext Result.success(Unit)
             }
 
             _connectionState.value = ConnectionState.Scanning
+            Timber.d("Set connection state to Scanning")
 
             val scanner = bluetoothAdapter.bluetoothLeScanner
-            val scanFilter = ScanFilter.Builder()
-                .setDeviceName(BleConstants.DEVICE_NAME_PREFIX)
-                .build()
+            if (scanner == null) {
+                Timber.e("BLE scanner is null")
+                return@withContext Result.failure(Exception("BLE scanner not available"))
+            }
 
+            // Scan without filters to find all BLE devices (more permissive)
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .build()
 
-            scanner.startScan(listOf(scanFilter), scanSettings, scanCallback)
+            Timber.d("Starting BLE scan with no filters (will show all devices)")
+            scanner.startScan(null, scanSettings, scanCallback)
             isScanning = true
 
-            Timber.d("Started BLE scanning for devices with prefix: ${BleConstants.DEVICE_NAME_PREFIX}")
+            Timber.d("BLE scan started successfully - looking for devices starting with '${BleConstants.DEVICE_NAME_PREFIX}'")
 
             // Auto-stop scanning after timeout
             scope.launch {
                 delay(BleConstants.SCAN_TIMEOUT_MS)
-                stopScanning()
+                if (isScanning) {
+                    Timber.d("Scan timeout reached (${BleConstants.SCAN_TIMEOUT_MS}ms), stopping scan")
+                    stopScanning()
+                }
             }
 
             Result.success(Unit)
@@ -134,14 +147,37 @@ class BleRepositoryImpl @Inject constructor(
     }
 
     private val scanCallback = object : ScanCallback() {
+        @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            Timber.d("Found device: ${result.device.name} (${result.device.address})")
-            _scannedDevices.tryEmit(result)
+            val deviceName = result.device.name ?: "Unknown"
+            val deviceAddress = result.device.address
+            Timber.d("BLE device found: name='$deviceName', address=$deviceAddress, rssi=${result.rssi}")
+            
+            // Only emit devices that match our filter
+            if (deviceName.startsWith(BleConstants.DEVICE_NAME_PREFIX)) {
+                Timber.d("Device matches filter, adding to list")
+                val emitted = _scannedDevices.tryEmit(result)
+                Timber.d("tryEmit result: $emitted (subscribers: ${_scannedDevices.subscriptionCount.value})")
+            }
+        }
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>) {
+            Timber.d("Batch scan results: ${results.size} devices")
+            results.forEach { result ->
+                onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, result)
+            }
         }
 
         override fun onScanFailed(errorCode: Int) {
-            Timber.e("Scan failed with error code: $errorCode")
-            _connectionState.value = ConnectionState.Error("Scan failed: error $errorCode")
+            val errorMsg = when (errorCode) {
+                SCAN_FAILED_ALREADY_STARTED -> "Scan already started"
+                SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> "App registration failed"
+                SCAN_FAILED_INTERNAL_ERROR -> "Internal error"
+                SCAN_FAILED_FEATURE_UNSUPPORTED -> "Feature unsupported"
+                else -> "Unknown error $errorCode"
+            }
+            Timber.e("BLE scan failed: $errorMsg")
+            _connectionState.value = ConnectionState.Error("Scan failed: $errorMsg")
             isScanning = false
         }
     }
@@ -149,50 +185,81 @@ class BleRepositoryImpl @Inject constructor(
     @SuppressLint("MissingPermission")
     override suspend fun connectToDevice(deviceAddress: String): Result<Unit> = withContext(Dispatchers.Main) {
         try {
+            Timber.d("connectToDevice() called for address: $deviceAddress")
             stopScanning()
 
             val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
-                ?: return@withContext Result.failure(Exception("Device not found"))
+            if (device == null) {
+                Timber.e("Failed to get remote device for address: $deviceAddress")
+                return@withContext Result.failure(Exception("Device not found"))
+            }
 
+            Timber.d("Got remote device: ${device.name} ($deviceAddress)")
             _connectionState.value = ConnectionState.Connecting
+            Timber.d("Connection state set to Connecting")
 
             // Create BLE manager
             bleManager = VitruvianBleManager(context).apply {
+                Timber.d("Created VitruvianBleManager")
 
                 // Set up connection observer
                 scope.launch {
                     connectionState.collect { status ->
+                        Timber.d("BLE Manager connection status changed: $status")
                         when (status) {
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Ready -> {
+                                Timber.d("Device ready! Setting state to Connected")
                                 _connectionState.value = ConnectionState.Connected(
                                     deviceName = device.name ?: "Vitruvian",
                                     deviceAddress = device.address
                                 )
                             }
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Disconnected -> {
+                                Timber.d("Device disconnected")
                                 _connectionState.value = ConnectionState.Disconnected
                             }
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Error -> {
+                                Timber.e("Connection error: ${status.message}")
                                 _connectionState.value = ConnectionState.Error(status.message)
                             }
-                            else -> {}
+                            else -> {
+                                Timber.d("Other connection status: $status")
+                            }
                         }
                     }
                 }
 
-                // Collect monitor data
+                // Collect monitor data and forward to repository flow
                 scope.launch {
+                    Timber.d("Starting monitor data collection from BleManager")
                     monitorData.collect { metric ->
+                        Timber.d("BleRepository forwarding monitor metric: pos=(${metric.positionA},${metric.positionB})")
                         _monitorData.emit(metric)
                     }
                 }
             }
 
             // Connect to device
+            Timber.d("Initiating connection to device...")
             bleManager?.connect(device)
                 ?.timeout(BleConstants.CONNECTION_TIMEOUT_MS)
                 ?.retry(3, 100)
                 ?.useAutoConnect(false)
+                ?.done {
+                    // Device connected successfully
+                    // Give device time to stabilize before sending commands
+                    Timber.d("Device connected! Waiting 2 seconds before sending INIT...")
+                    scope.launch {
+                        delay(2000) // Wait 2 seconds (web app waits for user action)
+                        Timber.d("Now sending INIT sequence...")
+                        val initResult = sendInitSequence()
+                        if (initResult.isSuccess) {
+                            Timber.d("Device fully initialized and ready!")
+                        } else {
+                            Timber.e("INIT sequence failed after connection: ${initResult.exceptionOrNull()?.message}")
+                        }
+                    }
+                }
                 ?.enqueue()
 
             Timber.d("Connecting to device: ${device.name} (${device.address})")
@@ -206,6 +273,8 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun disconnect() = withContext(Dispatchers.Main) {
         try {
+            Timber.d("Disconnecting from device...")
+            bleManager?.stopPolling()
             bleManager?.disconnect()?.enqueue()
             bleManager = null
             _connectionState.value = ConnectionState.Disconnected
@@ -217,15 +286,21 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun sendInitSequence(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            Timber.d("=== Starting INIT sequence ===")
+            
             // Send initial command
+            Timber.d("Sending init command (4 bytes)...")
             bleManager?.sendCommand(ProtocolBuilder.buildInitCommand())?.getOrThrow()
-            delay(100)
+            delay(200) // Longer delay - web app waits 50ms minimum, we'll be safer
+            
+            Timber.d("Init command sent, waiting before preset...")
 
             // Send init preset
+            Timber.d("Sending init preset (34 bytes)...")
             bleManager?.sendCommand(ProtocolBuilder.buildInitPreset())?.getOrThrow()
-            delay(100)
+            delay(200)
 
-            Timber.d("Init sequence sent successfully")
+            Timber.d("=== INIT sequence completed successfully ===")
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to send init sequence")
@@ -235,9 +310,9 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun startWorkout(params: WorkoutParameters): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            // Send init sequence first
-            sendInitSequence().getOrThrow()
-
+            // Device should already be initialized from connection
+            Timber.d("Starting workout - sending program parameters...")
+            
             // Build and send program parameters
             val programFrame = ProtocolBuilder.buildProgramParams(params)
             bleManager?.sendCommand(programFrame)?.getOrThrow()
@@ -256,6 +331,12 @@ class BleRepositoryImpl @Inject constructor(
             }
 
             Timber.d("Workout started with mode: ${params.mode.displayName}")
+            
+            // NOW start polling (matching web app behavior)
+            Timber.d("Starting polling...")
+            bleManager?.startPropertyPolling()
+            bleManager?.startMonitorPolling()
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to start workout")

@@ -1,6 +1,7 @@
 package com.example.vitruvianredux.presentation.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vitruvianredux.data.repository.BleRepository
@@ -24,7 +25,8 @@ class MainViewModel @Inject constructor(
     private val repDetectionEngine: RepDetectionEngine
 ) : AndroidViewModel(application) {
 
-    private val context = application.applicationContext
+    // Use application context directly instead of storing it
+    private fun getContext(): Context = getApplication<Application>().applicationContext
 
     val connectionState: StateFlow<ConnectionState> = bleRepository.connectionState
 
@@ -62,15 +64,21 @@ class MainViewModel @Inject constructor(
     private val collectedMetrics = mutableListOf<WorkoutMetric>()
 
     init {
+        Timber.d("MainViewModel initialized")
+        
         // Collect monitor data and process for rep detection
         viewModelScope.launch {
+            Timber.d("Starting to collect monitor data...")
             bleRepository.monitorData.collect { metric ->
+                Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
                 _currentMetric.value = metric
                 
                 // Process rep detection when workout is active
                 if (_workoutState.value is WorkoutState.Active) {
                     processMetricForReps(metric)
                     collectMetricForHistory(metric)
+                } else {
+                    Timber.v("Workout not active, skipping rep detection")
                 }
             }
         }
@@ -85,6 +93,7 @@ class MainViewModel @Inject constructor(
         // Collect scanned devices
         viewModelScope.launch {
             bleRepository.scannedDevices.collect { scanResult ->
+                Timber.d("ViewModel received scan result: ${scanResult.device.address}")
                 // Add to list if not already present
                 val currentDevices = _scannedDevices.value.toMutableList()
                 val existingDevice = currentDevices.find { it.address == scanResult.device.address }
@@ -96,13 +105,17 @@ class MainViewModel @Inject constructor(
                     )
                     currentDevices.add(scannedDevice)
                     _scannedDevices.value = currentDevices
-                    Timber.d("Found device: ${scannedDevice.name} (${scannedDevice.address})")
+                    Timber.d("Added device to list: ${scannedDevice.name} (${scannedDevice.address}) - Total devices: ${currentDevices.size}")
+                } else {
+                    Timber.d("Device already in list, skipping: ${scanResult.device.address}")
                 }
             }
         }
     }
 
     private fun processMetricForReps(metric: WorkoutMetric) {
+        Timber.d("Processing metric for reps: pos=(${metric.positionA},${metric.positionB})")
+        
         val repEvent = repDetectionEngine.processPosition(
             metric.positionA,
             metric.positionB,
@@ -110,6 +123,7 @@ class MainViewModel @Inject constructor(
         )
 
         if (repEvent != null) {
+            Timber.d("Rep event detected: ${repEvent.type}")
             val (warmup, working) = repDetectionEngine.getRepCounts()
             _repCount.value = RepCount(
                 warmupReps = warmup,
@@ -130,9 +144,16 @@ class MainViewModel @Inject constructor(
     }
 
     fun startScanning() {
+        Timber.d("MainViewModel.startScanning() called")
         viewModelScope.launch {
             _scannedDevices.value = emptyList() // Clear previous scan results
-            bleRepository.startScanning()
+            Timber.d("Cleared previous scan results, calling bleRepository.startScanning()")
+            val result = bleRepository.startScanning()
+            if (result.isSuccess) {
+                Timber.d("Scan started successfully")
+            } else {
+                Timber.e("Scan failed: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
@@ -185,7 +206,7 @@ class MainViewModel @Inject constructor(
                 
                 // Start foreground service to keep app alive
                 WorkoutForegroundService.startWorkoutService(
-                    context,
+                    getContext(),
                     _workoutParameters.value.mode.displayName,
                     _workoutParameters.value.reps
                 )
@@ -208,7 +229,7 @@ class MainViewModel @Inject constructor(
                 _workoutState.value = WorkoutState.Completed
                 
                 // Stop foreground service
-                WorkoutForegroundService.stopWorkoutService(context)
+                WorkoutForegroundService.stopWorkoutService(getContext())
                 
                 Timber.d("Workout stopped successfully")
 
