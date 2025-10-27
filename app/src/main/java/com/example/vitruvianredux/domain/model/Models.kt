@@ -17,6 +17,7 @@ sealed class ConnectionState {
 sealed class WorkoutState {
     object Idle : WorkoutState()
     object Initializing : WorkoutState()
+    data class Countdown(val secondsRemaining: Int) : WorkoutState()
     object Active : WorkoutState()
     object Paused : WorkoutState()
     object Completed : WorkoutState()

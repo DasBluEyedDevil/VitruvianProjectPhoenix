@@ -34,6 +34,12 @@ class RepDetectionEngine {
     private var warmupTarget = 3
     private var targetReps = 0
     
+    // Calibration state - track warmup ranges
+    private var warmupMaxPositions = mutableListOf<Int>()
+    private var warmupMinPositions = mutableListOf<Int>()
+    private var isCalibrated = false
+    private var isWarmupsComplete = false
+    
     // State tracking
     private var lastTopCounter: Int? = null
     private var isAtTop = false
@@ -45,6 +51,9 @@ class RepDetectionEngine {
     // Position threshold for detecting movement
     private val positionChangeThreshold = 50
     
+    // Minimum range required before rep detection starts (prevents false triggers at rest)
+    private val minimumRangeRequired = 100
+    
     /**
      * Process new position data and detect rep events
      * @param posA Cable A position (0-1000)
@@ -53,16 +62,41 @@ class RepDetectionEngine {
      * @return RepEvent if a rep transition occurred, null otherwise
      */
     fun processPosition(posA: Int, posB: Int, ticks: Int): RepEvent? {
-        // Update rolling windows
-        updatePositionWindows(posA, posB)
+        // Update position windows during warmup reps to collect calibration data
+        // Once warmups are complete, lock to the averaged calibration values
+        if (!isWarmupsComplete) {
+            updatePositionWindows(posA, posB)
+            if (ticks % 50 == 0) {
+                Timber.v("Updating windows: warmupReps=$warmupReps, isWarmupsComplete=$isWarmupsComplete, maxPos=${maxRepPosA}, minPos=${minRepPosA}")
+            }
+        } else {
+            if (ticks % 50 == 0) {
+                Timber.v("Windows LOCKED: warmupReps=$warmupReps, maxPos=${maxRepPosA}, minPos=${minRepPosA}")
+            }
+        }
         
         // Detect rep transitions
         return detectRepTransition(posA, posB, ticks)
     }
     
     private fun updatePositionWindows(posA: Int, posB: Int) {
-        // Cable A
-        if (posA > (maxRepPosA ?: 0)) {
+        // Cable A - Track positions near the top and bottom
+        val currentMax = maxRepPosA
+        val currentMin = minRepPosA
+        
+        // Bootstrap: On first call, just track the position
+        if (currentMax == null && currentMin == null) {
+            topPositionsA.add(posA)
+            bottomPositionsA.add(posA)
+            maxRepPosA = posA
+            minRepPosA = posA
+            maxRepPosARange = Pair(posA, posA)
+            minRepPosARange = Pair(posA, posA)
+            return
+        }
+        
+        // Update top window if near or above current max
+        if (currentMax != null && posA >= currentMax - positionChangeThreshold) {
             topPositionsA.add(posA)
             if (topPositionsA.size > windowSize) {
                 topPositionsA.removeAt(0)
@@ -71,7 +105,8 @@ class RepDetectionEngine {
             maxRepPosARange = Pair(topPositionsA.minOrNull() ?: 0, topPositionsA.maxOrNull() ?: 0)
         }
         
-        if (minRepPosA == null || posA < minRepPosA!!) {
+        // Update bottom window if near or below current min
+        if (currentMin != null && posA <= currentMin + positionChangeThreshold) {
             bottomPositionsA.add(posA)
             if (bottomPositionsA.size > windowSize) {
                 bottomPositionsA.removeAt(0)
@@ -80,8 +115,11 @@ class RepDetectionEngine {
             minRepPosARange = Pair(bottomPositionsA.minOrNull() ?: 0, bottomPositionsA.maxOrNull() ?: 0)
         }
         
-        // Cable B
-        if (posB > (maxRepPosB ?: 0)) {
+        // Cable B - same logic
+        val currentMaxB = maxRepPosB ?: 0
+        val currentMinB = minRepPosB ?: Int.MAX_VALUE
+        
+        if (posB > currentMaxB || (currentMaxB > 0 && posB >= currentMaxB - positionChangeThreshold)) {
             topPositionsB.add(posB)
             if (topPositionsB.size > windowSize) {
                 topPositionsB.removeAt(0)
@@ -90,7 +128,7 @@ class RepDetectionEngine {
             maxRepPosBRange = Pair(topPositionsB.minOrNull() ?: 0, topPositionsB.maxOrNull() ?: 0)
         }
         
-        if (minRepPosB == null || posB < minRepPosB!!) {
+        if (posB < currentMinB || (currentMinB < Int.MAX_VALUE && posB <= currentMinB + positionChangeThreshold)) {
             bottomPositionsB.add(posB)
             if (bottomPositionsB.size > windowSize) {
                 bottomPositionsB.removeAt(0)
@@ -102,8 +140,28 @@ class RepDetectionEngine {
     
     private fun detectRepTransition(posA: Int, posB: Int, @Suppress("UNUSED_PARAMETER") ticks: Int): RepEvent? {
         val avgPos = (posA + posB) / 2
-        val maxPos = maxRepPosA ?: 800
-        val minPos = minRepPosA ?: 200
+        
+        // Wait until we have learned some position data
+        val maxPos = maxRepPosA
+        val minPos = minRepPosA
+        
+        if (maxPos == null || minPos == null) {
+            // Still learning initial positions
+            return null
+        }
+        
+        // Require significant movement before counting reps (prevents false triggers)
+        // Only check this during initial calibration
+        if (!isCalibrated) {
+            val currentRange = maxPos - minPos
+            if (currentRange < minimumRangeRequired) {
+                // Not enough movement yet, still calibrating
+                return null
+            }
+            // We have enough range now, mark as calibrated
+            isCalibrated = true
+            Timber.d("RepDetection calibrated: range=$currentRange (min=$minPos, max=$maxPos)")
+        }
         
         // Detect at top position
         val atTop = avgPos >= (maxPos - positionChangeThreshold)
@@ -111,15 +169,48 @@ class RepDetectionEngine {
         // Detect at bottom position
         val atBottom = avgPos <= (minPos + positionChangeThreshold)
         
+        // Debug logging - log every single evaluation!
+        if (ticks % 10 == 0 || atTop || atBottom) {
+            Timber.v("RepState: pos=$avgPos, atTop=$atTop($maxPos), atBottom=$atBottom($minPos), stateTop=$isAtTop, stateBot=$isAtBottom, warmup=$warmupReps, working=$workingReps")
+        }
+        
         // Detect transition from bottom to top (rep start)
         if (atTop && !isAtTop && isAtBottom) {
             isAtTop = true
             isAtBottom = false
             
+            Timber.d("🔥 REP DETECTED! Transitioning from bottom to top")
+            
             // Count as warmup or working rep
             return if (warmupReps < warmupTarget) {
                 warmupReps++
-                Timber.d("Warmup rep completed: $warmupReps/$warmupTarget")
+                
+                // Capture this warmup rep's range for calibration
+                val currentMax = maxRepPosA ?: 0
+                val currentMin = minRepPosA ?: 0
+                warmupMaxPositions.add(currentMax)
+                warmupMinPositions.add(currentMin)
+                
+                Timber.d("Warmup rep completed: $warmupReps/$warmupTarget (max=$currentMax, min=$currentMin)")
+                
+                // If warmups are complete, calculate average calibration
+                if (warmupReps == warmupTarget) {
+                    isWarmupsComplete = true
+                    
+                    // Average the warmup ranges
+                    val avgMax = warmupMaxPositions.average().toInt()
+                    val avgMin = warmupMinPositions.average().toInt()
+                    
+                    // Lock to averaged calibration values
+                    maxRepPosA = avgMax
+                    minRepPosA = avgMin
+                    
+                    Timber.d("🎯 WARMUP CALIBRATION COMPLETE! Averaged ${warmupMaxPositions.size} reps:")
+                    Timber.d("   Max: ${warmupMaxPositions.joinToString(", ")} → $avgMax")
+                    Timber.d("   Min: ${warmupMinPositions.joinToString(", ")} → $avgMin")
+                    Timber.d("   Range locked at: $avgMin - $avgMax")
+                }
+                
                 RepEvent(
                     type = RepType.WARMUP_COMPLETED,
                     warmupCount = warmupReps,
@@ -142,6 +233,7 @@ class RepDetectionEngine {
         if (atBottom && !isAtBottom && isAtTop) {
             isAtBottom = true
             isAtTop = false
+            Timber.d("✅ Transitioned to bottom, ready for next rep (avgPos=$avgPos, minPos=$minPos)")
         }
         
         return null
@@ -160,6 +252,7 @@ class RepDetectionEngine {
      */
     fun setWarmupTarget(target: Int) {
         warmupTarget = target
+        Timber.d("RepDetectionEngine: Warmup target set to $target")
     }
     
     /**
@@ -167,6 +260,7 @@ class RepDetectionEngine {
      */
     fun setTargetReps(target: Int) {
         targetReps = target
+        Timber.d("RepDetectionEngine: Working reps target set to $target")
     }
     
     /**
@@ -217,6 +311,7 @@ class RepDetectionEngine {
         lastTopCounter = null
         isAtTop = false
         isAtBottom = true
+        isCalibrated = false
         
         Timber.d("Rep detection engine reset")
     }

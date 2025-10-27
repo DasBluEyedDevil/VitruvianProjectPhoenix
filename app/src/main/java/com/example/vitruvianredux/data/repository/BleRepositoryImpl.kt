@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -36,6 +37,7 @@ import javax.inject.Singleton
 interface BleRepository {
     val connectionState: StateFlow<ConnectionState>
     val monitorData: Flow<WorkoutMetric>
+    val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
     val scannedDevices: Flow<ScanResult>
 
     suspend fun startScanning(): Result<Unit>
@@ -64,6 +66,9 @@ class BleRepositoryImpl @Inject constructor(
 
     private val _monitorData = MutableSharedFlow<WorkoutMetric>(replay = 0)
     override val monitorData: Flow<WorkoutMetric> = _monitorData.asSharedFlow()
+    
+    override val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
+        get() = bleManager?.repEvents ?: emptyFlow()
 
     private val _scannedDevices = MutableSharedFlow<ScanResult>(replay = 10)
     override val scannedDevices: Flow<ScanResult> = _scannedDevices.asSharedFlow()

@@ -95,6 +95,8 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
             monitorCharacteristic = nusService.getCharacteristic(BleConstants.MONITOR_CHAR_UUID)
             propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
+            
+            Timber.d("Found characteristics: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
 
             if (nusRxCharacteristic == null) {
                 Timber.e("NUS RX characteristic not found")
@@ -135,10 +137,21 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
 
             // Enable notifications on rep notify characteristic
             repNotifyCharacteristic?.let { characteristic ->
+                Timber.d("Enabling rep notifications on characteristic ${characteristic.uuid}")
                 setNotificationCallback(characteristic).with { _, data ->
+                    Timber.d("REP NOTIFICATION CALLBACK FIRED!")
                     handleRepNotification(data)
                 }
-                enableNotifications(characteristic).enqueue()
+                enableNotifications(characteristic)
+                    .done { device ->
+                        Timber.d("Rep notifications enabled successfully")
+                    }
+                    .fail { device, status ->
+                        Timber.e("Failed to enable rep notifications: status=$status")
+                    }
+                    .enqueue()
+            } ?: run {
+                Timber.e("Rep notify characteristic is NULL - notifications will not work!")
             }
 
             _connectionState.value = ConnectionStatus.Ready
@@ -307,21 +320,33 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
 
     /**
      * Handle rep notification data
+     * Based on reference web app: parses u16 array with top counter and complete counter
+     * u16[0] = top counter (reached top of range)
+     * u16[2] = complete counter (rep complete at bottom)
      */
     private fun handleRepNotification(data: Data) {
         try {
             val bytes = data.value ?: return
-            Timber.d("Rep notification: ${bytes.toHexString()}")
-
-            // Parse rep notification - format may vary
-            // This needs to be validated against actual device behavior
-            if (bytes.isNotEmpty()) {
-                val repData = RepNotification(
-                    rawData = bytes,
-                    timestamp = System.currentTimeMillis()
-                )
-                _repEvents.tryEmit(repData)
+            
+            if (bytes.size < 6) {
+                Timber.w("Rep notification too short: ${bytes.size} bytes")
+                return
             }
+
+            // Parse as u16 little-endian array
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            val topCounter = buffer.getShort(0).toInt() and 0xFFFF
+            val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
+            
+            Timber.d("Rep notification: top=$topCounter, complete=$completeCounter, hex=${bytes.toHexString()}")
+
+            val repData = RepNotification(
+                topCounter = topCounter,
+                completeCounter = completeCounter,
+                rawData = bytes,
+                timestamp = System.currentTimeMillis()
+            )
+            _repEvents.tryEmit(repData)
         } catch (e: Exception) {
             Timber.e(e, "Error parsing rep notification")
         }
@@ -348,8 +373,12 @@ sealed class ConnectionStatus {
 
 /**
  * Rep notification data class
+ * Parsed from device notifications on characteristic 0x0036
+ * Format: u16 array with [topCounter, ?, completeCounter, ...]
  */
 data class RepNotification(
+    val topCounter: Int,        // Counter increments when reaching top of range
+    val completeCounter: Int,   // Counter increments when rep completes (bottom)
     val rawData: ByteArray,
     val timestamp: Long
 ) {
@@ -359,6 +388,8 @@ data class RepNotification(
 
         other as RepNotification
 
+        if (topCounter != other.topCounter) return false
+        if (completeCounter != other.completeCounter) return false
         if (!rawData.contentEquals(other.rawData)) return false
         if (timestamp != other.timestamp) return false
 
@@ -366,7 +397,9 @@ data class RepNotification(
     }
 
     override fun hashCode(): Int {
-        var result = rawData.contentHashCode()
+        var result = topCounter
+        result = 31 * result + completeCounter
+        result = 31 * result + rawData.contentHashCode()
         result = 31 * result + timestamp.hashCode()
         return result
     }

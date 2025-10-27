@@ -51,13 +51,18 @@ fun WorkoutTab(
                 onStopWorkout = onStopWorkout
             )
 
-            // Rep Counter (when workout active)
-            if (workoutState is WorkoutState.Active) {
-                RepCounterCard(repCount = repCount)
+            // Rep Counter (when workout active or counting down)
+            if (workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) {
+                // Countdown overlay
+                if (workoutState is WorkoutState.Countdown) {
+                    CountdownCard(secondsRemaining = workoutState.secondsRemaining)
+                } else {
+                    RepCounterCard(repCount = repCount)
+                }
             }
 
-            // Live Metrics (when workout active)
-            if (workoutState is WorkoutState.Active && currentMetric != null) {
+            // Live Metrics (when workout active or counting down)
+            if ((workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) && currentMetric != null) {
                 LiveMetricsCard(metric = currentMetric)
             }
         }
@@ -159,6 +164,7 @@ fun ConnectionCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutParametersCard(
     workoutParameters: WorkoutParameters,
@@ -182,9 +188,154 @@ fun WorkoutParametersCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Mode display
-            Text("Mode: ${workoutParameters.mode.displayName}")
+            // Mode selector
+            var showModeMenu by remember { mutableStateOf(false) }
+            var showEchoLevelDialog by remember { mutableStateOf(false) }
+            
+            ExposedDropdownMenuBox(
+                expanded = showModeMenu,
+                onExpandedChange = { showModeMenu = !showModeMenu && workoutState is WorkoutState.Idle }
+            ) {
+                OutlinedTextField(
+                    value = workoutParameters.mode.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Workout Mode") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeMenu)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    enabled = workoutState is WorkoutState.Idle,
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                )
+                ExposedDropdownMenu(
+                    expanded = showModeMenu,
+                    onDismissRequest = { showModeMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Old School") },
+                        onClick = {
+                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.OldSchool))
+                            showModeMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Pump") },
+                        onClick = {
+                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Pump))
+                            showModeMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("TUT") },
+                        onClick = {
+                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUT))
+                            showModeMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("TUT Beast") },
+                        onClick = {
+                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUTBeast))
+                            showModeMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Eccentric Only") },
+                        onClick = {
+                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
+                            showModeMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { 
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Echo Mode")
+                                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+                            }
+                        },
+                        onClick = {
+                            showModeMenu = false
+                            showEchoLevelDialog = true
+                        }
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
+            
+            // Echo Level Selection Dialog
+            if (showEchoLevelDialog) {
+                AlertDialog(
+                    onDismissRequest = { showEchoLevelDialog = false },
+                    title = { Text("Select Echo Level") },
+                    text = {
+                        Column {
+                            Text(
+                                "Echo mode mirrors your force output for adaptive resistance.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // Level 1
+                            OutlinedButton(
+                                onClick = {
+                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_1)))
+                                    showEchoLevelDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Level 1 - Beginner (75% eccentric)")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // Level 2
+                            OutlinedButton(
+                                onClick = {
+                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_2)))
+                                    showEchoLevelDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Level 2 - Intermediate")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // Level 3
+                            OutlinedButton(
+                                onClick = {
+                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_3)))
+                                    showEchoLevelDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Level 3 - Advanced")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // Level 4
+                            OutlinedButton(
+                                onClick = {
+                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_4)))
+                                    showEchoLevelDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Level 4 - Expert")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showEchoLevelDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
 
             // Weight input
             var weightText by remember(workoutParameters) { 
