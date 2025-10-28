@@ -11,46 +11,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+    primary = PrimaryPurple,
+    onPrimary = BackgroundBlack,
+    primaryContainer = PurpleAccent,
+    onPrimaryContainer = TextPrimary,
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    secondary = SecondaryPurple,
+    onSecondary = BackgroundBlack,
+    secondaryContainer = SecondaryPurple,
+    onSecondaryContainer = TextPrimary,
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    tertiary = TertiaryPurple,
+    onTertiary = BackgroundBlack,
+    tertiaryContainer = TertiaryPurple,
+    onTertiaryContainer = TextPrimary,
+
+    background = BackgroundBlack,
+    onBackground = TextPrimary,
+
+    surface = SurfaceDarkGrey,
+    onSurface = TextPrimary,
+    surfaceVariant = CardBackground,
+    onSurfaceVariant = TextSecondary,
+
+    error = ErrorRed,
+    onError = TextPrimary,
+
+    outline = TextTertiary,
+    outlineVariant = TextDisabled
 )
 
 @Composable
 fun VitruvianReduxTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
+    // Always use dark theme with custom colors (no dynamic color, no light mode)
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColorScheme,
         typography = Typography,
         content = content
     )

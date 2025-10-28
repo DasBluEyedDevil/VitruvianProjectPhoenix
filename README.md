@@ -220,7 +220,7 @@ The Vitruvian Redux Android app is now ready for beta testing! This release incl
 
 ### Download Beta
 - **APK Location:** `app/build/outputs/apk/debug/app-debug.apk`
-- **Installation Guide:** See [BETA_TESTING_GUIDE.md](reference/BETA_TESTING_GUIDE.md)
+- **Installation Guide:** See [BETA_TESTING_GUIDE.md](docs/BETA_TESTING_GUIDE.md)
 - **Minimum Android:** 8.0 (API 26)
 - **Size:** ~8 MB
 

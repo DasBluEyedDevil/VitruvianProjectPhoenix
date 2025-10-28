@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
@@ -14,13 +15,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vitruvianredux.domain.model.ConnectionState
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ScannedDevice
+import com.example.vitruvianredux.ui.theme.*
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
@@ -64,23 +69,26 @@ fun EnhancedMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vitruvian Control") },
+                title = { Text("Vitruvian Control", color = Color.White) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = PrimaryPurple,
+                    titleContentColor = Color.White
                 ),
                 actions = {
-                    // Connection status indicator
                     when (connectionState) {
                         is ConnectionState.Connected -> {
                             Icon(
-                                Icons.Default.Check,
+                                imageVector = Icons.Default.Check,
                                 contentDescription = "Connected",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color.White
                             )
                         }
                         is ConnectionState.Scanning -> {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp).padding(end = 8.dp)
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(end = 8.dp),
+                                color = Color.White
                             )
                         }
                         else -> {}
@@ -89,29 +97,51 @@ fun EnhancedMainScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = SurfaceDarkGrey
+            ) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
                     label = { Text("Workout") },
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 }
+                    onClick = { selectedTab = 0 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryPurple,
+                        selectedTextColor = PrimaryPurple,
+                        unselectedIconColor = TextTertiary,
+                        unselectedTextColor = TextTertiary,
+                        indicatorColor = CardBackground
+                    )
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
                     label = { Text("History") },
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 }
+                    onClick = { selectedTab = 1 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryPurple,
+                        selectedTextColor = PrimaryPurple,
+                        unselectedIconColor = TextTertiary,
+                        unselectedTextColor = TextTertiary,
+                        indicatorColor = CardBackground
+                    )
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                     label = { Text("Settings") },
                     selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 }
+                    onClick = { selectedTab = 2 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryPurple,
+                        selectedTextColor = PrimaryPurple,
+                        unselectedIconColor = TextTertiary,
+                        unselectedTextColor = TextTertiary,
+                        indicatorColor = CardBackground
+                    )
                 )
             }
         }
     ) { padding ->
-        // Check permissions first
         if (!permissionState.allPermissionsGranted) {
             PermissionRequestScreen(
                 permissionState = permissionState,
@@ -126,7 +156,7 @@ fun EnhancedMainScreen(
                     workoutParameters = workoutParameters,
                     repCount = repCount,
                     autoStopState = autoStopState,
-                    onScan = { 
+                    onScan = {
                         viewModel.startScanning()
                         showDeviceSelector = true
                     },
@@ -150,7 +180,6 @@ fun EnhancedMainScreen(
         }
     }
 
-    // Device selector dialog
     if (showDeviceSelector) {
         DeviceSelectorDialog(
             devices = scannedDevices,
@@ -160,9 +189,7 @@ fun EnhancedMainScreen(
                 viewModel.stopScanning()
                 showDeviceSelector = false
             },
-            onRescan = {
-                viewModel.startScanning()
-            },
+            onRescan = { viewModel.startScanning() },
             onDismiss = {
                 viewModel.stopScanning()
                 showDeviceSelector = false
@@ -174,45 +201,46 @@ fun EnhancedMainScreen(
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionRequestScreen(
-    permissionState: com.google.accompanist.permissions.MultiplePermissionsState,
+    permissionState: MultiplePermissionsState,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(Spacing.large),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            Icons.Default.Check,
+            imageVector = Icons.Default.Info,
             contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary
+            tint = PrimaryPurple,
+            modifier = Modifier.size(64.dp)
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.medium))
         Text(
-            "Bluetooth Permissions Required",
+            "Bluetooth permissions required",
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing.small))
         Text(
-            "This app needs Bluetooth and Location permissions to connect to your Vitruvian machine. " +
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        "Notification permission is needed to keep workouts running in the background."
-                    } else {
-                        ""
-                    },
+            buildString {
+                append("This app needs Bluetooth and Location permissions to connect to your Vitruvian machine.")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    append(" Notification permission is needed to keep workouts running in the background.")
+                }
+            },
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = TextSecondary,
+            textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = { permissionState.launchMultiplePermissionRequest() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Grant Permissions")
+        Spacer(modifier = Modifier.height(Spacing.large))
+        Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
+            Icon(Icons.Default.Check, contentDescription = null)
+            Spacer(modifier = Modifier.width(Spacing.small))
+            Text("Grant permissions")
         }
     }
 }
@@ -229,54 +257,44 @@ fun DeviceSelectorDialog(
         onDismissRequest = onDismiss,
         title = { Text("Select Vitruvian Device") },
         text = {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isScanning) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Scanning...")
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
+            Column(modifier = Modifier.fillMaxWidth()) {
                 if (devices.isEmpty()) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(Spacing.medium),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            if (isScanning) {
-                                "Scanning for Vitruvian devices...\nMake sure your trainer is powered on."
-                            } else {
-                                "No devices found.\nTry scanning again."
-                            },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
+                        if (isScanning) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(Spacing.small))
+                                Text("Scanning...")
+                            }
+                        } else {
+                            Text(
+                                "No devices found. Try scanning again.",
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
-                    ) {
+                }
+
+                if (devices.isNotEmpty()) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                         items(devices) { device ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable { onDeviceSelected(device) }
+                                    .clickable { onDeviceSelected(device) },
+                                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                                shape = RoundedCornerShape(16.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp),
+                                        .padding(Spacing.medium),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -284,17 +302,19 @@ fun DeviceSelectorDialog(
                                         Text(
                                             device.name,
                                             style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
                                         )
                                         Text(
                                             device.address,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = TextSecondary
                                         )
                                     }
                                     Icon(
                                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null
+                                        contentDescription = null,
+                                        tint = PrimaryPurple
                                     )
                                 }
                             }
@@ -306,15 +326,15 @@ fun DeviceSelectorDialog(
         confirmButton = {
             if (!isScanning) {
                 TextButton(onClick = onRescan) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Rescan")
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp), tint = PrimaryPurple)
+                    Spacer(modifier = Modifier.width(Spacing.extraSmall))
+                    Text("Rescan", color = PrimaryPurple)
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = TextSecondary)
             }
         }
     )

@@ -8,7 +8,12 @@
 .externalNativeBuild
 .cxx
 local.properties
-reference/Vitruvian_v2.2.44_APKPure/
-reference/ErrorLog.txt
-/reference/
-/reference/
+/reference
+
+# Claude Code / Quadrumvirate
+.skills
+docs/LAST_SESSION.md
+.claude
+/docs
+/scripts
+/CLAUDE.md
