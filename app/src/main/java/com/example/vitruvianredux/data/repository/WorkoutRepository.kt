@@ -3,8 +3,13 @@ package com.example.vitruvianredux.data.repository
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.WorkoutMetricEntity
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
+import com.example.vitruvianredux.data.local.RoutineEntity
+import com.example.vitruvianredux.data.local.RoutineExerciseEntity
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.domain.model.WorkoutSession
+import com.example.vitruvianredux.domain.model.Routine
+import com.example.vitruvianredux.domain.model.RoutineExercise
+import com.example.vitruvianredux.domain.model.Exercise
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
@@ -133,6 +138,94 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
+    
+    // ========== Routine Operations ==========
+    
+    /**
+     * Save a routine with exercises
+     */
+    suspend fun saveRoutine(routine: Routine): Result<Unit> {
+        return try {
+            val entity = routine.toEntity()
+            val exerciseEntities = routine.exercises.map { it.toEntity(routine.id) }
+            workoutDao.insertRoutineWithExercises(entity, exerciseEntities)
+            Timber.d("Saved routine: ${routine.name}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to save routine")
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Update a routine
+     */
+    suspend fun updateRoutine(routine: Routine): Result<Unit> {
+        return try {
+            val entity = routine.toEntity()
+            val exerciseEntities = routine.exercises.map { it.toEntity(routine.id) }
+            workoutDao.updateRoutineWithExercises(entity, exerciseEntities)
+            Timber.d("Updated routine: ${routine.name}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update routine")
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Get all routines
+     */
+    fun getAllRoutines(): Flow<List<Routine>> {
+        return workoutDao.getAllRoutines().map { entities ->
+            entities.map { entity ->
+                val exercises = workoutDao.getExercisesForRoutineSync(entity.id)
+                entity.toRoutine(exercises)
+            }
+        }
+    }
+    
+    /**
+     * Get a specific routine
+     */
+    suspend fun getRoutine(routineId: String): Routine? {
+        return try {
+            val entity = workoutDao.getRoutineById(routineId) ?: return null
+            val exercises = workoutDao.getExercisesForRoutineSync(routineId)
+            entity.toRoutine(exercises)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get routine")
+            null
+        }
+    }
+    
+    /**
+     * Delete a routine
+     */
+    suspend fun deleteRoutine(routineId: String): Result<Unit> {
+        return try {
+            workoutDao.deleteRoutineComplete(routineId)
+            Timber.d("Deleted routine: $routineId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to delete routine")
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Mark routine as used (updates lastUsed and increments useCount)
+     */
+    suspend fun markRoutineUsed(routineId: String): Result<Unit> {
+        return try {
+            workoutDao.markRoutineUsed(routineId)
+            Timber.d("Marked routine used: $routineId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to mark routine used")
+            Result.failure(e)
+        }
+    }
 }
 
 // Extension functions for mapping between entities and domain models
@@ -158,4 +251,49 @@ private fun WorkoutMetricEntity.toWorkoutMetric() = WorkoutMetric(
     positionA = positionA,
     positionB = positionB,
     ticks = ticks
+)
+
+// Routine mapping extensions
+private fun Routine.toEntity() = RoutineEntity(
+    id = id,
+    name = name,
+    description = description,
+    createdAt = createdAt,
+    lastUsed = lastUsed,
+    useCount = useCount
+)
+
+private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
+    id = id,
+    routineId = routineId,
+    exerciseName = exercise.name,
+    orderIndex = orderIndex,
+    sets = sets,
+    reps = reps,
+    weightPerCableKg = weightPerCableKg,
+    progressionKg = progressionKg,
+    restSeconds = restSeconds,
+    notes = notes
+)
+
+private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity>) = Routine(
+    id = id,
+    name = name,
+    description = description,
+    exercises = exerciseEntities.map { it.toRoutineExercise() },
+    createdAt = createdAt,
+    lastUsed = lastUsed,
+    useCount = useCount
+)
+
+private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
+    id = id,
+    exercise = Exercise.valueOf(exerciseName),
+    orderIndex = orderIndex,
+    sets = sets,
+    reps = reps,
+    weightPerCableKg = weightPerCableKg,
+    progressionKg = progressionKg,
+    restSeconds = restSeconds,
+    notes = notes
 )

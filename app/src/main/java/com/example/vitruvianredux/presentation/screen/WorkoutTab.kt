@@ -26,11 +26,19 @@ fun WorkoutTab(
     workoutParameters: WorkoutParameters,
     repCount: RepCount,
     autoStopState: AutoStopUiState,
+    weightUnit: WeightUnit,
+    isWorkoutSetupDialogVisible: Boolean = false,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
+    formatWeight: (Float, WeightUnit) -> String,
     onScan: () -> Unit,
     onDisconnect: () -> Unit,
     onStartWorkout: () -> Unit,
     onStopWorkout: () -> Unit,
+    onResetForNewWorkout: () -> Unit,
     onUpdateParameters: (WorkoutParameters) -> Unit,
+    onShowWorkoutSetupDialog: () -> Unit = {},
+    onHideWorkoutSetupDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -48,14 +56,117 @@ fun WorkoutTab(
         )
 
         if (connectionState is ConnectionState.Connected) {
-            WorkoutParametersCard(
-                workoutParameters = workoutParameters,
-                workoutState = workoutState,
-                autoStopState = autoStopState,
-                onUpdateParameters = onUpdateParameters,
-                onStartWorkout = onStartWorkout,
-                onStopWorkout = onStopWorkout
-            )
+            // Show setup button when in Idle state, otherwise show workout controls
+            when (workoutState) {
+                is WorkoutState.Idle -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium)
+                        ) {
+                            Text(
+                                "Workout Setup",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.small))
+                            Button(
+                                onClick = onShowWorkoutSetupDialog,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = null)
+                                Spacer(modifier = Modifier.width(Spacing.small))
+                                Text("Setup Workout")
+                            }
+                        }
+                    }
+                }
+                is WorkoutState.Completed -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Success",
+                                tint = PrimaryPurple,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                "Workout Completed!",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = PrimaryPurple,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.small))
+                            Button(
+                                onClick = onResetForNewWorkout,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null)
+                                Spacer(modifier = Modifier.width(Spacing.small))
+                                Text("Start New Workout")
+                            }
+                        }
+                    }
+                }
+                is WorkoutState.Active -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium)
+                        ) {
+                            Text(
+                                "Workout Active",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.small))
+                            
+                            if (autoStopState.isActive) {
+                                JustLiftAutoStopCard(autoStopState = autoStopState)
+                                Spacer(modifier = Modifier.height(Spacing.medium))
+                            }
+                            
+                            Button(
+                                onClick = onStopWorkout,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = null)
+                                Spacer(modifier = Modifier.width(Spacing.small))
+                                Text("Stop Workout")
+                            }
+                        }
+                    }
+                }
+                else -> {}
+            }
 
             if (workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) {
                 if (workoutState is WorkoutState.Countdown) {
@@ -66,10 +177,303 @@ fun WorkoutTab(
             }
 
             if ((workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) && currentMetric != null) {
-                LiveMetricsCard(metric = currentMetric)
+                LiveMetricsCard(
+                    metric = currentMetric,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight
+                )
             }
         }
     }
+
+    // Show the workout setup dialog
+    if (isWorkoutSetupDialogVisible) {
+        WorkoutSetupDialog(
+            workoutParameters = workoutParameters,
+            weightUnit = weightUnit,
+            kgToDisplay = kgToDisplay,
+            displayToKg = displayToKg,
+            onUpdateParameters = onUpdateParameters,
+            onStartWorkout = {
+                onStartWorkout()
+                onHideWorkoutSetupDialog()
+            },
+            onDismiss = onHideWorkoutSetupDialog
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WorkoutSetupDialog(
+    workoutParameters: WorkoutParameters,
+    weightUnit: WeightUnit,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
+    onUpdateParameters: (WorkoutParameters) -> Unit,
+    onStartWorkout: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceDarkGrey,
+        shape = RoundedCornerShape(16.dp),
+        title = {
+            Text(
+                "Workout Setup",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                var showModeMenu by remember { mutableStateOf(false) }
+                var showEchoLevelDialog by remember { mutableStateOf(false) }
+
+                val modeLabel = if (workoutParameters.isJustLift) "Base Mode (resistance profile)" else "Workout Mode"
+                ExposedDropdownMenuBox(
+                    expanded = showModeMenu,
+                    onExpandedChange = { showModeMenu = !showModeMenu }
+                ) {
+                    OutlinedTextField(
+                        value = workoutParameters.mode.displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(modeLabel) },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeMenu)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = CardBackground,
+                            focusedContainerColor = CardBackground,
+                            unfocusedBorderColor = TextTertiary,
+                            focusedBorderColor = PrimaryPurple,
+                            unfocusedLabelColor = TextSecondary,
+                            focusedLabelColor = PrimaryPurple,
+                            unfocusedTextColor = TextPrimary,
+                            focusedTextColor = TextPrimary
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = showModeMenu,
+                        onDismissRequest = { showModeMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Old School") },
+                            onClick = {
+                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.OldSchool))
+                                showModeMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Pump") },
+                            onClick = {
+                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Pump))
+                                showModeMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("TUT") },
+                            onClick = {
+                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUT))
+                                showModeMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("TUT Beast") },
+                            onClick = {
+                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUTBeast))
+                                showModeMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Eccentric Only") },
+                            onClick = {
+                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
+                                showModeMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Echo Mode")
+                                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+                                }
+                            },
+                            onClick = {
+                                showModeMenu = false
+                                showEchoLevelDialog = true
+                            }
+                        )
+                    }
+                }
+
+                if (showEchoLevelDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showEchoLevelDialog = false },
+                        title = { Text("Select Echo Level") },
+                        containerColor = SurfaceDarkGrey,
+                        shape = RoundedCornerShape(16.dp),
+                        text = {
+                            Column {
+                                Text(
+                                    "Echo adapts to your output. Select a level:",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(modifier = Modifier.height(Spacing.medium))
+                                listOf(
+                                    EchoLevel.LEVEL_1 to "Level 1 - Beginner (75% eccentric)",
+                                    EchoLevel.LEVEL_2 to "Level 2 - Intermediate",
+                                    EchoLevel.LEVEL_3 to "Level 3 - Advanced",
+                                    EchoLevel.LEVEL_4 to "Level 4 - Expert"
+                                ).forEach { (level, label) ->
+                                    OutlinedButton(
+                                        onClick = {
+                                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
+                                            showEchoLevelDialog = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = PrimaryPurple
+                                        ),
+                                        border = BorderStroke(1.dp, PrimaryPurple)
+                                    ) {
+                                        Text(label)
+                                    }
+                                    Spacer(modifier = Modifier.height(Spacing.small))
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showEchoLevelDialog = false }) {
+                                Text("Cancel", color = TextSecondary)
+                            }
+                        }
+                    )
+                }
+
+                var weightText by remember(workoutParameters.weightPerCableKg, weightUnit) {
+                    mutableStateOf(kgToDisplay(workoutParameters.weightPerCableKg, weightUnit).toString())
+                }
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = {
+                        weightText = it
+                        it.toFloatOrNull()?.let { displayWeight ->
+                            val kg = displayToKg(displayWeight, weightUnit)
+                            onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
+                        }
+                    },
+                    label = { Text("Weight per cable (${weightUnit.name.lowercase()})") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = CardBackground,
+                        focusedContainerColor = CardBackground,
+                        unfocusedBorderColor = TextTertiary,
+                        focusedBorderColor = PrimaryPurple,
+                        unfocusedLabelColor = TextSecondary,
+                        focusedLabelColor = PrimaryPurple,
+                        unfocusedTextColor = TextPrimary,
+                        focusedTextColor = TextPrimary
+                    )
+                )
+
+                var repsText by remember(workoutParameters) {
+                    mutableStateOf(workoutParameters.reps.toString())
+                }
+                OutlinedTextField(
+                    value = repsText,
+                    onValueChange = {
+                        repsText = it
+                        it.toIntOrNull()?.let { reps ->
+                            onUpdateParameters(workoutParameters.copy(reps = reps))
+                        }
+                    },
+                    label = { Text("Target reps") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !workoutParameters.isJustLift,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = CardBackground,
+                        focusedContainerColor = CardBackground,
+                        unfocusedBorderColor = TextTertiary,
+                        focusedBorderColor = PrimaryPurple,
+                        unfocusedLabelColor = TextSecondary,
+                        focusedLabelColor = PrimaryPurple,
+                        unfocusedTextColor = TextPrimary,
+                        focusedTextColor = TextPrimary
+                    )
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Just Lift", color = TextPrimary)
+                    Switch(
+                        checked = workoutParameters.isJustLift,
+                        onCheckedChange = { checked ->
+                            onUpdateParameters(workoutParameters.copy(isJustLift = checked))
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = PrimaryPurple,
+                            checkedTrackColor = SecondaryPurple,
+                            uncheckedThumbColor = TextTertiary,
+                            uncheckedTrackColor = CardBackground
+                        )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Stop at top of final rep", color = TextPrimary)
+                    Switch(
+                        checked = workoutParameters.stopAtTop,
+                        onCheckedChange = { checked ->
+                            onUpdateParameters(workoutParameters.copy(stopAtTop = checked))
+                        },
+                        enabled = !workoutParameters.isJustLift,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = PrimaryPurple,
+                            checkedTrackColor = SecondaryPurple,
+                            uncheckedThumbColor = TextTertiary,
+                            uncheckedTrackColor = CardBackground
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onStartWorkout,
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(modifier = Modifier.width(Spacing.small))
+                Text("Start Workout")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextSecondary)
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -187,9 +591,13 @@ fun WorkoutParametersCard(
     workoutParameters: WorkoutParameters,
     workoutState: WorkoutState,
     autoStopState: AutoStopUiState,
+    weightUnit: WeightUnit,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
     onUpdateParameters: (WorkoutParameters) -> Unit,
     onStartWorkout: () -> Unit,
-    onStopWorkout: () -> Unit
+    onStopWorkout: () -> Unit,
+    onResetForNewWorkout: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -343,18 +751,19 @@ fun WorkoutParametersCard(
                 )
             }
 
-            var weightText by remember(workoutParameters) {
-                mutableStateOf(workoutParameters.weightPerCableKg.toString())
+            var weightText by remember(workoutParameters.weightPerCableKg, weightUnit) {
+                mutableStateOf(kgToDisplay(workoutParameters.weightPerCableKg, weightUnit).toString())
             }
             OutlinedTextField(
                 value = weightText,
                 onValueChange = {
                     weightText = it
-                    it.toFloatOrNull()?.let { weight ->
-                        onUpdateParameters(workoutParameters.copy(weightPerCableKg = weight))
+                    it.toFloatOrNull()?.let { displayWeight ->
+                        val kg = displayToKg(displayWeight, weightUnit)
+                        onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
                     }
                 },
-                label = { Text("Weight per cable (kg)") },
+                label = { Text("Weight per cable (${weightUnit.name.lowercase()})") },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = workoutState is WorkoutState.Idle,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -486,11 +895,34 @@ fun WorkoutParametersCard(
                     }
                 }
                 is WorkoutState.Completed -> {
-                    Text(
-                        "Workout completed!",
-                        color = PrimaryPurple,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                    ) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = "Success",
+                            tint = PrimaryPurple,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            "Workout Completed!",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = PrimaryPurple,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        Button(
+                            onClick = onResetForNewWorkout,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text("Start New Workout")
+                        }
+                    }
                 }
                 is WorkoutState.Error -> {
                     Text(
@@ -616,7 +1048,11 @@ fun RepCounterCard(repCount: RepCount) {
 }
 
 @Composable
-fun LiveMetricsCard(metric: WorkoutMetric) {
+fun LiveMetricsCard(
+    metric: WorkoutMetric,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -638,7 +1074,7 @@ fun LiveMetricsCard(metric: WorkoutMetric) {
 
             // Total load (prominent)
             Text(
-                "%.1f kg".format(metric.totalLoad),
+                formatWeight(metric.totalLoad, weightUnit),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryPurple
@@ -654,7 +1090,7 @@ fun LiveMetricsCard(metric: WorkoutMetric) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        "%.1f kg".format(metric.loadA),
+                        formatWeight(metric.loadA, weightUnit),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -668,7 +1104,7 @@ fun LiveMetricsCard(metric: WorkoutMetric) {
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        "%.1f kg".format(metric.loadB),
+                        formatWeight(metric.loadB, weightUnit),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
