@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Cable Configuration System (2025-01-28)
+
+**Complete Cable Tracking Support:**
+
+**New Enum:**
+- `CableConfiguration`: SINGLE, DOUBLE, EITHER - tracks how cables are used per exercise
+- Machine tracks both cables independently (loadA, loadB from BLE protocol)
+- Weight is always specified "per cable" matching trainer terminology
+
+**Exercise List Updates (37 exercises, 9 categories):**
+- Removed incompatible exercises: Lat Pulldown, Ab Pulldown, Tricep Pushdown (require overhead anchor)
+- Reorganized categories: Chest (4), Back (5), Shoulders (4), Biceps (4), Triceps (2), Legs (7), Glutes (3), Core (3), Full Body (1)
+- Each exercise has `defaultCableConfig` property
+- Added 20+ new compatible exercises including Hamstring Curl (from trainer)
+
+**Cable Configuration by Exercise Type:**
+- DOUBLE only: Bench Press, Squats, Deadlifts, Hip Thrusts, etc. (bilateral movements)
+- SINGLE only: Concentration Curl, Hamstring Curl, Pallof Press, Wood Chop (unilateral movements)
+- EITHER: Bicep Curl, Hammer Curl, Shoulder Press, Rows (user can choose single or double)
+
+**Database Changes:**
+- Added `cableConfig` column to `routine_exercises` table (stores SINGLE/DOUBLE as String)
+- Migration 2→3: ALTER TABLE with default value 'DOUBLE' for backwards compatibility
+- Updated RoutineExercise model with cable configuration field
+
+**Repository Updates:**
+- Mapping functions convert CableConfiguration enum ↔ String for database storage
+- Cable config properly persisted and retrieved with routines
+
+**Key Design Decisions:**
+- Cable configuration is per exercise, not per set (no mid-exercise switching)
+- Weight display uses "per cable" terminology (not "total weight")
+- Single cable: one cable shows active load, other shows ~0kg
+- Double cable: both cables show active loads (e.g., 20kg per cable = 40kg total)
+
+**Build Status:** ✅ SUCCESSFUL
+
 ### Added - Feature 4 Phase 3: Routine Creation Dialog (2025-01-29)
 
 **Complete Routine Builder Implementation:**
