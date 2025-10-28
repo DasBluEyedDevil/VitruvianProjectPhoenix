@@ -1,6 +1,8 @@
 package com.example.vitruvianredux.data.local
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -35,4 +37,48 @@ data class WorkoutMetricEntity(
     val positionA: Int,
     val positionB: Int,
     val ticks: Int
+)
+
+/**
+ * Room entity for workout routines
+ */
+@Entity(tableName = "routines")
+data class RoutineEntity(
+    @PrimaryKey
+    val id: String,
+    val name: String,
+    val description: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+    val lastUsed: Long? = null,
+    val useCount: Int = 0
+)
+
+/**
+ * Room entity for exercises within a routine
+ */
+@Entity(
+    tableName = "routine_exercises",
+    foreignKeys = [
+        ForeignKey(
+            entity = RoutineEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["routineId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("routineId")]
+)
+data class RoutineExerciseEntity(
+    @PrimaryKey
+    val id: String,
+    val routineId: String,
+    val exerciseName: String,
+    val cableConfig: String, // "SINGLE" or "DOUBLE" (never "EITHER" in storage)
+    val orderIndex: Int,
+    val sets: Int,
+    val reps: Int,
+    val weightPerCableKg: Float,
+    val progressionKg: Float = 0f,
+    val restSeconds: Int = 60,
+    val notes: String = ""
 )

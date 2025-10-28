@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
 import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
@@ -21,6 +22,8 @@ import java.util.*
 @Composable
 fun HistoryTab(
     workoutHistory: List<WorkoutSession>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
     onDeleteWorkout: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -64,6 +67,8 @@ fun HistoryTab(
                 items(workoutHistory) { session ->
                     WorkoutHistoryCard(
                         session = session,
+                        weightUnit = weightUnit,
+                        formatWeight = formatWeight,
                         onDelete = { onDeleteWorkout(session.id) }
                     )
                 }
@@ -76,6 +81,8 @@ fun HistoryTab(
 @Composable
 fun WorkoutHistoryCard(
     session: WorkoutSession,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -126,7 +133,7 @@ fun WorkoutHistoryCard(
                 )
                 MetricItem(
                     label = "Weight",
-                    value = "%.1f kg".format(session.weightPerCableKg)
+                    value = formatWeight(session.weightPerCableKg, weightUnit)
                 )
                 MetricItem(
                     label = "Total Reps",
@@ -181,6 +188,8 @@ fun MetricItem(label: String, value: String) {
 
 @Composable
 fun SettingsTab(
+    weightUnit: WeightUnit,
+    onWeightUnitChange: (WeightUnit) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
     modifier: Modifier = Modifier
@@ -199,6 +208,58 @@ fun SettingsTab(
             fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
+
+        // Weight Unit Section
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+                Text(
+                    "Weight Unit",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    FilterChip(
+                        selected = weightUnit == WeightUnit.KG,
+                        onClick = { onWeightUnitChange(WeightUnit.KG) },
+                        label = { Text("kg") },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryPurple,
+                            selectedLabelColor = TextPrimary,
+                            containerColor = SurfaceDarkGrey,
+                            labelColor = TextSecondary
+                        )
+                    )
+                    FilterChip(
+                        selected = weightUnit == WeightUnit.LB,
+                        onClick = { onWeightUnitChange(WeightUnit.LB) },
+                        label = { Text("lb") },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = PrimaryPurple,
+                            selectedLabelColor = TextPrimary,
+                            containerColor = SurfaceDarkGrey,
+                            labelColor = TextSecondary
+                        )
+                    )
+                }
+            }
+        }
 
         // Color Scheme Section
         Card(
