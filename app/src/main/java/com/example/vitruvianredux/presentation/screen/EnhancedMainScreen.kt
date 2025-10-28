@@ -41,6 +41,9 @@ fun EnhancedMainScreen(
     val autoStopState by viewModel.autoStopState.collectAsState()
     val scannedDevices by viewModel.scannedDevices.collectAsState()
     val workoutHistory by viewModel.workoutHistory.collectAsState()
+    val weightUnit by viewModel.weightUnit.collectAsState()
+    val isWorkoutSetupDialogVisible by viewModel.isWorkoutSetupDialogVisible.collectAsState()
+    val routines by viewModel.routines.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
     var showDeviceSelector by remember { mutableStateOf(false) }
@@ -127,10 +130,23 @@ fun EnhancedMainScreen(
                     )
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Settings") },
+                    icon = { Icon(Icons.Default.FavoriteBorder, contentDescription = null) },
+                    label = { Text("Routines") },
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = PrimaryPurple,
+                        selectedTextColor = PrimaryPurple,
+                        unselectedIconColor = TextTertiary,
+                        unselectedTextColor = TextTertiary,
+                        indicatorColor = CardBackground
+                    )
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings") },
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = PrimaryPurple,
                         selectedTextColor = PrimaryPurple,
@@ -156,6 +172,11 @@ fun EnhancedMainScreen(
                     workoutParameters = workoutParameters,
                     repCount = repCount,
                     autoStopState = autoStopState,
+                    weightUnit = weightUnit,
+                    isWorkoutSetupDialogVisible = isWorkoutSetupDialogVisible,
+                    kgToDisplay = viewModel::kgToDisplay,
+                    displayToKg = viewModel::displayToKg,
+                    formatWeight = viewModel::formatWeight,
                     onScan = {
                         viewModel.startScanning()
                         showDeviceSelector = true
@@ -163,15 +184,30 @@ fun EnhancedMainScreen(
                     onDisconnect = { viewModel.disconnect() },
                     onStartWorkout = { viewModel.startWorkout() },
                     onStopWorkout = { viewModel.stopWorkout() },
+                    onResetForNewWorkout = { viewModel.resetForNewWorkout() },
                     onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
+                    onShowWorkoutSetupDialog = { viewModel.showWorkoutSetupDialog() },
+                    onHideWorkoutSetupDialog = { viewModel.hideWorkoutSetupDialog() },
                     modifier = Modifier.padding(padding)
                 )
                 1 -> HistoryTab(
                     workoutHistory = workoutHistory,
+                    weightUnit = weightUnit,
+                    formatWeight = viewModel::formatWeight,
                     onDeleteWorkout = { viewModel.deleteWorkout(it) },
                     modifier = Modifier.padding(padding)
                 )
-                2 -> SettingsTab(
+                2 -> RoutinesTab(
+                    routines = routines,
+                    onLoadRoutine = { routine -> viewModel.loadRoutine(routine) },
+                    onDeleteRoutine = { routineId -> viewModel.deleteRoutine(routineId) },
+                    onCreateRoutine = { /* Handled in RoutinesTab */ },
+                    onSaveRoutine = { routine -> viewModel.saveRoutine(routine) },
+                    modifier = Modifier.padding(padding)
+                )
+                3 -> SettingsTab(
+                    weightUnit = weightUnit,
+                    onWeightUnitChange = { viewModel.setWeightUnit(it) },
                     onColorSchemeChange = { viewModel.setColorScheme(it) },
                     onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                     modifier = Modifier.padding(padding)

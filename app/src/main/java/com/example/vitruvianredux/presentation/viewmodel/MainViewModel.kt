@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
@@ -12,8 +13,11 @@ import com.example.vitruvianredux.service.WorkoutForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -24,7 +28,8 @@ class MainViewModel @Inject constructor(
     application: Application,
     private val bleRepository: BleRepository,
     private val workoutRepository: WorkoutRepository,
-    private val repCounter: RepCounterFromMachine
+    private val repCounter: RepCounterFromMachine,
+    private val preferencesManager: PreferencesManager
 ) : AndroidViewModel(application) {
 
     // Use application context directly instead of storing it
@@ -62,6 +67,25 @@ class MainViewModel @Inject constructor(
 
     private val _workoutHistory = MutableStateFlow<List<WorkoutSession>>(emptyList())
     val workoutHistory: StateFlow<List<WorkoutSession>> = _workoutHistory.asStateFlow()
+
+    // User preferences - Weight unit
+    val weightUnit: StateFlow<WeightUnit> = preferencesManager.preferencesFlow
+        .map { it.weightUnit }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
+
+    // Feature 4: Routine Management
+    private val _routines = MutableStateFlow<List<Routine>>(emptyList())
+    val routines: StateFlow<List<Routine>> = _routines.asStateFlow()
+
+    private val _loadedRoutine = MutableStateFlow<Routine?>(null)
+    val loadedRoutine: StateFlow<Routine?> = _loadedRoutine.asStateFlow()
+
+    private val _currentExerciseIndex = MutableStateFlow(0)
+    val currentExerciseIndex: StateFlow<Int> = _currentExerciseIndex.asStateFlow()
+
+    // Feature 1: Dialog state for workout setup
+    private val _isWorkoutSetupDialogVisible = MutableStateFlow(false)
+    val isWorkoutSetupDialogVisible: StateFlow<Boolean> = _isWorkoutSetupDialogVisible.asStateFlow()
 
     // Current workout tracking
     private var currentSessionId: String? = null
@@ -105,6 +129,13 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             workoutRepository.getRecentSessions(20).collect { sessions ->
                 _workoutHistory.value = sessions
+            }
+        }
+
+        // Load routines
+        viewModelScope.launch {
+            workoutRepository.getAllRoutines().collect { routinesList ->
+                _routines.value = routinesList
             }
         }
 
@@ -410,6 +441,207 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             workoutRepository.deleteAllWorkouts()
         }
+    }
+
+    // Feature 2: Weight Unit Management
+    fun setWeightUnit(unit: WeightUnit) {
+        viewModelScope.launch {
+            preferencesManager.setWeightUnit(unit)
+        }
+    }
+
+    /**
+     * Convert weight from KG to display unit
+     */
+    fun kgToDisplay(kg: Float, unit: WeightUnit): Float =
+        if (unit == WeightUnit.LB) kg * 2.20462f else kg
+
+    /**
+     * Convert weight from display unit to KG
+     */
+    fun displayToKg(display: Float, unit: WeightUnit): Float =
+        if (unit == WeightUnit.LB) display / 2.20462f else display
+
+    /**
+     * Format weight for display with unit suffix
+     */
+    fun formatWeight(kg: Float, unit: WeightUnit): String {
+        val displayValue = kgToDisplay(kg, unit)
+        return "%.1f %s".format(displayValue, unit.name.lowercase())
+    }
+
+    // Feature 3: Reset for New Workout
+    /**
+     * Reset the workout state to Idle to allow starting a new workout
+     * without disconnecting from the device
+     */
+    fun resetForNewWorkout() {
+        _workoutState.value = WorkoutState.Idle
+        _repCount.value = RepCount()
+        resetAutoStopState()
+        Timber.d("Reset for new workout - state returned to Idle")
+    }
+
+    // Feature 1: Dialog Management
+    /**
+     * Show the workout setup dialog
+     */
+    fun showWorkoutSetupDialog() {
+        _isWorkoutSetupDialogVisible.value = true
+    }
+
+    /**
+     * Hide the workout setup dialog
+     */
+    fun hideWorkoutSetupDialog() {
+        _isWorkoutSetupDialogVisible.value = false
+    }
+
+    // Feature 4: Routine Management Methods
+
+    /**
+     * Save a new routine or update an existing one
+     */
+    fun saveRoutine(routine: Routine) {
+        viewModelScope.launch {
+            val result = workoutRepository.saveRoutine(routine)
+            if (result.isSuccess) {
+                Timber.d("Routine saved: ${routine.name}")
+            } else {
+                Timber.e("Failed to save routine: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    /**
+     * Update an existing routine
+     */
+    fun updateRoutine(routine: Routine) {
+        viewModelScope.launch {
+            val result = workoutRepository.updateRoutine(routine)
+            if (result.isSuccess) {
+                Timber.d("Routine updated: ${routine.name}")
+            } else {
+                Timber.e("Failed to update routine: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    /**
+     * Delete a routine
+     */
+    fun deleteRoutine(routineId: String) {
+        viewModelScope.launch {
+            val result = workoutRepository.deleteRoutine(routineId)
+            if (result.isSuccess) {
+                Timber.d("Routine deleted: $routineId")
+            } else {
+                Timber.e("Failed to delete routine: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    /**
+     * Load a routine for workout - sets parameters from first exercise
+     */
+    fun loadRoutine(routine: Routine) {
+        if (routine.exercises.isEmpty()) {
+            Timber.w("Cannot load routine with no exercises")
+            return
+        }
+
+        _loadedRoutine.value = routine
+        _currentExerciseIndex.value = 0
+
+        // Load parameters from first exercise
+        val firstExercise = routine.exercises[0]
+        updateWorkoutParameters(
+            WorkoutParameters(
+                mode = _workoutParameters.value.mode, // Keep current mode
+                reps = firstExercise.reps,
+                weightPerCableKg = firstExercise.weightPerCableKg,
+                progressionKg = firstExercise.progressionKg,
+                isJustLift = _workoutParameters.value.isJustLift,
+                stopAtTop = _workoutParameters.value.stopAtTop,
+                warmupReps = _workoutParameters.value.warmupReps
+            )
+        )
+
+        // Mark routine as used
+        viewModelScope.launch {
+            workoutRepository.markRoutineUsed(routine.id)
+        }
+
+        Timber.d("Loaded routine: ${routine.name}, exercise 1/${routine.exercises.size}: ${firstExercise.exercise.displayName}")
+    }
+
+    /**
+     * Move to next exercise in loaded routine
+     */
+    fun nextExercise() {
+        val routine = _loadedRoutine.value ?: return
+        val currentIndex = _currentExerciseIndex.value
+
+        if (currentIndex < routine.exercises.size - 1) {
+            val nextIndex = currentIndex + 1
+            _currentExerciseIndex.value = nextIndex
+
+            val nextExercise = routine.exercises[nextIndex]
+            updateWorkoutParameters(
+                _workoutParameters.value.copy(
+                    reps = nextExercise.reps,
+                    weightPerCableKg = nextExercise.weightPerCableKg,
+                    progressionKg = nextExercise.progressionKg
+                )
+            )
+
+            Timber.d("Moved to exercise ${nextIndex + 1}/${routine.exercises.size}: ${nextExercise.exercise.displayName}")
+        } else {
+            Timber.d("Last exercise in routine completed")
+            clearLoadedRoutine()
+        }
+    }
+
+    /**
+     * Move to previous exercise in loaded routine
+     */
+    fun previousExercise() {
+        val routine = _loadedRoutine.value ?: return
+        val currentIndex = _currentExerciseIndex.value
+
+        if (currentIndex > 0) {
+            val prevIndex = currentIndex - 1
+            _currentExerciseIndex.value = prevIndex
+
+            val prevExercise = routine.exercises[prevIndex]
+            updateWorkoutParameters(
+                _workoutParameters.value.copy(
+                    reps = prevExercise.reps,
+                    weightPerCableKg = prevExercise.weightPerCableKg,
+                    progressionKg = prevExercise.progressionKg
+                )
+            )
+
+            Timber.d("Moved to exercise ${prevIndex + 1}/${routine.exercises.size}: ${prevExercise.exercise.displayName}")
+        }
+    }
+
+    /**
+     * Clear loaded routine
+     */
+    fun clearLoadedRoutine() {
+        _loadedRoutine.value = null
+        _currentExerciseIndex.value = 0
+        Timber.d("Cleared loaded routine")
+    }
+
+    /**
+     * Get current exercise from loaded routine
+     */
+    fun getCurrentExercise(): RoutineExercise? {
+        val routine = _loadedRoutine.value ?: return null
+        val index = _currentExerciseIndex.value
+        return routine.exercises.getOrNull(index)
     }
 
     companion object {
