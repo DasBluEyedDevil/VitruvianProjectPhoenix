@@ -10,6 +10,7 @@ import com.example.vitruvianredux.domain.model.WorkoutSession
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.RoutineExercise
 import com.example.vitruvianredux.domain.model.Exercise
+import com.example.vitruvianredux.domain.model.CableConfiguration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
@@ -267,6 +268,7 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     id = id,
     routineId = routineId,
     exerciseName = exercise.name,
+    cableConfig = cableConfig.name, // Convert enum to String
     orderIndex = orderIndex,
     sets = sets,
     reps = reps,
@@ -289,6 +291,7 @@ private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity
 private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
     id = id,
     exercise = Exercise.valueOf(exerciseName),
+    cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
     orderIndex = orderIndex,
     sets = sets,
     reps = reps,

@@ -73,6 +73,7 @@ data class RoutineExerciseEntity(
     val id: String,
     val routineId: String,
     val exerciseName: String,
+    val cableConfig: String, // "SINGLE" or "DOUBLE" (never "EITHER" in storage)
     val orderIndex: Int,
     val sets: Int,
     val reps: Int,

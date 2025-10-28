@@ -38,7 +38,7 @@ object AppModule {
                     useCount INTEGER NOT NULL DEFAULT 0
                 )
             """.trimIndent())
-            
+
             // Create routine_exercises table with foreign key
             database.execSQL("""
                 CREATE TABLE IF NOT EXISTS routine_exercises (
@@ -55,11 +55,24 @@ object AppModule {
                     FOREIGN KEY(routineId) REFERENCES routines(id) ON DELETE CASCADE
                 )
             """.trimIndent())
-            
+
             // Create index on routineId for performance
             database.execSQL("""
-                CREATE INDEX IF NOT EXISTS index_routine_exercises_routineId 
+                CREATE INDEX IF NOT EXISTS index_routine_exercises_routineId
                 ON routine_exercises(routineId)
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 2 to 3: Add cable configuration to exercises
+     */
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add cableConfig column with default value "DOUBLE" for existing rows
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN cableConfig TEXT NOT NULL DEFAULT 'DOUBLE'
             """.trimIndent())
         }
     }
@@ -82,7 +95,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
         .build()
     }
 
