@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VitruvianRedux" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Android 12+ system splash screen configuration -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <!-- Also keep a non-black window background as a fallback -->
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+</resources>

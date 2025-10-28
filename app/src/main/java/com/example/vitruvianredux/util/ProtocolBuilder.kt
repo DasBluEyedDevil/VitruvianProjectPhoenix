@@ -306,6 +306,28 @@ object ProtocolBuilder {
         }
     }
 
+    /**
+     * Build the START command (4 bytes)
+     */
+    fun buildStartCommand(): ByteArray {
+        return byteArrayOf(0x03, 0x00, 0x00, 0x00)
+    }
+
+    /**
+     * Build the STOP command (4 bytes)
+     */
+    fun buildStopCommand(): ByteArray {
+        return byteArrayOf(0x05, 0x00, 0x00, 0x00)
+    }
+
+    /**
+     * Build a color scheme command using predefined schemes
+     */
+    fun buildColorSchemeCommand(schemeIndex: Int): ByteArray {
+        val schemes = ColorSchemes.ALL
+        val scheme = schemes.getOrElse(schemeIndex) { schemes[0] }
+        return buildColorScheme(scheme.brightness, scheme.colors)
+    }
 
 }
 
