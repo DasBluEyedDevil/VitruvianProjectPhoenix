@@ -58,7 +58,11 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
     )
     val monitorData: SharedFlow<WorkoutMetric> = _monitorData.asSharedFlow()
 
-    private val _repEvents = MutableSharedFlow<RepNotification>(replay = 0)
+    private val _repEvents = MutableSharedFlow<RepNotification>(
+        replay = 0,
+        extraBufferCapacity = 64,  // Buffer for rep notifications
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val repEvents: SharedFlow<RepNotification> = _repEvents.asSharedFlow()
 
     private val _statusMessages = MutableSharedFlow<String>(replay = 1)
@@ -83,6 +87,16 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
 
         @Deprecated("Using deprecated Nordic BLE API")
         override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
+            // Log all available services and characteristics for debugging
+            Timber.d("=== Discovering BLE Services ===")
+            gatt.services.forEach { service ->
+                Timber.d("Service: ${service.uuid}")
+                service.characteristics.forEach { char ->
+                    Timber.d("  - Characteristic: ${char.uuid} (props: ${char.properties})")
+                }
+            }
+            Timber.d("=== End Service Discovery ===")
+
             // Get the NUS service
             val nusService = gatt.getService(BleConstants.NUS_SERVICE_UUID)
             if (nusService == null) {
@@ -95,8 +109,21 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
             monitorCharacteristic = nusService.getCharacteristic(BleConstants.MONITOR_CHAR_UUID)
             propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
-            
-            Timber.d("Found characteristics: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+
+            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+
+            // If rep notify not in NUS service, search all services
+            if (repNotifyCharacteristic == null) {
+                Timber.w("Rep notify characteristic not found in NUS service, searching all services...")
+                gatt.services.forEach { service ->
+                    val found = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
+                    if (found != null) {
+                        repNotifyCharacteristic = found
+                        Timber.d("Found rep notify characteristic in service: ${service.uuid}")
+                        return@forEach
+                    }
+                }
+            }
 
             if (nusRxCharacteristic == null) {
                 Timber.e("NUS RX characteristic not found")
@@ -106,6 +133,11 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
             if (monitorCharacteristic == null) {
                 Timber.e("Monitor characteristic not found")
                 return false
+            }
+
+            // Rep notify is optional - warn but don't fail
+            if (repNotifyCharacteristic == null) {
+                Timber.w("⚠️ Rep notify characteristic not found - rep counting may not work!")
             }
 
             return true
@@ -138,20 +170,21 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
             // Enable notifications on rep notify characteristic
             repNotifyCharacteristic?.let { characteristic ->
                 Timber.d("Enabling rep notifications on characteristic ${characteristic.uuid}")
+                // CRITICAL: Set callback FIRST, then enable notifications
                 setNotificationCallback(characteristic).with { _, data ->
-                    Timber.d("REP NOTIFICATION CALLBACK FIRED!")
+                    Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
                     handleRepNotification(data)
                 }
                 enableNotifications(characteristic)
                     .done { device ->
-                        Timber.d("Rep notifications enabled successfully")
+                        Timber.d("✅ Rep notifications enabled successfully on ${characteristic.uuid}")
                     }
                     .fail { device, status ->
-                        Timber.e("Failed to enable rep notifications: status=$status")
+                        Timber.e("❌ Failed to enable rep notifications: status=$status")
                     }
                     .enqueue()
             } ?: run {
-                Timber.e("Rep notify characteristic is NULL - notifications will not work!")
+                Timber.e("❌ Rep notify characteristic is NULL - notifications will not work!")
             }
 
             _connectionState.value = ConnectionStatus.Ready
@@ -346,7 +379,8 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
                 rawData = bytes,
                 timestamp = System.currentTimeMillis()
             )
-            _repEvents.tryEmit(repData)
+            val emitted = _repEvents.tryEmit(repData)
+            Timber.d("🔥 Emitted rep event: success=$emitted, subscribers=${_repEvents.subscriptionCount.value}")
         } catch (e: Exception) {
             Timber.e(e, "Error parsing rep notification")
         }

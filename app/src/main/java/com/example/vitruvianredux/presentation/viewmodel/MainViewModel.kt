@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
-import com.example.vitruvianredux.domain.usecase.RepDetectionEngine
+import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import com.example.vitruvianredux.service.WorkoutForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -17,13 +17,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
+import kotlin.math.ceil
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     application: Application,
     private val bleRepository: BleRepository,
     private val workoutRepository: WorkoutRepository,
-    private val repDetectionEngine: RepDetectionEngine
+    private val repCounter: RepCounterFromMachine
 ) : AndroidViewModel(application) {
 
     // Use application context directly instead of storing it
@@ -53,6 +54,9 @@ class MainViewModel @Inject constructor(
     private val _repCount = MutableStateFlow(RepCount())
     val repCount: StateFlow<RepCount> = _repCount.asStateFlow()
 
+    private val _autoStopState = MutableStateFlow(AutoStopUiState())
+    val autoStopState: StateFlow<AutoStopUiState> = _autoStopState.asStateFlow()
+
     private val _scannedDevices = MutableStateFlow<List<ScannedDevice>>(emptyList())
     val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevices.asStateFlow()
 
@@ -63,35 +67,32 @@ class MainViewModel @Inject constructor(
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
     private val collectedMetrics = mutableListOf<WorkoutMetric>()
-    
-    // Rep notification tracking (like web app)
-    private var lastTopCounter: Int? = null
-    private var lastRepCounter: Int? = null
+
+    // Auto-stop tracking for Just Lift
+    private var autoStopStartTime: Long? = null
+    private var autoStopTriggered = false
+    private var autoStopStopRequested = false
 
     init {
         Timber.d("MainViewModel initialized")
-        
+
         // Collect monitor data (for position/load display only)
         viewModelScope.launch {
             Timber.d("Starting to collect monitor data...")
             bleRepository.monitorData.collect { metric ->
                 Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
                 _currentMetric.value = metric
-                
-                // Collect metrics for history if workout active
-                if (_workoutState.value is WorkoutState.Active) {
-                    collectMetricForHistory(metric)
-                }
+                handleMonitorMetric(metric)
             }
         }
-        
+
         // Collect rep notifications from machine (the CORRECT way to count reps!)
         viewModelScope.launch {
             Timber.d("Starting to collect rep notifications...")
             bleRepository.repEvents.collect { repNotification ->
                 val state = _workoutState.value
                 Timber.d("Rep notification received: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}, state=$state")
-                
+
                 if (state is WorkoutState.Active) {
                     handleRepNotification(repNotification)
                 } else {
@@ -111,7 +112,6 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             bleRepository.scannedDevices.collect { scanResult ->
                 Timber.d("ViewModel received scan result: ${scanResult.device.address}")
-                // Add to list if not already present
                 val currentDevices = _scannedDevices.value.toMutableList()
                 val existingDevice = currentDevices.find { it.address == scanResult.device.address }
                 if (existingDevice == null) {
@@ -130,103 +130,102 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Handle rep notifications from the machine (like web app does)
-     * This is the CORRECT way to count reps - use the machine's own counters!
-     */
-    private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
-        val topCounter = notification.topCounter
-        val completeCounter = notification.completeCounter
-        
-        Timber.d("╔══════════════════════════════════════════════════════════════")
-        Timber.d("║ REP NOTIFICATION")
-        Timber.d("║ Top Counter: $topCounter | Complete Counter: $completeCounter")
-        Timber.d("║ Last Top: $lastTopCounter | Last Complete: $lastRepCounter")
-        Timber.d("║ Current Counts: Warmup=${_repCount.value.warmupReps}/${_workoutParameters.value.warmupReps}, Working=${_repCount.value.workingReps}/${_workoutParameters.value.reps}")
-        Timber.d("╚══════════════════════════════════════════════════════════════")
-        
-        // Track top of range (reaching extension)
-        if (lastTopCounter == null) {
-            lastTopCounter = topCounter
-            Timber.d("→ Initialized lastTopCounter to $topCounter")
-        } else {
-            val topDelta = calculateCounterDelta(lastTopCounter!!, topCounter)
-            Timber.d("→ Top delta: $topDelta (from $lastTopCounter to $topCounter)")
-            if (topDelta > 0) {
-                Timber.d("✓ TOP DETECTED! Counter: $lastTopCounter -> $topCounter")
-                lastTopCounter = topCounter
-                
-                // Check if stopping at top of final rep
-                if (_workoutParameters.value.stopAtTop && 
-                    !_workoutParameters.value.isJustLift &&
-                    _workoutParameters.value.reps > 0 &&
-                    _repCount.value.workingReps == _workoutParameters.value.reps - 1) {
-                    Timber.d("🏁 Reached top of final rep! Auto-completing workout...")
-                    stopWorkout()
-                    return
-                }
-            }
-        }
-        
-        // Track rep complete (bottom of range)
-        if (lastRepCounter == null) {
-            lastRepCounter = completeCounter
-            Timber.d("→ Initialized lastRepCounter to $completeCounter (SKIP first notification)")
-            return
-        }
-        
-        val delta = calculateCounterDelta(lastRepCounter!!, completeCounter)
-        Timber.d("→ Complete delta: $delta (from $lastRepCounter to $completeCounter)")
-        if (delta > 0) {
-            Timber.d("✓ BOTTOM DETECTED! Counter: $lastRepCounter -> $completeCounter")
-            lastRepCounter = completeCounter
-            
-            // Increment counters
-            val currentWarmup = _repCount.value.warmupReps
-            val currentWorking = _repCount.value.workingReps
-            val totalReps = currentWarmup + currentWorking + 1
-            
-            Timber.d("→ Total reps so far: $totalReps (warmup=$currentWarmup, working=$currentWorking)")
-            
-            if (totalReps <= _workoutParameters.value.warmupReps) {
-                // Still in warmup
-                val newWarmup = currentWarmup + 1
-                _repCount.value = _repCount.value.copy(
-                    warmupReps = newWarmup,
-                    isWarmupComplete = newWarmup >= _workoutParameters.value.warmupReps
-                )
-                Timber.d("🔥 WARMUP REP $newWarmup/${_workoutParameters.value.warmupReps} COMPLETE!")
+    private fun handleMonitorMetric(metric: WorkoutMetric) {
+        if (_workoutState.value is WorkoutState.Active) {
+            collectMetricForHistory(metric)
+            val params = _workoutParameters.value
+            if (params.isJustLift) {
+                checkAutoStop(metric)
             } else {
-                // Working reps
-                val newWorking = currentWorking + 1
-                _repCount.value = _repCount.value.copy(
-                    workingReps = newWorking
-                )
-                Timber.d("💪 WORKING REP $newWorking/${_workoutParameters.value.reps} COMPLETE!")
-                
-                // Auto-complete when target reached (not for Just Lift, not when stopping at top)
-                if (!_workoutParameters.value.stopAtTop &&
-                    !_workoutParameters.value.isJustLift &&
-                    _workoutParameters.value.reps > 0 &&
-                    newWorking >= _workoutParameters.value.reps) {
-                    Timber.d("🏁 Target reps reached! Auto-completing workout...")
-                    stopWorkout()
-                }
+                resetAutoStopTimer()
             }
         } else {
-            Timber.d("→ No change in complete counter, skipping")
+            resetAutoStopTimer()
         }
     }
-    
+
     /**
-     * Calculate delta between counters, handling u16 wraparound
+     * Handle rep notifications provided by the machine.
      */
-    private fun calculateCounterDelta(last: Int, current: Int): Int {
-        return if (current >= last) {
-            current - last
+    private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
+        val currentPositions = _currentMetric.value
+        repCounter.process(
+            topCounter = notification.topCounter,
+            completeCounter = notification.completeCounter,
+            posA = currentPositions?.positionA ?: 0,
+            posB = currentPositions?.positionB ?: 0
+        )
+
+        val newRepCount = repCounter.getRepCount()
+        _repCount.value = newRepCount
+
+        Timber.d(
+            "Rep counters updated: warmup=${newRepCount.warmupReps}/${_workoutParameters.value.warmupReps}, " +
+                "working=${newRepCount.workingReps}/${_workoutParameters.value.reps}"
+        )
+
+        if (repCounter.shouldStopWorkout()) {
+            Timber.d("Machine indicates workout should stop - requesting stop")
+            requestAutoStop()
+        }
+    }
+
+    private fun requestAutoStop() {
+        if (autoStopStopRequested) return
+        autoStopStopRequested = true
+        triggerAutoStop()
+    }
+
+    private fun triggerAutoStop() {
+        autoStopTriggered = true
+        if (_workoutParameters.value.isJustLift) {
+            _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
         } else {
-            // Wraparound
-            0xFFFF - last + current + 1
+            _autoStopState.value = AutoStopUiState()
+        }
+        stopWorkout()
+    }
+
+    private fun checkAutoStop(metric: WorkoutMetric) {
+        if (!repCounter.hasMeaningfulRange()) {
+            resetAutoStopTimer()
+            return
+        }
+
+        val inDangerZone = repCounter.isInDangerZone(metric.positionA, metric.positionB)
+        if (inDangerZone) {
+            val startTime = autoStopStartTime ?: run {
+                autoStopStartTime = System.currentTimeMillis()
+                Timber.d("Entered Just Lift auto-stop danger zone - starting timer")
+                System.currentTimeMillis()
+            }
+
+            val elapsed = (System.currentTimeMillis() - startTime) / 1000f
+            val progress = (elapsed / AUTO_STOP_DURATION_SECONDS).coerceIn(0f, 1f)
+            val remaining = (AUTO_STOP_DURATION_SECONDS - elapsed).coerceAtLeast(0f)
+
+            _autoStopState.value = AutoStopUiState(
+                isActive = true,
+                progress = progress,
+                secondsRemaining = ceil(remaining).toInt()
+            )
+
+            if (elapsed >= AUTO_STOP_DURATION_SECONDS) {
+                Timber.d("Auto-stop threshold reached in Just Lift - stopping workout")
+                triggerAutoStop()
+            }
+        } else {
+            if (autoStopStartTime != null) {
+                Timber.d("Left auto-stop danger zone - resetting timer")
+            }
+            resetAutoStopTimer()
+        }
+    }
+
+    private fun resetAutoStopTimer() {
+        autoStopStartTime = null
+        if (!autoStopTriggered) {
+            _autoStopState.value = AutoStopUiState()
         }
     }
 
@@ -237,7 +236,7 @@ class MainViewModel @Inject constructor(
     fun startScanning() {
         Timber.d("MainViewModel.startScanning() called")
         viewModelScope.launch {
-            _scannedDevices.value = emptyList() // Clear previous scan results
+            _scannedDevices.value = emptyList()
             Timber.d("Cleared previous scan results, calling bleRepository.startScanning()")
             val result = bleRepository.startScanning()
             if (result.isSuccess) {
@@ -268,6 +267,8 @@ class MainViewModel @Inject constructor(
             bleRepository.disconnect()
             _workoutState.value = WorkoutState.Idle
             _currentMetric.value = null
+            repCounter.reset()
+            resetAutoStopState()
         }
     }
 
@@ -276,51 +277,54 @@ class MainViewModel @Inject constructor(
     }
 
     fun startWorkout() {
-        Timber.d("⭐⭐⭐ startWorkout() CALLED! ⭐⭐⭐")
+        Timber.d("??? startWorkout() CALLED! ???")
         viewModelScope.launch {
             _workoutState.value = WorkoutState.Initializing
 
-            // Initialize workout session
+            val params = _workoutParameters.value
+            val workingTarget = if (params.isJustLift) 0 else params.reps
+            repCounter.reset()
+            repCounter.configure(
+                warmupTarget = params.warmupReps,
+                workingTarget = workingTarget,
+                isJustLift = params.isJustLift,
+                stopAtTop = params.stopAtTop
+            )
+            _repCount.value = repCounter.getRepCount()
+            resetAutoStopState()
+            autoStopStopRequested = false
+
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
-            
-            // Reset rep notification counters BEFORE starting workout
-            lastTopCounter = null
-            lastRepCounter = null
-            _repCount.value = RepCount()
-            
-            Timber.d("╔════════════════════════════════════════════════")
-            Timber.d("║ STARTING COUNTDOWN")
-            Timber.d("║ Mode: ${_workoutParameters.value.mode.displayName}")
-            Timber.d("║ Target: ${_workoutParameters.value.warmupReps} warmup + ${_workoutParameters.value.reps} working reps")
-            Timber.d("╚════════════════════════════════════════════════")
 
-            // Start 5-second countdown to let user get into position
+            Timber.d("")
+            Timber.d(" STARTING COUNTDOWN")
+            Timber.d(" Mode: ${params.mode.displayName}")
+            Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
+            Timber.d("")
+
             viewModelScope.launch {
                 for (i in 5 downTo 1) {
                     _workoutState.value = WorkoutState.Countdown(i)
                     delay(1000)
                 }
-                
-                // Countdown complete - transition to Active BEFORE sending command
+
                 _workoutState.value = WorkoutState.Active
-                
-                Timber.d("╔════════════════════════════════════════════════")
-                Timber.d("║ COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
-                Timber.d("╚════════════════════════════════════════════════")
-                
-                // NOW send the workout command to the machine
-                val result = bleRepository.startWorkout(_workoutParameters.value)
-                
+
+                Timber.d("")
+                Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
+                Timber.d("")
+
+                val result = bleRepository.startWorkout(params)
+
                 if (result.isSuccess) {
-                    // Start foreground service
                     WorkoutForegroundService.startWorkoutService(
                         getContext(),
-                        _workoutParameters.value.mode.displayName,
-                        _workoutParameters.value.reps
+                        params.mode.displayName,
+                        params.reps
                     )
-                    
+
                     Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
                 } else {
                     _workoutState.value = WorkoutState.Error(
@@ -338,18 +342,25 @@ class MainViewModel @Inject constructor(
 
             if (result.isSuccess) {
                 _workoutState.value = WorkoutState.Completed
-                
-                // Stop foreground service
+
                 WorkoutForegroundService.stopWorkoutService(getContext())
-                
+
                 Timber.d("Workout stopped successfully")
 
-                // Save workout to database
                 saveWorkoutSession()
+                repCounter.reset()
+                resetAutoStopState()
             } else {
                 Timber.e("Failed to stop workout: ${result.exceptionOrNull()?.message}")
             }
         }
+    }
+
+    private fun resetAutoStopState() {
+        autoStopStartTime = null
+        autoStopTriggered = false
+        autoStopStopRequested = false
+        _autoStopState.value = AutoStopUiState()
     }
 
     private suspend fun saveWorkoutSession() {
@@ -374,10 +385,8 @@ class MainViewModel @Inject constructor(
             stopAtTop = params.stopAtTop
         )
 
-        // Save session
         workoutRepository.saveSession(session)
 
-        // Save metrics (batch insert)
         if (collectedMetrics.isNotEmpty()) {
             workoutRepository.saveMetrics(sessionId, collectedMetrics)
         }
@@ -402,7 +411,20 @@ class MainViewModel @Inject constructor(
             workoutRepository.deleteAllWorkouts()
         }
     }
+
+    companion object {
+        private const val AUTO_STOP_DURATION_SECONDS = 5f
+    }
 }
+
+/**
+ * UI state for the Just Lift auto-stop timer.
+ */
+data class AutoStopUiState(
+    val isActive: Boolean = false,
+    val progress: Float = 0f,
+    val secondsRemaining: Int = 5
+)
 
 /**
  * Scanned device data class

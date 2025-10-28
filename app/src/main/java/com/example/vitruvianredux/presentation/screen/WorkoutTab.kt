@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.*
+import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
 
 @Composable
 fun WorkoutTab(
@@ -20,6 +21,7 @@ fun WorkoutTab(
     currentMetric: WorkoutMetric?,
     workoutParameters: WorkoutParameters,
     repCount: RepCount,
+    autoStopState: AutoStopUiState,
     onScan: () -> Unit,
     onDisconnect: () -> Unit,
     onStartWorkout: () -> Unit,
@@ -41,19 +43,17 @@ fun WorkoutTab(
             onDisconnect = onDisconnect
         )
 
-        // Workout Controls (only when connected)
         if (connectionState is ConnectionState.Connected) {
             WorkoutParametersCard(
                 workoutParameters = workoutParameters,
                 workoutState = workoutState,
+                autoStopState = autoStopState,
                 onUpdateParameters = onUpdateParameters,
                 onStartWorkout = onStartWorkout,
                 onStopWorkout = onStopWorkout
             )
 
-            // Rep Counter (when workout active or counting down)
             if (workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) {
-                // Countdown overlay
                 if (workoutState is WorkoutState.Countdown) {
                     CountdownCard(secondsRemaining = workoutState.secondsRemaining)
                 } else {
@@ -61,7 +61,6 @@ fun WorkoutTab(
                 }
             }
 
-            // Live Metrics (when workout active or counting down)
             if ((workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) && currentMetric != null) {
                 LiveMetricsCard(metric = currentMetric)
             }
@@ -169,6 +168,7 @@ fun ConnectionCard(
 fun WorkoutParametersCard(
     workoutParameters: WorkoutParameters,
     workoutState: WorkoutState,
+    autoStopState: AutoStopUiState,
     onUpdateParameters: (WorkoutParameters) -> Unit,
     onStartWorkout: () -> Unit,
     onStopWorkout: () -> Unit
@@ -188,10 +188,10 @@ fun WorkoutParametersCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Mode selector
             var showModeMenu by remember { mutableStateOf(false) }
             var showEchoLevelDialog by remember { mutableStateOf(false) }
-            
+
+            val modeLabel = if (workoutParameters.isJustLift) "Base Mode (resistance profile)" else "Workout Mode"
             ExposedDropdownMenuBox(
                 expanded = showModeMenu,
                 onExpandedChange = { showModeMenu = !showModeMenu && workoutState is WorkoutState.Idle }
@@ -200,7 +200,7 @@ fun WorkoutParametersCard(
                     value = workoutParameters.mode.displayName,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Workout Mode") },
+                    label = { Text(modeLabel) },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeMenu)
                     },
@@ -250,7 +250,7 @@ fun WorkoutParametersCard(
                         }
                     )
                     DropdownMenuItem(
-                        text = { 
+                        text = {
                             Row(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
@@ -267,8 +267,7 @@ fun WorkoutParametersCard(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            
-            // Echo Level Selection Dialog
+
             if (showEchoLevelDialog) {
                 AlertDialog(
                     onDismissRequest = { showEchoLevelDialog = false },
@@ -276,56 +275,26 @@ fun WorkoutParametersCard(
                     text = {
                         Column {
                             Text(
-                                "Echo mode mirrors your force output for adaptive resistance.",
+                                "Echo adapts to your output. Select a level:",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            
-                            // Level 1
-                            OutlinedButton(
-                                onClick = {
-                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_1)))
-                                    showEchoLevelDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Level 1 - Beginner (75% eccentric)")
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // Level 2
-                            OutlinedButton(
-                                onClick = {
-                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_2)))
-                                    showEchoLevelDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Level 2 - Intermediate")
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // Level 3
-                            OutlinedButton(
-                                onClick = {
-                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_3)))
-                                    showEchoLevelDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Level 3 - Advanced")
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // Level 4
-                            OutlinedButton(
-                                onClick = {
-                                    onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(EchoLevel.LEVEL_4)))
-                                    showEchoLevelDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Level 4 - Expert")
+                            listOf(
+                                EchoLevel.LEVEL_1 to "Level 1 - Beginner (75% eccentric)",
+                                EchoLevel.LEVEL_2 to "Level 2 - Intermediate",
+                                EchoLevel.LEVEL_3 to "Level 3 - Advanced",
+                                EchoLevel.LEVEL_4 to "Level 4 - Expert"
+                            ).forEach { (level, label) ->
+                                OutlinedButton(
+                                    onClick = {
+                                        onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
+                                        showEchoLevelDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(label)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
                         }
                     },
@@ -337,13 +306,12 @@ fun WorkoutParametersCard(
                 )
             }
 
-            // Weight input
-            var weightText by remember(workoutParameters) { 
+            var weightText by remember(workoutParameters) {
                 mutableStateOf(workoutParameters.weightPerCableKg.toString())
             }
             OutlinedTextField(
                 value = weightText,
-                onValueChange = { 
+                onValueChange = {
                     weightText = it
                     it.toFloatOrNull()?.let { weight ->
                         onUpdateParameters(workoutParameters.copy(weightPerCableKg = weight))
@@ -355,13 +323,12 @@ fun WorkoutParametersCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Reps input
-            var repsText by remember(workoutParameters) { 
+            var repsText by remember(workoutParameters) {
                 mutableStateOf(workoutParameters.reps.toString())
             }
             OutlinedTextField(
                 value = repsText,
-                onValueChange = { 
+                onValueChange = {
                     repsText = it
                     it.toIntOrNull()?.let { reps ->
                         onUpdateParameters(workoutParameters.copy(reps = reps))
@@ -369,11 +336,52 @@ fun WorkoutParametersCard(
                 },
                 label = { Text("Target reps") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = workoutState is WorkoutState.Idle
+                enabled = workoutState is WorkoutState.Idle && !workoutParameters.isJustLift
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Workout control buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Just Lift")
+                Switch(
+                    checked = workoutParameters.isJustLift,
+                    onCheckedChange = { checked ->
+                        if (workoutState is WorkoutState.Idle) {
+                            onUpdateParameters(workoutParameters.copy(isJustLift = checked))
+                        }
+                    },
+                    enabled = workoutState is WorkoutState.Idle
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Stop at top of final rep")
+                Switch(
+                    checked = workoutParameters.stopAtTop,
+                    onCheckedChange = { checked ->
+                        if (workoutState is WorkoutState.Idle) {
+                            onUpdateParameters(workoutParameters.copy(stopAtTop = checked))
+                        }
+                    },
+                    enabled = workoutState is WorkoutState.Idle && !workoutParameters.isJustLift
+                )
+            }
+
+            if (autoStopState.isActive) {
+                Spacer(modifier = Modifier.height(16.dp))
+                JustLiftAutoStopCard(autoStopState = autoStopState)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             when (workoutState) {
                 is WorkoutState.Idle -> {
                     Button(
@@ -424,6 +432,41 @@ fun WorkoutParametersCard(
                 }
                 else -> {}
             }
+        }
+    }
+}
+
+@Composable
+fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "Just Lift Auto-Stop",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { autoStopState.progress },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                if (autoStopState.secondsRemaining > 0) {
+                    "Stopping in ${autoStopState.secondsRemaining}s"
+                } else {
+                    "Stopping..."
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }

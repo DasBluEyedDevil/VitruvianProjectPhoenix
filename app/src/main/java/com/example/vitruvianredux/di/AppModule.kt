@@ -7,7 +7,7 @@ import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.BleRepositoryImpl
 import com.example.vitruvianredux.data.repository.WorkoutRepository
-import com.example.vitruvianredux.domain.usecase.RepDetectionEngine
+import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -52,8 +52,8 @@ object AppModule {
     }
 
     @Provides
-    fun provideRepDetectionEngine(): RepDetectionEngine {
-        return RepDetectionEngine()
+    fun provideRepCounterFromMachine(): RepCounterFromMachine {
+        return RepCounterFromMachine()
     }
 }
 

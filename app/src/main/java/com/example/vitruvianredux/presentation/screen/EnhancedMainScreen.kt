@@ -33,6 +33,7 @@ fun EnhancedMainScreen(
     val currentMetric by viewModel.currentMetric.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val repCount by viewModel.repCount.collectAsState()
+    val autoStopState by viewModel.autoStopState.collectAsState()
     val scannedDevices by viewModel.scannedDevices.collectAsState()
     val workoutHistory by viewModel.workoutHistory.collectAsState()
 
@@ -124,6 +125,7 @@ fun EnhancedMainScreen(
                     currentMetric = currentMetric,
                     workoutParameters = workoutParameters,
                     repCount = repCount,
+                    autoStopState = autoStopState,
                     onScan = { 
                         viewModel.startScanning()
                         showDeviceSelector = true

@@ -18,6 +18,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,9 +67,14 @@ class BleRepositoryImpl @Inject constructor(
 
     private val _monitorData = MutableSharedFlow<WorkoutMetric>(replay = 0)
     override val monitorData: Flow<WorkoutMetric> = _monitorData.asSharedFlow()
-    
-    override val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
-        get() = bleManager?.repEvents ?: emptyFlow()
+
+    // CRITICAL: Use MutableSharedFlow with buffer so ViewModel can collect before connection
+    private val _repEvents = MutableSharedFlow<com.example.vitruvianredux.data.ble.RepNotification>(
+        replay = 0,
+        extraBufferCapacity = 64,  // Buffer for rep notifications
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    override val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification> = _repEvents.asSharedFlow()
 
     private val _scannedDevices = MutableSharedFlow<ScanResult>(replay = 10)
     override val scannedDevices: Flow<ScanResult> = _scannedDevices.asSharedFlow()
@@ -240,6 +246,15 @@ class BleRepositoryImpl @Inject constructor(
                     monitorData.collect { metric ->
                         Timber.d("BleRepository forwarding monitor metric: pos=(${metric.positionA},${metric.positionB})")
                         _monitorData.emit(metric)
+                    }
+                }
+
+                // Collect rep events and forward to repository flow
+                scope.launch {
+                    Timber.d("🔥 Starting rep event collection from BleManager")
+                    repEvents.collect { repNotification ->
+                        Timber.d("🔥 BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
+                        _repEvents.emit(repNotification)
                     }
                 }
             }
