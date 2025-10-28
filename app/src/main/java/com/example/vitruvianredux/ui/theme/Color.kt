@@ -2,10 +2,34 @@ package com.example.vitruvianredux.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Background Colors
+val BackgroundBlack = Color(0xFF000000)          // Pure black background
+val BackgroundDarkGrey = Color(0xFF121212)       // Dark grey surface
+val SurfaceDarkGrey = Color(0xFF1E1E1E)         // Elevated surfaces
+val CardBackground = Color(0xFF252525)           // Card backgrounds
 
-val Purple40 = Color(0xFF6650a4)
+// Purple Accent Colors
+val PrimaryPurple = Color(0xFFBB86FC)           // Primary purple (Material 3 style)
+val SecondaryPurple = Color(0xFF9965F4)         // Deeper purple
+val TertiaryPurple = Color(0xFFE0BBF7)          // Light purple for highlights
+val PurpleAccent = Color(0xFF7E57C2)            // Accent purple for buttons
+
+// Text Colors
+val TextPrimary = Color(0xFFFFFFFF)             // Pure white text
+val TextSecondary = Color(0xFFE0E0E0)           // Light grey text
+val TextTertiary = Color(0xFFB0B0B0)            // Medium grey text
+val TextDisabled = Color(0xFF707070)            // Disabled text
+
+// Status Colors
+val SuccessGreen = Color(0xFF4CAF50)            // Success states
+val ErrorRed = Color(0xFFF44336)                // Error states
+val WarningOrange = Color(0xFFFF9800)           // Warning states
+val InfoBlue = Color(0xFF2196F3)                // Info states
+
+// Legacy colors (kept for compatibility)
+val Purple80 = PrimaryPurple
+val PurpleGrey80 = SecondaryPurple
+val Pink80 = TertiaryPurple
+val Purple40 = PurpleAccent
 val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)

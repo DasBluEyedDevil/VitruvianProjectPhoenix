@@ -9,6 +9,14 @@
 .cxx
 local.properties
 reference/Vitruvian_v2.2.44_APKPure/
-reference/ErrorLog.txt
+docs/ErrorLog.txt
 /reference/
 /reference/
+
+# Claude Code / Quadrumvirate
+.skills/
+docs/LAST_SESSION.md
+.claude/
+/docs/
+/scripts/
+/docs/
