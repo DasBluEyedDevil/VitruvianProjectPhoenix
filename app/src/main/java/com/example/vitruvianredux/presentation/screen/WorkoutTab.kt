@@ -61,7 +61,7 @@ fun WorkoutTab(
                 is WorkoutState.Idle -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
@@ -74,15 +74,14 @@ fun WorkoutTab(
                                 "Workout Setup",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
                             Button(
                                 onClick = onShowWorkoutSetupDialog,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Default.Settings, contentDescription = null)
+                                Icon(Icons.Default.Settings, contentDescription = "Configure workout")
                                 Spacer(modifier = Modifier.width(Spacing.small))
                                 Text("Setup Workout")
                             }
@@ -92,7 +91,7 @@ fun WorkoutTab(
                 is WorkoutState.Completed -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
@@ -105,23 +104,22 @@ fun WorkoutTab(
                         ) {
                             Icon(
                                 Icons.Default.CheckCircle,
-                                contentDescription = "Success",
-                                tint = PrimaryPurple,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
                                 "Workout Completed!",
                                 style = MaterialTheme.typography.titleLarge,
-                                color = PrimaryPurple,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
                             Button(
                                 onClick = onResetForNewWorkout,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null)
+                                Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
                                 Spacer(modifier = Modifier.width(Spacing.small))
                                 Text("Start New Workout")
                             }
@@ -131,7 +129,7 @@ fun WorkoutTab(
                 is WorkoutState.Active -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         shape = RoundedCornerShape(16.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
@@ -144,7 +142,7 @@ fun WorkoutTab(
                                 "Workout Active",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
                             
@@ -156,9 +154,9 @@ fun WorkoutTab(
                             Button(
                                 onClick = onStopWorkout,
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = null)
+                                Icon(Icons.Default.Close, contentDescription = "Stop workout")
                                 Spacer(modifier = Modifier.width(Spacing.small))
                                 Text("Stop Workout")
                             }
@@ -216,14 +214,14 @@ fun WorkoutSetupDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = SurfaceDarkGrey,
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         title = {
             Text(
                 "Workout Setup",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
         },
         text = {
@@ -252,16 +250,7 @@ fun WorkoutSetupDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = CardBackground,
-                            focusedContainerColor = CardBackground,
-                            unfocusedBorderColor = TextTertiary,
-                            focusedBorderColor = PrimaryPurple,
-                            unfocusedLabelColor = TextSecondary,
-                            focusedLabelColor = PrimaryPurple,
-                            unfocusedTextColor = TextPrimary,
-                            focusedTextColor = TextPrimary
-                        )
+                        colors = OutlinedTextFieldDefaults.colors()
                     )
                     ExposedDropdownMenu(
                         expanded = showModeMenu,
@@ -324,7 +313,7 @@ fun WorkoutSetupDialog(
                     AlertDialog(
                         onDismissRequest = { showEchoLevelDialog = false },
                         title = { Text("Select Echo Level") },
-                        containerColor = SurfaceDarkGrey,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         shape = RoundedCornerShape(16.dp),
                         text = {
                             Column {
@@ -344,11 +333,7 @@ fun WorkoutSetupDialog(
                                             onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
                                             showEchoLevelDialog = false
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = PrimaryPurple
-                                        ),
-                                        border = BorderStroke(1.dp, PrimaryPurple)
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(label)
                                     }
@@ -358,7 +343,7 @@ fun WorkoutSetupDialog(
                         },
                         confirmButton = {
                             TextButton(onClick = { showEchoLevelDialog = false }) {
-                                Text("Cancel", color = TextSecondary)
+                                Text("Cancel")
                             }
                         }
                     )
@@ -377,17 +362,7 @@ fun WorkoutSetupDialog(
                         }
                     },
                     label = { Text("Weight per cable (${weightUnit.name.lowercase()})") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = CardBackground,
-                        focusedContainerColor = CardBackground,
-                        unfocusedBorderColor = TextTertiary,
-                        focusedBorderColor = PrimaryPurple,
-                        unfocusedLabelColor = TextSecondary,
-                        focusedLabelColor = PrimaryPurple,
-                        unfocusedTextColor = TextPrimary,
-                        focusedTextColor = TextPrimary
-                    )
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 var repsText by remember(workoutParameters) {
@@ -403,17 +378,7 @@ fun WorkoutSetupDialog(
                     },
                     label = { Text("Target reps") },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !workoutParameters.isJustLift,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = CardBackground,
-                        focusedContainerColor = CardBackground,
-                        unfocusedBorderColor = TextTertiary,
-                        focusedBorderColor = PrimaryPurple,
-                        unfocusedLabelColor = TextSecondary,
-                        focusedLabelColor = PrimaryPurple,
-                        unfocusedTextColor = TextPrimary,
-                        focusedTextColor = TextPrimary
-                    )
+                    enabled = !workoutParameters.isJustLift
                 )
 
                 Row(
@@ -421,18 +386,12 @@ fun WorkoutSetupDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Just Lift", color = TextPrimary)
+                    Text("Just Lift")
                     Switch(
                         checked = workoutParameters.isJustLift,
                         onCheckedChange = { checked ->
                             onUpdateParameters(workoutParameters.copy(isJustLift = checked))
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = PrimaryPurple,
-                            checkedTrackColor = SecondaryPurple,
-                            uncheckedThumbColor = TextTertiary,
-                            uncheckedTrackColor = CardBackground
-                        )
+                        }
                     )
                 }
 
@@ -441,36 +400,29 @@ fun WorkoutSetupDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Stop at top of final rep", color = TextPrimary)
+                    Text("Stop at top of final rep")
                     Switch(
                         checked = workoutParameters.stopAtTop,
                         onCheckedChange = { checked ->
                             onUpdateParameters(workoutParameters.copy(stopAtTop = checked))
                         },
-                        enabled = !workoutParameters.isJustLift,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = PrimaryPurple,
-                            checkedTrackColor = SecondaryPurple,
-                            uncheckedThumbColor = TextTertiary,
-                            uncheckedTrackColor = CardBackground
-                        )
+                        enabled = !workoutParameters.isJustLift
                     )
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = onStartWorkout,
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                onClick = onStartWorkout
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Icon(Icons.Default.PlayArrow, contentDescription = "Start workout")
                 Spacer(modifier = Modifier.width(Spacing.small))
                 Text("Start Workout")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextSecondary)
+                Text("Cancel")
             }
         }
     )
@@ -485,7 +437,7 @@ fun ConnectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -498,7 +450,7 @@ fun ConnectionCard(
                 "Connection",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -509,12 +461,11 @@ fun ConnectionCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Not connected", color = TextSecondary)
+                        Text("Not connected", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(
-                            onClick = onScan,
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            onClick = onScan
                         ) {
-                            Icon(Icons.Default.Search, contentDescription = null)
+                            Icon(Icons.Default.Search, contentDescription = "Scan for devices")
                             Spacer(modifier = Modifier.width(Spacing.small))
                             Text("Scan")
                         }
@@ -527,11 +478,10 @@ fun ConnectionCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = PrimaryPurple
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(Spacing.small))
-                        Text("Scanning for devices...", color = TextPrimary)
+                        Text("Scanning for devices...")
                     }
                 }
                 is ConnectionState.Connecting -> {
@@ -541,11 +491,10 @@ fun ConnectionCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = PrimaryPurple
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(Spacing.small))
-                        Text("Connecting...", color = TextPrimary)
+                        Text("Connecting...")
                     }
                 }
                 is ConnectionState.Connected -> {
@@ -559,17 +508,16 @@ fun ConnectionCard(
                                 Text(
                                     connectionState.deviceName,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
+                                    fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     connectionState.deviceAddress,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             IconButton(onClick = onDisconnect) {
-                                Icon(Icons.Default.Close, contentDescription = "Disconnect", tint = TextPrimary)
+                                Icon(Icons.Default.Close, contentDescription = "Disconnect")
                             }
                         }
                     }
@@ -577,7 +525,7 @@ fun ConnectionCard(
                 is ConnectionState.Error -> {
                     Text(
                         "Error: ${connectionState.message}",
-                        color = ErrorRed
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }
@@ -601,7 +549,7 @@ fun WorkoutParametersCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -614,7 +562,7 @@ fun WorkoutParametersCard(
                 "Workout Setup",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -637,17 +585,7 @@ fun WorkoutParametersCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(),
-                    enabled = workoutState is WorkoutState.Idle,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = SurfaceDarkGrey,
-                        focusedContainerColor = SurfaceDarkGrey,
-                        unfocusedBorderColor = TextTertiary,
-                        focusedBorderColor = PrimaryPurple,
-                        unfocusedLabelColor = TextSecondary,
-                        focusedLabelColor = PrimaryPurple,
-                        unfocusedTextColor = TextPrimary,
-                        focusedTextColor = TextPrimary
-                    )
+                    enabled = workoutState is WorkoutState.Idle
                 )
                 ExposedDropdownMenu(
                     expanded = showModeMenu,
@@ -711,7 +649,7 @@ fun WorkoutParametersCard(
                 AlertDialog(
                     onDismissRequest = { showEchoLevelDialog = false },
                     title = { Text("Select Echo Level") },
-                    containerColor = SurfaceDarkGrey,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     shape = RoundedCornerShape(16.dp),
                     text = {
                         Column {
@@ -731,11 +669,7 @@ fun WorkoutParametersCard(
                                         onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
                                         showEchoLevelDialog = false
                                     },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = PrimaryPurple
-                                    ),
-                                    border = BorderStroke(1.dp, PrimaryPurple)
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(label)
                                 }
@@ -745,7 +679,7 @@ fun WorkoutParametersCard(
                     },
                     confirmButton = {
                         TextButton(onClick = { showEchoLevelDialog = false }) {
-                            Text("Cancel", color = TextSecondary)
+                            Text("Cancel")
                         }
                     }
                 )
@@ -765,17 +699,7 @@ fun WorkoutParametersCard(
                 },
                 label = { Text("Weight per cable (${weightUnit.name.lowercase()})") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = workoutState is WorkoutState.Idle,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = SurfaceDarkGrey,
-                    focusedContainerColor = SurfaceDarkGrey,
-                    unfocusedBorderColor = TextTertiary,
-                    focusedBorderColor = PrimaryPurple,
-                    unfocusedLabelColor = TextSecondary,
-                    focusedLabelColor = PrimaryPurple,
-                    unfocusedTextColor = TextPrimary,
-                    focusedTextColor = TextPrimary
-                )
+                enabled = workoutState is WorkoutState.Idle
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -792,17 +716,7 @@ fun WorkoutParametersCard(
                 },
                 label = { Text("Target reps") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = workoutState is WorkoutState.Idle && !workoutParameters.isJustLift,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = SurfaceDarkGrey,
-                    focusedContainerColor = SurfaceDarkGrey,
-                    unfocusedBorderColor = TextTertiary,
-                    focusedBorderColor = PrimaryPurple,
-                    unfocusedLabelColor = TextSecondary,
-                    focusedLabelColor = PrimaryPurple,
-                    unfocusedTextColor = TextPrimary,
-                    focusedTextColor = TextPrimary
-                )
+                enabled = workoutState is WorkoutState.Idle && !workoutParameters.isJustLift
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -811,7 +725,7 @@ fun WorkoutParametersCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Just Lift", color = TextPrimary)
+                Text("Just Lift")
                 Switch(
                     checked = workoutParameters.isJustLift,
                     onCheckedChange = { checked ->
@@ -819,13 +733,7 @@ fun WorkoutParametersCard(
                             onUpdateParameters(workoutParameters.copy(isJustLift = checked))
                         }
                     },
-                    enabled = workoutState is WorkoutState.Idle,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = PrimaryPurple,
-                        checkedTrackColor = SecondaryPurple,
-                        uncheckedThumbColor = TextTertiary,
-                        uncheckedTrackColor = SurfaceDarkGrey
-                    )
+                    enabled = workoutState is WorkoutState.Idle
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.small))
@@ -835,7 +743,7 @@ fun WorkoutParametersCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Stop at top of final rep", color = TextPrimary)
+                Text("Stop at top of final rep")
                 Switch(
                     checked = workoutParameters.stopAtTop,
                     onCheckedChange = { checked ->
@@ -843,13 +751,7 @@ fun WorkoutParametersCard(
                             onUpdateParameters(workoutParameters.copy(stopAtTop = checked))
                         }
                     },
-                    enabled = workoutState is WorkoutState.Idle && !workoutParameters.isJustLift,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = PrimaryPurple,
-                        checkedTrackColor = SecondaryPurple,
-                        uncheckedThumbColor = TextTertiary,
-                        uncheckedTrackColor = SurfaceDarkGrey
-                    )
+                    enabled = workoutState is WorkoutState.Idle && !workoutParameters.isJustLift
                 )
             }
 
@@ -864,10 +766,9 @@ fun WorkoutParametersCard(
                 is WorkoutState.Idle -> {
                     Button(
                         onClick = onStartWorkout,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Start workout")
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text("Start Workout")
                     }
@@ -878,7 +779,7 @@ fun WorkoutParametersCard(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = false
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = PrimaryPurple)
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text("Initializing...")
                     }
@@ -887,9 +788,9 @@ fun WorkoutParametersCard(
                     Button(
                         onClick = onStopWorkout,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = null)
+                        Icon(Icons.Default.Close, contentDescription = "Stop workout")
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text("Stop Workout")
                     }
@@ -902,23 +803,22 @@ fun WorkoutParametersCard(
                     ) {
                         Icon(
                             Icons.Default.CheckCircle,
-                            contentDescription = "Success",
-                            tint = PrimaryPurple,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
                             "Workout Completed!",
                             style = MaterialTheme.typography.titleLarge,
-                            color = PrimaryPurple,
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(Spacing.small))
                         Button(
                             onClick = onResetForNewWorkout,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
                             Spacer(modifier = Modifier.width(Spacing.small))
                             Text("Start New Workout")
                         }
@@ -927,7 +827,7 @@ fun WorkoutParametersCard(
                 is WorkoutState.Error -> {
                     Text(
                         "Error: ${workoutState.message}",
-                        color = ErrorRed
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
                 else -> {}
@@ -940,7 +840,7 @@ fun WorkoutParametersCard(
 fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -953,14 +853,12 @@ fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
             Text(
                 "Just Lift Auto-Stop",
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.small))
             LinearProgressIndicator(
                 progress = { autoStopState.progress },
-                modifier = Modifier.fillMaxWidth(),
-                color = PrimaryPurple
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(Spacing.small))
             Text(
@@ -970,7 +868,7 @@ fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
                     "Stopping..."
                 },
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -981,8 +879,8 @@ fun RepCounterCard(repCount: RepCount) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, PrimaryPurple, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -994,8 +892,7 @@ fun RepCounterCard(repCount: RepCount) {
             Text(
                 "Reps",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
@@ -1007,39 +904,37 @@ fun RepCounterCard(repCount: RepCount) {
                     Text(
                         "Warmup",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         repCount.warmupReps.toString(),
                         style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "Working",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         repCount.workingReps.toString(),
                         style = MaterialTheme.typography.displayMedium,
                         fontWeight = FontWeight.Bold,
-                        color = PrimaryPurple
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "Total",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         repCount.totalReps.toString(),
                         style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -1055,7 +950,7 @@ fun LiveMetricsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -1067,8 +962,7 @@ fun LiveMetricsCard(
             Text(
                 "Live Metrics",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -1077,9 +971,9 @@ fun LiveMetricsCard(
                 formatWeight(metric.totalLoad, weightUnit),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
-                color = PrimaryPurple
+                color = MaterialTheme.colorScheme.primary
             )
-            Text("Total Load", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("Total Load", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             
             Spacer(modifier = Modifier.height(Spacing.medium))
 
@@ -1092,28 +986,24 @@ fun LiveMetricsCard(
                     Text(
                         formatWeight(metric.loadA, weightUnit),
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        fontWeight = FontWeight.Bold
                     )
-                    Text("Cable A", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    Text("Cable A", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LinearProgressIndicator(
                         progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier.width(100.dp).padding(top = Spacing.extraSmall),
-                        color = PrimaryPurple
+                        modifier = Modifier.width(100.dp).padding(top = Spacing.extraSmall)
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         formatWeight(metric.loadB, weightUnit),
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        fontWeight = FontWeight.Bold
                     )
-                    Text("Cable B", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    Text("Cable B", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LinearProgressIndicator(
                         progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier.width(100.dp).padding(top = Spacing.extraSmall),
-                        color = PrimaryPurple
+                        modifier = Modifier.width(100.dp).padding(top = Spacing.extraSmall)
                     )
                 }
             }

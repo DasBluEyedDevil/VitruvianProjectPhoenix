@@ -7,10 +7,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.RemoveCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,18 +30,20 @@ fun ExerciseEditDialog(
 ) {
     var setReps by remember { mutableStateOf(exercise.setReps.ifEmpty { listOf(10) }) }
     var weight by remember { mutableStateOf(exercise.weightPerCableKg.toString()) }
+    var weightError by remember { mutableStateOf<String?>(null) }
     var progression by remember { mutableStateOf(exercise.progressionKg.toString()) }
+    var progressionError by remember { mutableStateOf<String?>(null) }
     var rest by remember { mutableStateOf(exercise.restSeconds.toString()) }
+    var restError by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf(exercise.notes) }
-    var showError by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
+                .heightIn(max = 600.dp),
             shape = RoundedCornerShape(16.dp),
-            color = SurfaceDarkGrey
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -58,20 +60,19 @@ fun ExerciseEditDialog(
                         Text(
                             "Configure Exercise",
                             style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
                             exercise.exercise.displayName,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = PrimaryPurple
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextSecondary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -88,84 +89,85 @@ fun ExerciseEditDialog(
                     // Sets and Reps editor
                     SetRepsEditor(
                         setReps = setReps,
-                        onSetRepsChange = { setReps = it; showError = false }
+                        onSetRepsChange = { setReps = it }
                     )
 
                     // Weight input
                     NumberInputField(
                         value = weight,
-                        onValueChange = { weight = it; showError = false },
+                        onValueChange = { newValue ->
+                            weight = newValue
+                            weightError = when {
+                                newValue.isBlank() -> "Weight is required"
+                                newValue.toFloatOrNull() == null -> "Must be a valid number"
+                                newValue.toFloatOrNull()!! <= 0f -> "Must be a positive number"
+                                else -> null
+                            }
+                        },
                         label = "Weight per Cable (kg)",
                         modifier = Modifier.fillMaxWidth(),
                         isDecimal = true,
-                        isError = showError && !isValidFloat(weight, min = 0f)
+                        error = weightError
                     )
                     Text(
                         "Total resistance = Weight × 2 (both cables)",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextTertiary,
+                        color = MaterialTheme.colorScheme.outline,
                         modifier = Modifier.padding(start = Spacing.medium)
                     )
 
                     // Progression input
                     NumberInputField(
                         value = progression,
-                        onValueChange = { progression = it; showError = false },
+                        onValueChange = { newValue ->
+                            progression = newValue
+                            progressionError = when {
+                                newValue.isBlank() -> "Progression is required"
+                                newValue.toFloatOrNull() == null -> "Must be a valid number"
+                                newValue.toFloatOrNull()!! < 0f -> "Must be a positive number or zero"
+                                else -> null
+                            }
+                        },
                         label = "Progression per Cable (kg)",
                         modifier = Modifier.fillMaxWidth(),
                         isDecimal = true,
-                        isError = showError && !isValidFloat(progression, min = 0f)
+                        error = progressionError
                     )
                     Text(
                         "Weight increase when progressing to next level",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextTertiary,
+                        color = MaterialTheme.colorScheme.outline,
                         modifier = Modifier.padding(start = Spacing.medium)
                     )
 
                     // Rest time input
                     NumberInputField(
                         value = rest,
-                        onValueChange = { rest = it; showError = false },
+                        onValueChange = { newValue ->
+                            rest = newValue
+                            restError = when {
+                                newValue.isBlank() -> "Rest time is required"
+                                newValue.toIntOrNull() == null -> "Must be a valid number"
+                                newValue.toIntOrNull()!! < 0 -> "Must be zero or greater"
+                                else -> null
+                            }
+                        },
                         label = "Rest Time (seconds)",
                         modifier = Modifier.fillMaxWidth(),
-                        isError = showError && !isValidInt(rest, min = 0)
+                        error = restError
                     )
 
                     // Notes field
                     OutlinedTextField(
                         value = notes,
                         onValueChange = { notes = it },
-                        label = { Text("Notes (optional)", color = TextSecondary) },
+                        label = { Text("Notes (optional)") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(120.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryPurple,
-                            unfocusedBorderColor = TextTertiary,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            cursorColor = PrimaryPurple
-                        ),
                         maxLines = 5,
-                        placeholder = { Text("Form cues, tempo, range of motion, etc.", color = TextTertiary) }
+                        placeholder = { Text("Form cues, tempo, range of motion, etc.") }
                     )
-
-                    // Validation error
-                    if (showError) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.1f)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                "Please enter valid positive numbers for all fields and at least one set",
-                                color = ErrorRed,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(Spacing.medium)
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(Spacing.medium))
@@ -175,40 +177,40 @@ fun ExerciseEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.small)
                 ) {
-                    OutlinedButton(
+                    TextButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = TextSecondary
-                        )
+                        modifier = Modifier.weight(1f)
                     ) {
                         Text("Cancel")
                     }
                     Button(
                         onClick = {
                             // Validate inputs
-                            if (setReps.isNotEmpty() &&
-                                isValidFloat(weight, min = 0f) &&
-                                isValidFloat(progression, min = 0f) &&
-                                isValidInt(rest, min = 0)
-                            ) {
+                            val hasErrors = weightError != null || progressionError != null || restError != null || setReps.isEmpty()
+                            
+                            if (!hasErrors) {
                                 val updatedExercise = exercise.copy(
                                     setReps = setReps,
-                                    weightPerCableKg = weight.toFloat(),
-                                    progressionKg = progression.toFloat(),
-                                    restSeconds = rest.toInt(),
+                                    weightPerCableKg = weight.toFloatOrNull() ?: 0f,
+                                    progressionKg = progression.toFloatOrNull() ?: 0f,
+                                    restSeconds = rest.toIntOrNull() ?: 0,
                                     notes = notes.trim()
                                 )
                                 onSave(updatedExercise)
                             } else {
-                                showError = true
+                                // Trigger validation on all fields
+                                if (weight.isBlank() || weight.toFloatOrNull() == null || weight.toFloatOrNull()!! <= 0f) {
+                                    weightError = "Must be a positive number"
+                                }
+                                if (progression.isBlank() || progression.toFloatOrNull() == null || progression.toFloatOrNull()!! < 0f) {
+                                    progressionError = "Must be a positive number or zero"
+                                }
+                                if (rest.isBlank() || rest.toIntOrNull() == null || rest.toIntOrNull()!! < 0) {
+                                    restError = "Must be zero or greater"
+                                }
                             }
                         },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryPurple,
-                            contentColor = TextPrimary
-                        )
+                        modifier = Modifier.weight(1f)
                     ) {
                         Text("Save")
                     }
@@ -225,27 +227,24 @@ fun NumberInputField(
     label: String,
     modifier: Modifier = Modifier,
     isDecimal: Boolean = false,
-    isError: Boolean = false
+    error: String? = null
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, color = TextSecondary) },
-        modifier = modifier,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = PrimaryPurple,
-            unfocusedBorderColor = TextTertiary,
-            focusedTextColor = TextPrimary,
-            unfocusedTextColor = TextPrimary,
-            cursorColor = PrimaryPurple,
-            errorBorderColor = ErrorRed
-        ),
-        keyboardOptions = KeyboardOptions(
-            keyboardType = if (isDecimal) KeyboardType.Decimal else KeyboardType.Number
-        ),
-        singleLine = true,
-        isError = isError
-    )
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (isDecimal) KeyboardType.Decimal else KeyboardType.Number
+            ),
+            singleLine = true,
+            isError = error != null,
+            supportingText = if (error != null) {
+                { Text(error, color = MaterialTheme.colorScheme.error) }
+            } else null
+        )
+    }
 }
 
 private fun isValidInt(value: String, min: Int = Int.MIN_VALUE, max: Int = Int.MAX_VALUE): Boolean {
@@ -270,7 +269,6 @@ fun SetRepsEditor(
             "Sets & Reps",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary,
             modifier = Modifier.padding(bottom = Spacing.extraSmall)
         )
 
@@ -298,12 +296,9 @@ fun SetRepsEditor(
                 onSetRepsChange(setReps + lastReps)
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = PrimaryPurple
-            ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Add, contentDescription = "Add set", modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(Spacing.small))
             Text("Add Set")
         }
@@ -320,7 +315,7 @@ fun SetRow(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -335,7 +330,6 @@ fun SetRow(
                 "Set $setNumber",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary,
                 modifier = Modifier.width(60.dp)
             )
 
@@ -350,9 +344,9 @@ fun SetRow(
                     enabled = reps > 1
                 ) {
                     Icon(
-                        Icons.Default.RemoveCircle,
+                        Icons.Default.KeyboardArrowDown,
                         contentDescription = "Decrease reps",
-                        tint = if (reps > 1) PrimaryPurple else TextDisabled
+                        tint = if (reps > 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                     )
                 }
 
@@ -360,7 +354,6 @@ fun SetRow(
                     text = "$reps",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
                     modifier = Modifier.width(40.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
@@ -369,9 +362,9 @@ fun SetRow(
                     onClick = { onRepsChange(reps + 1) }
                 ) {
                     Icon(
-                        Icons.Default.AddCircle,
+                        Icons.Default.KeyboardArrowUp,
                         contentDescription = "Increase reps",
-                        tint = PrimaryPurple
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -384,7 +377,7 @@ fun SetRow(
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = "Delete set",
-                    tint = if (canDelete) ErrorRed else TextDisabled
+                    tint = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
                 )
             }
         }
