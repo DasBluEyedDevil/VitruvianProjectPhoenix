@@ -28,6 +28,7 @@ fun WorkoutTab(
     autoStopState: AutoStopUiState,
     weightUnit: WeightUnit,
     isWorkoutSetupDialogVisible: Boolean = false,
+    hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     formatWeight: (Float, WeightUnit) -> String,
@@ -41,6 +42,11 @@ fun WorkoutTab(
     onHideWorkoutSetupDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // Haptic feedback effect
+    hapticEvents?.let {
+        HapticFeedbackEffect(hapticEvents = it)
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()

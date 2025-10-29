@@ -13,9 +13,12 @@ import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import com.example.vitruvianredux.service.WorkoutForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -88,6 +91,10 @@ class MainViewModel @Inject constructor(
     private val _isWorkoutSetupDialogVisible = MutableStateFlow(false)
     val isWorkoutSetupDialogVisible: StateFlow<Boolean> = _isWorkoutSetupDialogVisible.asStateFlow()
 
+    // Haptic feedback events
+    private val _hapticEvents = MutableSharedFlow<HapticEvent>()
+    val hapticEvents: SharedFlow<HapticEvent> = _hapticEvents.asSharedFlow()
+
     // Current workout tracking
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
@@ -100,6 +107,23 @@ class MainViewModel @Inject constructor(
 
     init {
         Timber.d("MainViewModel initialized")
+
+        // Set up rep event callback for haptic feedback
+        repCounter.onRepEvent = { repEvent ->
+            viewModelScope.launch {
+                when (repEvent.type) {
+                    RepType.WARMUP_COMPLETED, RepType.WORKING_COMPLETED -> {
+                        _hapticEvents.emit(HapticEvent.REP_COMPLETED)
+                    }
+                    RepType.WARMUP_COMPLETE -> {
+                        _hapticEvents.emit(HapticEvent.WARMUP_COMPLETE)
+                    }
+                    RepType.WORKOUT_COMPLETE -> {
+                        _hapticEvents.emit(HapticEvent.WORKOUT_COMPLETE)
+                    }
+                }
+            }
+        }
 
         // Collect monitor data (for position/load display only)
         viewModelScope.launch {
@@ -359,6 +383,9 @@ class MainViewModel @Inject constructor(
                     )
 
                     Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+                    
+                    // Emit haptic feedback for workout start
+                    _hapticEvents.emit(HapticEvent.WORKOUT_START)
                 } else {
                     _workoutState.value = WorkoutState.Error(
                         result.exceptionOrNull()?.message ?: "Unknown error"
@@ -379,6 +406,9 @@ class MainViewModel @Inject constructor(
                 WorkoutForegroundService.stopWorkoutService(getContext())
 
                 Timber.d("Workout stopped successfully")
+
+                // Emit haptic feedback for workout end
+                _hapticEvents.emit(HapticEvent.WORKOUT_END)
 
                 saveWorkoutSession()
                 repCounter.reset()

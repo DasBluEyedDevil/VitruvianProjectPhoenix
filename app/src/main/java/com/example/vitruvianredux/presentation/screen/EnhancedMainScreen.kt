@@ -174,6 +174,7 @@ fun EnhancedMainScreen(
                     autoStopState = autoStopState,
                     weightUnit = weightUnit,
                     isWorkoutSetupDialogVisible = isWorkoutSetupDialogVisible,
+                    hapticEvents = viewModel.hapticEvents,
                     kgToDisplay = viewModel::kgToDisplay,
                     displayToKg = viewModel::displayToKg,
                     formatWeight = viewModel::formatWeight,

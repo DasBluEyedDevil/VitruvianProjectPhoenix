@@ -111,6 +111,17 @@ data class RepEvent(
 )
 
 /**
+ * Haptic feedback event types
+ */
+enum class HapticEvent {
+    REP_COMPLETED,
+    WARMUP_COMPLETE,
+    WORKOUT_COMPLETE,
+    WORKOUT_START,
+    WORKOUT_END
+}
+
+/**
  * Workout session data (simplified for database storage)
  */
 data class WorkoutSession(
