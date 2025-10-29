@@ -21,9 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.vitruvianredux.data.local.ExerciseEntity
+import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.domain.model.CableConfiguration
 import com.example.vitruvianredux.domain.model.Exercise
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.RoutineExercise
+import com.example.vitruvianredux.domain.model.resolveDefaultCableConfig
+import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.ui.theme.*
 import java.util.*
 
@@ -31,7 +36,8 @@ import java.util.*
 fun RoutineBuilderDialog(
     routine: Routine? = null,
     onSave: (Routine) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    exerciseRepository: ExerciseRepository
 ) {
     var name by remember { mutableStateOf(routine?.name ?: "") }
     var description by remember { mutableStateOf(routine?.description ?: "") }
@@ -280,26 +286,35 @@ fun RoutineBuilderDialog(
     }
 
     // Exercise picker dialog
-    if (showExercisePicker) {
-        ExercisePickerDialog(
-            onExerciseSelected = { selectedExercise ->
-                // Open exercise edit dialog with default values
-                val newExercise = RoutineExercise(
-                    id = UUID.randomUUID().toString(),
-                    exercise = selectedExercise,
-                    orderIndex = exercises.size,
-                    setReps = listOf(10, 10, 10),
-                    weightPerCableKg = 20f,
-                    progressionKg = 2.5f,
-                    restSeconds = 60,
-                    notes = ""
-                )
-                exerciseToEdit = Pair(exercises.size, newExercise)
-                showExercisePicker = false
-            },
-            onDismiss = { showExercisePicker = false }
-        )
-    }
+    ExercisePickerDialog(
+        showDialog = showExercisePicker,
+        onDismiss = { showExercisePicker = false },
+        onExerciseSelected = { selectedExercise ->
+            // Convert ExerciseEntity to Exercise domain model
+            val exercise = Exercise(
+                name = selectedExercise.name,
+                muscleGroup = selectedExercise.muscleGroups.split(",").firstOrNull()?.trim() ?: "Full Body",
+                equipment = selectedExercise.equipment.split(",").firstOrNull()?.trim() ?: "",
+                defaultCableConfig = CableConfiguration.DOUBLE // Default to DOUBLE, user can override
+            )
+
+            // Open exercise edit dialog with default values
+            val newRoutineExercise = RoutineExercise(
+                id = UUID.randomUUID().toString(),
+                exercise = exercise,
+                cableConfig = exercise.resolveDefaultCableConfig(), // Use helper to resolve EITHER → DOUBLE
+                orderIndex = exercises.size,
+                setReps = listOf(10, 10, 10),
+                weightPerCableKg = 20f,
+                progressionKg = 2.5f,
+                restSeconds = 60,
+                notes = ""
+            )
+            exerciseToEdit = Pair(exercises.size, newRoutineExercise)
+            showExercisePicker = false
+        },
+        exerciseRepository = exerciseRepository
+    )
 
     // Exercise edit dialog
     exerciseToEdit?.let { (index, exercise) ->

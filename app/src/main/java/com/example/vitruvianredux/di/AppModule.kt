@@ -6,10 +6,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.vitruvianredux.data.local.WorkoutDatabase
 import com.example.vitruvianredux.data.local.WorkoutDao
+import com.example.vitruvianredux.data.local.ExerciseDao
+import com.example.vitruvianredux.data.local.ExerciseImporter
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.BleRepositoryImpl
 import com.example.vitruvianredux.data.repository.WorkoutRepository
+import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.data.repository.ExerciseRepositoryImpl
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import dagger.Module
 import dagger.Provides
@@ -108,6 +112,152 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 4 to 5: Add equipment type
+     */
+    private val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add equipment column with default value 'LONG_BAR'
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN equipment TEXT NOT NULL DEFAULT 'LONG_BAR'
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 5 to 6: Add exercise library tables
+     */
+    private val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Create exercises table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS exercises (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    created TEXT NOT NULL,
+                    muscleGroups TEXT NOT NULL,
+                    muscles TEXT NOT NULL,
+                    equipment TEXT NOT NULL,
+                    movement TEXT,
+                    sidedness TEXT,
+                    grip TEXT,
+                    gripWidth TEXT,
+                    minRepRange REAL,
+                    popularity REAL NOT NULL,
+                    archived INTEGER NOT NULL,
+                    isFavorite INTEGER NOT NULL DEFAULT 0,
+                    timesPerformed INTEGER NOT NULL DEFAULT 0,
+                    lastPerformed INTEGER
+                )
+            """.trimIndent())
+
+            // Create exercise_videos table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS exercise_videos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    exerciseId TEXT NOT NULL,
+                    angle TEXT NOT NULL,
+                    videoUrl TEXT NOT NULL,
+                    thumbnailUrl TEXT NOT NULL,
+                    FOREIGN KEY(exerciseId) REFERENCES exercises(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create index on exerciseId for performance
+            database.execSQL("""
+                CREATE INDEX IF NOT EXISTS index_exercise_videos_exerciseId
+                ON exercise_videos(exerciseId)
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 6 to 7: Add exercise detail fields to routine_exercises
+     * Supports Exercise data class (previously enum)
+     */
+    private val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add exercise detail columns with default values
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseMuscleGroup TEXT NOT NULL DEFAULT 'Full Body'
+            """.trimIndent())
+
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseEquipment TEXT NOT NULL DEFAULT ''
+            """.trimIndent())
+
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseDefaultCableConfig TEXT NOT NULL DEFAULT 'DOUBLE'
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 7 to 8: Fix routine_exercises schema
+     * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
+     */
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // 1. Create new table with correct schema (13 columns)
+            database.execSQL("""
+                CREATE TABLE `routine_exercises_new` (
+                    `id` TEXT NOT NULL,
+                    `routineId` TEXT NOT NULL,
+                    `exerciseName` TEXT NOT NULL,
+                    `exerciseMuscleGroup` TEXT NOT NULL,
+                    `exerciseEquipment` TEXT NOT NULL,
+                    `exerciseDefaultCableConfig` TEXT NOT NULL,
+                    `cableConfig` TEXT NOT NULL,
+                    `orderIndex` INTEGER NOT NULL,
+                    `setReps` TEXT NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `progressionKg` REAL NOT NULL,
+                    `restSeconds` INTEGER NOT NULL,
+                    `notes` TEXT NOT NULL,
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // 2. Copy data (IFNULL handles NULL values from failed v7 migration)
+            database.execSQL("""
+                INSERT INTO `routine_exercises_new` (
+                    id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
+                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
+                )
+                SELECT
+                    id,
+                    routineId,
+                    exerciseName,
+                    IFNULL(exerciseMuscleGroup, ''),
+                    IFNULL(exerciseEquipment, ''),
+                    IFNULL(exerciseDefaultCableConfig, ''),
+                    cableConfig,
+                    orderIndex,
+                    setReps,
+                    weightPerCableKg,
+                    progressionKg,
+                    restSeconds,
+                    notes
+                FROM `routine_exercises`
+            """.trimIndent())
+
+            // 3. Drop old table
+            database.execSQL("DROP TABLE `routine_exercises`")
+
+            // 4. Rename new table
+            database.execSQL("ALTER TABLE `routine_exercises_new` RENAME TO `routine_exercises`")
+
+            // 5. Recreate index
+            database.execSQL("CREATE INDEX `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideBleRepository(
@@ -126,7 +276,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
         .build()
     }
 
@@ -153,5 +303,29 @@ object AppModule {
         @ApplicationContext context: Context
     ): PreferencesManager {
         return PreferencesManager(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideExerciseDao(database: WorkoutDatabase): ExerciseDao {
+        return database.exerciseDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideExerciseImporter(
+        @ApplicationContext context: Context,
+        exerciseDao: ExerciseDao
+    ): ExerciseImporter {
+        return ExerciseImporter(context, exerciseDao)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideExerciseRepository(
+        exerciseDao: ExerciseDao,
+        exerciseImporter: ExerciseImporter
+    ): ExerciseRepository {
+        return ExerciseRepositoryImpl(exerciseDao, exerciseImporter)
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
@@ -20,6 +21,7 @@ import java.util.*
 @Composable
 fun RoutinesTab(
     routines: List<Routine>,
+    exerciseRepository: ExerciseRepository,
     onLoadRoutine: (Routine) -> Unit,
     onDeleteRoutine: (String) -> Unit,
     onCreateRoutine: () -> Unit,
@@ -117,7 +119,8 @@ fun RoutinesTab(
             onDismiss = {
                 showRoutineBuilder = false
                 routineToEdit = null
-            }
+            },
+            exerciseRepository = exerciseRepository
         )
     }
 }

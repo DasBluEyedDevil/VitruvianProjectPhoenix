@@ -200,6 +200,7 @@ fun EnhancedMainScreen(
                 )
                 2 -> RoutinesTab(
                     routines = routines,
+                    exerciseRepository = viewModel.exerciseRepository,
                     onLoadRoutine = { routine -> viewModel.loadRoutine(routine) },
                     onDeleteRoutine = { routineId -> viewModel.deleteRoutine(routineId) },
                     onCreateRoutine = { /* Handled in RoutinesTab */ },

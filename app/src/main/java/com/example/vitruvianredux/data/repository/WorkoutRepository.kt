@@ -267,7 +267,12 @@ private fun Routine.toEntity() = RoutineEntity(
 private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     id = id,
     routineId = routineId,
+    // Store Exercise data class fields
     exerciseName = exercise.name,
+    exerciseMuscleGroup = exercise.muscleGroup,
+    exerciseEquipment = exercise.equipment,
+    exerciseDefaultCableConfig = exercise.defaultCableConfig.name, // Convert enum to String
+    // Routine-specific configuration
     cableConfig = cableConfig.name, // Convert enum to String
     orderIndex = orderIndex,
     setReps = setReps.joinToString(","), // Convert List<Int> to comma-separated String
@@ -289,7 +294,13 @@ private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity
 
 private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
     id = id,
-    exercise = Exercise.valueOf(exerciseName),
+    // Reconstruct Exercise data class from stored fields
+    exercise = Exercise(
+        name = exerciseName,
+        muscleGroup = exerciseMuscleGroup,
+        equipment = exerciseEquipment,
+        defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig)
+    ),
     cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
     orderIndex = orderIndex,
     setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
