@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
@@ -32,6 +33,7 @@ class MainViewModel @Inject constructor(
     application: Application,
     private val bleRepository: BleRepository,
     private val workoutRepository: WorkoutRepository,
+    val exerciseRepository: ExerciseRepository,
     private val repCounter: RepCounterFromMachine,
     private val preferencesManager: PreferencesManager
 ) : AndroidViewModel(application) {
