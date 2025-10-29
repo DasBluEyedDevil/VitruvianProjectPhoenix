@@ -1,5 +1,6 @@
 package com.example.vitruvianredux.presentation.viewmodel
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
@@ -146,6 +147,7 @@ class MainViewModel @Inject constructor(
                 val currentDevices = _scannedDevices.value.toMutableList()
                 val existingDevice = currentDevices.find { it.address == scanResult.device.address }
                 if (existingDevice == null) {
+                    @SuppressLint("MissingPermission")
                     val scannedDevice = ScannedDevice(
                         name = scanResult.device.name ?: "Unknown",
                         address = scanResult.device.address,

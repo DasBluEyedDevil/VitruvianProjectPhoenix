@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Per-Set Reps Backend Implementation (2025-10-28)
+
+**Complete Backend for Variable Reps Per Set:**
+
+**Database Schema Changes:**
+- Changed `RoutineExerciseEntity` from `sets: Int` and `reps: Int` to `setReps: String`
+- String format: comma-separated values (e.g., "10,10,10" for standard, "10,8,6,4" for pyramid)
+- Migration 3→4: Added `setReps` column, populated from existing sets/reps data
+- Old columns left in database for backwards compatibility (Room ignores them)
+- Database version incremented to 4
+
+**Type Conversion:**
+- Added `Converters.kt` with Room TypeConverters for List<Int> ↔ String conversion
+- Registered `@TypeConverters(Converters::class)` in WorkoutDatabase
+- Conversion methods handle empty strings and invalid data gracefully
+
+**Migration Strategy:**
+- MIGRATION_3_4 uses SQL subquery to convert old format to new
+- Preserves all existing routine data (zero data loss)
+- Backwards compatible: old columns remain for rollback if needed
+- Example: `sets=3, reps=10` converts to `setReps="10,10,10"`
+
+**Repository Updates:**
+- `toEntity()`: Converts `List<Int>` to comma-separated String for storage
+- `toRoutineExercise()`: Converts String back to `List<Int>` for domain model
+- Proper error handling with `mapNotNull` and empty string checks
+
+**Domain Model:**
+- `Routine.kt` already updated with `setReps: List<Int>` field (from previous session)
+- Computed properties maintain backwards compatibility:
+  - `val sets: Int get() = setReps.size`
+  - `val reps: Int get() = setReps.firstOrNull() ?: 10`
+- Enables pyramid training: [10, 8, 6, 4], reverse pyramid, 5x5, etc.
+
+**UI Compatibility Fixes:**
+- `ExerciseEditDialog.kt`: Updated to create `setReps` list from UI inputs
+- `RoutineBuilderDialog.kt`: Updated default values to use `listOf(10, 10, 10)`
+- Existing UI continues to work with "Sets" and "Reps" fields via computed properties
+- Full UI redesign for per-set rep adjustment pending (future session)
+
+**Key Features Enabled:**
+- Pyramid sets: Decreasing reps per set (10, 8, 6, 4)
+- Reverse pyramid: Increasing reps per set (4, 6, 8, 10)
+- Standard sets: Same reps per set (10, 10, 10)
+- Custom patterns: Any combination of rep counts
+
+**Build Status:** ✅ SUCCESSFUL - All compilation errors resolved, tests passing
+
 ### Added - Cable Configuration System (2025-01-28)
 
 **Complete Cable Tracking Support:**

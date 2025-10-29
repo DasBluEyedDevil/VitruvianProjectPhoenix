@@ -206,8 +206,7 @@ fun ExerciseEditDialog(
                                 isValidInt(rest, min = 0)
                             ) {
                                 val updatedExercise = exercise.copy(
-                                    sets = sets.toInt(),
-                                    reps = reps.toInt(),
+                                    setReps = List(sets.toInt()) { reps.toInt() },
                                     weightPerCableKg = weight.toFloat(),
                                     progressionKg = progression.toFloat(),
                                     restSeconds = rest.toInt(),
