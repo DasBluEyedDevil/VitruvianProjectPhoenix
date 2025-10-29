@@ -36,7 +36,7 @@ fun HistoryTab(
             "Workout History",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(Spacing.medium))
 
@@ -50,13 +50,13 @@ fun HistoryTab(
                         Icons.Default.Home,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
-                        tint = TextTertiary
+                        tint = MaterialTheme.colorScheme.outline
                     )
                     Spacer(modifier = Modifier.height(Spacing.medium))
                     Text(
                         "No workouts yet",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -64,7 +64,7 @@ fun HistoryTab(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                items(workoutHistory) { session ->
+                items(workoutHistory, key = { it.id }) { session ->
                     WorkoutHistoryCard(
                         session = session,
                         weightUnit = weightUnit,
@@ -89,7 +89,7 @@ fun WorkoutHistoryCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -108,16 +108,16 @@ fun WorkoutHistoryCard(
                         session.mode,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         formatTimestamp(session.timestamp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ErrorRed)
+                    Icon(Icons.Default.Delete, contentDescription = "Delete workout", tint = MaterialTheme.colorScheme.error)
                 }
             }
 
@@ -148,7 +148,7 @@ fun WorkoutHistoryCard(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Workout?") },
             text = { Text("This action cannot be undone.") },
-            containerColor = SurfaceDarkGrey,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp),
             confirmButton = {
                 TextButton(
@@ -157,12 +157,12 @@ fun WorkoutHistoryCard(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text("Delete", color = ErrorRed)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -176,12 +176,12 @@ fun MetricItem(label: String, value: String) {
             value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -206,13 +206,13 @@ fun SettingsTab(
             "Settings",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         // Weight Unit Section
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
@@ -225,7 +225,7 @@ fun SettingsTab(
                     "Weight Unit",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -239,10 +239,10 @@ fun SettingsTab(
                         label = { Text("kg") },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = PrimaryPurple,
-                            selectedLabelColor = TextPrimary,
-                            containerColor = SurfaceDarkGrey,
-                            labelColor = TextSecondary
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                     FilterChip(
@@ -251,10 +251,10 @@ fun SettingsTab(
                         label = { Text("lb") },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = PrimaryPurple,
-                            selectedLabelColor = TextPrimary,
-                            containerColor = SurfaceDarkGrey,
-                            labelColor = TextSecondary
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -264,7 +264,7 @@ fun SettingsTab(
         // Color Scheme Section
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
@@ -277,7 +277,7 @@ fun SettingsTab(
                     "LED Color Scheme",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -294,11 +294,11 @@ fun SettingsTab(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(name, color = TextPrimary)
+                            Text(name, color = MaterialTheme.colorScheme.onSurface)
                             Icon(
                                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = null,
-                                tint = PrimaryPurple
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -309,7 +309,7 @@ fun SettingsTab(
         // Data Management Section
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
@@ -322,16 +322,16 @@ fun SettingsTab(
                     "Data Management",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(Spacing.small))
 
                 Button(
                     onClick = { showDeleteAllDialog = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Icon(Icons.Default.Delete, contentDescription = "Delete all workouts")
                     Spacer(modifier = Modifier.width(Spacing.small))
                     Text("Delete All Workouts")
                 }
@@ -341,7 +341,7 @@ fun SettingsTab(
         // App Info Section
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
@@ -354,16 +354,16 @@ fun SettingsTab(
                     "App Info",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(Spacing.small))
-                Text("Version: 0.1.0-beta", color = TextPrimary)
-                Text("Build: Beta 1", color = TextPrimary)
+                Text("Version: 0.1.0-beta", color = MaterialTheme.colorScheme.onSurface)
+                Text("Build: Beta 1", color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(Spacing.small))
                 Text(
                     "Open source community project to control Vitruvian Trainer machines locally.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -374,7 +374,7 @@ fun SettingsTab(
             onDismissRequest = { showDeleteAllDialog = false },
             title = { Text("Delete All Workouts?") },
             text = { Text("This will permanently delete all workout history. This action cannot be undone.") },
-            containerColor = SurfaceDarkGrey,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp),
             confirmButton = {
                 TextButton(
@@ -383,12 +383,12 @@ fun SettingsTab(
                         showDeleteAllDialog = false
                     }
                 ) {
-                    Text("Delete All", color = ErrorRed)
+                    Text("Delete All", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAllDialog = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )

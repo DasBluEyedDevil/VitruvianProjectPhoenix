@@ -42,7 +42,7 @@ fun RoutinesTab(
                 "My Routines",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
@@ -56,19 +56,19 @@ fun RoutinesTab(
                             Icons.Default.FavoriteBorder,
                             contentDescription = null,
                             modifier = Modifier.size(64.dp),
-                            tint = TextTertiary
+                            tint = MaterialTheme.colorScheme.outline
                         )
                         Spacer(modifier = Modifier.height(Spacing.medium))
                         Text(
                             "No routines yet",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(Spacing.small))
                         Text(
                             "Create a routine to save your workout",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextTertiary
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
@@ -76,7 +76,7 @@ fun RoutinesTab(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(Spacing.small)
                 ) {
-                    items(routines) { routine ->
+                    items(routines, key = { it.id }) { routine ->
                         RoutineCard(
                             routine = routine,
                             onLoad = { onLoadRoutine(routine) },
@@ -96,12 +96,11 @@ fun RoutinesTab(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(Spacing.medium),
-            containerColor = PrimaryPurple
+            containerColor = MaterialTheme.colorScheme.primary
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = "Create Routine",
-                tint = TextPrimary
+                contentDescription = "Create routine"
             )
         }
     }
@@ -133,7 +132,7 @@ fun RoutineCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -153,19 +152,19 @@ fun RoutineCard(
                         routine.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     if (routine.description.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         Text(
                             routine.description,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ErrorRed)
+                    Icon(Icons.Default.Delete, contentDescription = "Delete routine", tint = MaterialTheme.colorScheme.error)
                 }
             }
 
@@ -198,9 +197,9 @@ fun RoutineCard(
             Button(
                 onClick = onLoad,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryPurple)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Icon(Icons.Default.PlayArrow, contentDescription = "Load routine")
                 Spacer(modifier = Modifier.width(Spacing.small))
                 Text("Load Routine")
             }
@@ -213,7 +212,7 @@ fun RoutineCard(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Routine?") },
             text = { Text("Are you sure you want to delete \"${routine.name}\"? This action cannot be undone.") },
-            containerColor = SurfaceDarkGrey,
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp),
             confirmButton = {
                 TextButton(
@@ -222,12 +221,12 @@ fun RoutineCard(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text("Delete", color = ErrorRed)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -241,12 +240,12 @@ fun StatItem(label: String, value: String) {
             value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

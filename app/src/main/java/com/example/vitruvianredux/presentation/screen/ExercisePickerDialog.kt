@@ -49,7 +49,7 @@ fun ExercisePickerDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.8f),
             shape = RoundedCornerShape(16.dp),
-            color = SurfaceDarkGrey
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -66,13 +66,13 @@ fun ExercisePickerDialog(
                         "Select Exercise",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextSecondary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -83,22 +83,15 @@ fun ExercisePickerDialog(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Search exercises", color = TextSecondary) },
+                    label = { Text("Search exercises") },
                     leadingIcon = {
                         Icon(
                             Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = TextTertiary
+                            contentDescription = null
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryPurple,
-                        unfocusedBorderColor = TextTertiary,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = PrimaryPurple
-                    ),
+                    colors = OutlinedTextFieldDefaults.colors(),
                     singleLine = true
                 )
 
@@ -119,7 +112,7 @@ fun ExercisePickerDialog(
                             ) {
                                 Text(
                                     "No exercises found",
-                                    color = TextTertiary,
+                                    color = MaterialTheme.colorScheme.outline,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -129,7 +122,7 @@ fun ExercisePickerDialog(
                             item {
                                 CategoryHeader(category)
                             }
-                            items(exercises) { exercise ->
+                            items(exercises, key = { it.name }) { exercise ->
                                 ExerciseItem(
                                     exercise = exercise,
                                     onClick = { onExerciseSelected(exercise) }
@@ -149,7 +142,7 @@ fun CategoryHeader(category: ExerciseCategory) {
         text = formatCategoryName(category),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
-        color = PrimaryPurple,
+        color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(vertical = Spacing.small)
     )
 }
@@ -163,7 +156,7 @@ fun ExerciseItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -176,12 +169,12 @@ fun ExerciseItem(
             Text(
                 exercise.displayName,
                 style = MaterialTheme.typography.bodyLarge,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 formatCategoryName(exercise.category),
                 style = MaterialTheme.typography.bodySmall,
-                color = TextTertiary
+                color = MaterialTheme.colorScheme.outline
             )
         }
     }

@@ -2,6 +2,7 @@ package com.example.vitruvianredux.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 
 /**
  * Room database for workout history
@@ -13,9 +14,10 @@ import androidx.room.RoomDatabase
         RoutineEntity::class,
         RoutineExerciseEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
+@TypeConverters(Converters::class)
 abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
 }

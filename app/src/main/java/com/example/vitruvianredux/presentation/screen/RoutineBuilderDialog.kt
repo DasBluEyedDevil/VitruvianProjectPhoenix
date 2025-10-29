@@ -47,7 +47,7 @@ fun RoutineBuilderDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.9f),
             shape = RoundedCornerShape(16.dp),
-            color = SurfaceDarkGrey
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -64,13 +64,13 @@ fun RoutineBuilderDialog(
                         text = if (routine == null) "Create Routine" else "Edit Routine",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     IconButton(onClick = onDismiss) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextSecondary
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -90,15 +90,9 @@ fun RoutineBuilderDialog(
                             name = it
                             showError = false
                         },
-                        label = { Text("Routine Name *", color = TextSecondary) },
+                        label = { Text("Routine Name *") },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryPurple,
-                            unfocusedBorderColor = TextTertiary,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            cursorColor = PrimaryPurple
-                        ),
+                        colors = OutlinedTextFieldDefaults.colors(),
                         singleLine = true,
                         isError = showError && name.isBlank()
                     )
@@ -106,7 +100,7 @@ fun RoutineBuilderDialog(
                     if (showError && name.isBlank()) {
                         Text(
                             "Routine name is required",
-                            color = ErrorRed,
+                            color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(start = Spacing.medium, top = Spacing.extraSmall)
                         )
@@ -118,17 +112,11 @@ fun RoutineBuilderDialog(
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
-                        label = { Text("Description (optional)", color = TextSecondary) },
+                        label = { Text("Description (optional)") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(100.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PrimaryPurple,
-                            unfocusedBorderColor = TextTertiary,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            cursorColor = PrimaryPurple
-                        ),
+                        colors = OutlinedTextFieldDefaults.colors(),
                         maxLines = 4
                     )
 
@@ -144,19 +132,19 @@ fun RoutineBuilderDialog(
                             "Exercises",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             "${exercises.size} exercises",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     if (showError && exercises.isEmpty()) {
                         Text(
                             "Add at least one exercise",
-                            color = ErrorRed,
+                            color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = Spacing.extraSmall)
                         )
@@ -170,7 +158,7 @@ fun RoutineBuilderDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = Spacing.small),
-                            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Box(
@@ -181,7 +169,7 @@ fun RoutineBuilderDialog(
                             ) {
                                 Text(
                                     "No exercises added yet",
-                                    color = TextTertiary,
+                                    color = MaterialTheme.colorScheme.outline,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -231,11 +219,11 @@ fun RoutineBuilderDialog(
                         onClick = { showExercisePicker = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = PrimaryPurple
+                            contentColor = MaterialTheme.colorScheme.primary
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
+                        Icon(Icons.Default.Add, contentDescription = "Add exercise")
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text("Add Exercise")
                     }
@@ -252,7 +240,7 @@ fun RoutineBuilderDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = TextSecondary
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Text("Cancel")
@@ -281,8 +269,7 @@ fun RoutineBuilderDialog(
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryPurple,
-                            contentColor = TextPrimary
+                            containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
                         Text("Save")
@@ -301,8 +288,7 @@ fun RoutineBuilderDialog(
                     id = UUID.randomUUID().toString(),
                     exercise = selectedExercise,
                     orderIndex = exercises.size,
-                    sets = 3,
-                    reps = 10,
+                    setReps = listOf(10, 10, 10),
                     weightPerCableKg = 20f,
                     progressionKg = 2.5f,
                     restSeconds = 60,
@@ -349,7 +335,7 @@ fun ExerciseListItem(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
@@ -367,28 +353,28 @@ fun ExerciseListItem(
                         Text(
                             "${index + 1}.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextTertiary,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.width(24.dp)
                         )
                         Text(
                             exercise.exercise.displayName,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                     Spacer(modifier = Modifier.height(Spacing.extraSmall))
                     Text(
-                        "${exercise.sets} sets × ${exercise.reps} reps @ ${exercise.weightPerCableKg}kg/cable",
+                        "${formatReps(exercise.setReps)} @ ${exercise.weightPerCableKg}kg/cable",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (exercise.notes.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         Text(
                             exercise.notes,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextTertiary,
+                            color = MaterialTheme.colorScheme.outline,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                         )
                     }
@@ -403,7 +389,7 @@ fun ExerciseListItem(
                         Icon(
                             Icons.Default.KeyboardArrowUp,
                             contentDescription = "Move Up",
-                            tint = if (isFirst) TextDisabled else TextSecondary
+                            tint = if (isFirst) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(
@@ -413,25 +399,43 @@ fun ExerciseListItem(
                         Icon(
                             Icons.Default.KeyboardArrowDown,
                             contentDescription = "Move Down",
-                            tint = if (isLast) TextDisabled else TextSecondary
+                            tint = if (isLast) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = onEdit) {
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = "Edit",
-                            tint = PrimaryPurple
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = onDelete) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Delete",
-                            tint = ErrorRed
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Format the setReps list for display in the exercise list
+ * Examples:
+ * - [10, 10, 10] -> "3 × 10 reps"
+ * - [10, 8, 6, 4] -> "4 sets: 10/8/6/4"
+ * - [12] -> "1 × 12 reps"
+ */
+private fun formatReps(setReps: List<Int>): String {
+    if (setReps.isEmpty()) return "0 sets"
+    
+    val allSame = setReps.all { it == setReps.first() }
+    return if (allSame) {
+        "${setReps.size} × ${setReps.first()} reps"
+    } else {
+        "${setReps.size} sets: ${setReps.joinToString("/")}"
     }
 }

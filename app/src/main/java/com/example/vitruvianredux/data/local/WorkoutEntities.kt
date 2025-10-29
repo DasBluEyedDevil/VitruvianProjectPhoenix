@@ -75,8 +75,7 @@ data class RoutineExerciseEntity(
     val exerciseName: String,
     val cableConfig: String, // "SINGLE" or "DOUBLE" (never "EITHER" in storage)
     val orderIndex: Int,
-    val sets: Int,
-    val reps: Int,
+    val setReps: String, // Comma-separated rep counts (e.g., "10,10,10" or "10,8,6,4")
     val weightPerCableKg: Float,
     val progressionKg: Float = 0f,
     val restSeconds: Int = 60,
