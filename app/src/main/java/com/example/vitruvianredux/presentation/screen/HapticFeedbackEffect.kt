@@ -29,10 +29,10 @@ fun HapticFeedbackEffect(
 ) {
     val haptic = LocalHapticFeedback.current
     
-    // Create ToneGenerator for audio cues (80% volume on notification stream)
+    // Create ToneGenerator for audio cues (80% volume on media stream)
     val toneGenerator = remember {
         try {
-            ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80)
+            ToneGenerator(AudioManager.STREAM_MUSIC, 80)
         } catch (e: Exception) {
             Timber.w(e, "Failed to create ToneGenerator")
             null

@@ -55,6 +55,9 @@ data class RoutineEntity(
 
 /**
  * Room entity for exercises within a routine
+ *
+ * MIGRATION NOTE: Added exercise detail fields (muscleGroup, equipment, defaultCableConfig)
+ * to support Exercise data class instead of enum
  */
 @Entity(
     tableName = "routine_exercises",
@@ -72,7 +75,12 @@ data class RoutineExerciseEntity(
     @PrimaryKey
     val id: String,
     val routineId: String,
+    // Exercise data
     val exerciseName: String,
+    val exerciseMuscleGroup: String,
+    val exerciseEquipment: String = "",
+    val exerciseDefaultCableConfig: String, // "SINGLE", "DOUBLE", or "EITHER"
+    // Routine-specific configuration
     val cableConfig: String, // "SINGLE" or "DOUBLE" (never "EITHER" in storage)
     val orderIndex: Int,
     val setReps: String, // Comma-separated rep counts (e.g., "10,10,10" or "10,8,6,4")

@@ -85,6 +85,8 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
      */
     private inner class VitruvianGattCallback : BleManagerGattCallback() {
 
+        private val notifyCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
+
         @Deprecated("Using deprecated Nordic BLE API")
         override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
             // Log all available services and characteristics for debugging
@@ -140,6 +142,17 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
                 Timber.w("⚠️ Rep notify characteristic not found - rep counting may not work!")
             }
 
+            // Collect ALL characteristics for notifications (matching web app)
+            notifyCharacteristics.clear()
+            val allCharacteristics = gatt.services.flatMap { it.characteristics }
+            for (uuid in BleConstants.NOTIFY_CHAR_UUIDS) {
+                allCharacteristics.find { it.uuid == uuid }?.let { char ->
+                    notifyCharacteristics.add(char)
+                    Timber.d("Found notify characteristic: $uuid")
+                }
+            }
+            Timber.d("Collected ${notifyCharacteristics.size} notify characteristics")
+
             return true
         }
 
@@ -167,28 +180,38 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
                 }
                 .enqueue()
 
-            // Enable notifications on rep notify characteristic
-            repNotifyCharacteristic?.let { characteristic ->
-                Timber.d("Enabling rep notifications on characteristic ${characteristic.uuid}")
-                // CRITICAL: Set callback FIRST, then enable notifications
-                setNotificationCallback(characteristic).with { _, data ->
-                    Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
-                    handleRepNotification(data)
+            // Enable notifications on ALL required characteristics (matching web app behavior)
+            // The machine requires all these to be enabled for proper operation
+            Timber.d("Enabling core BLE notifications on ${notifyCharacteristics.size} characteristics...")
+
+            for (characteristic in notifyCharacteristics) {
+                Timber.d("  Enabling notifications on ${characteristic.uuid}...")
+
+                if (characteristic.uuid == BleConstants.REP_NOTIFY_CHAR_UUID) {
+                    // Special handler for rep notifications
+                    setNotificationCallback(characteristic).with { _, data ->
+                        Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
+                        handleRepNotification(data)
+                    }
+                } else {
+                    // Generic handler for other notifications (just log them)
+                    setNotificationCallback(characteristic).with { _, data ->
+                        Timber.d("[notify ${characteristic.uuid}] ${data.value?.size ?: 0} bytes")
+                    }
                 }
+
                 enableNotifications(characteristic)
                     .done { device ->
-                        Timber.d("✅ Rep notifications enabled successfully on ${characteristic.uuid}")
+                        Timber.d("    -> Notifications active on ${characteristic.uuid}")
                     }
                     .fail { device, status ->
-                        Timber.e("❌ Failed to enable rep notifications: status=$status")
+                        Timber.w("    -> Failed to enable notifications on ${characteristic.uuid}: status=$status")
                     }
                     .enqueue()
-            } ?: run {
-                Timber.e("❌ Rep notify characteristic is NULL - notifications will not work!")
             }
 
             _connectionState.value = ConnectionStatus.Ready
-            Timber.d("BLE initialization complete - device ready")
+            Timber.d("Core notifications enabled! Device ready.")
             
             // DO NOT start polling here - only start when workout begins
         }

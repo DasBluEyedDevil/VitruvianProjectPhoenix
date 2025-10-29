@@ -98,14 +98,22 @@ object ProtocolBuilder {
         val profile = getModeProfile(profileMode)
         System.arraycopy(profile, 0, frame, 0x30, profile.size)
 
-        // Calculate effective weight (total weight for both cables)
-        val effectiveKg = params.weightPerCableKg * 2
+        // Calculate weights for protocol
+        // CRITICAL: Machine interprets 0x58 as TOTAL weight (splits between cables)
+        // So we must DOUBLE the per-cable value to get the expected resistance
+        val totalWeightKg = params.weightPerCableKg * 2.0f
+        val effectiveKg = params.weightPerCableKg + 10.0f
+
+        timber.log.Timber.d("=== WEIGHT DEBUG ===")
+        timber.log.Timber.d("Per-cable weight (input): ${params.weightPerCableKg} kg")
+        timber.log.Timber.d("Total weight (sent to 0x58): $totalWeightKg kg")
+        timber.log.Timber.d("Effective weight (sent to 0x54): $effectiveKg kg")
 
         // Effective weight at offset 0x54
         buffer.putFloat(0x54, effectiveKg)
 
-        // Per-cable weight at offset 0x58
-        buffer.putFloat(0x58, params.weightPerCableKg)
+        // Total weight at offset 0x58 (machine splits this between cables)
+        buffer.putFloat(0x58, totalWeightKg)
 
         // Progression/Regression at offset 0x5C (kg per rep)
         buffer.putFloat(0x5c, params.progressionKg)

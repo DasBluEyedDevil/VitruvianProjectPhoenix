@@ -310,5 +310,144 @@ class ProtocolBuilderTest {
         assertTrue(program2.contentEquals(program3), "Programs should be identical")
         assertTrue(program1.contentEquals(program3), "Programs should be identical")
     }
+
+    @Test
+    fun `test weight protocol - per cable weight is doubled for total resistance`() {
+        // CRITICAL: This test prevents the weight halving bug
+        // The machine expects TOTAL weight at offset 0x58, which it splits between cables
+        // So if user wants 50 lbs per cable, we must send 100 lbs total
+
+        // Given: User wants 50 lbs per cable (22.68 kg)
+        val perCableKg = 22.68f
+        val params = WorkoutParameters(
+            mode = WorkoutMode.OldSchool,
+            reps = 10,
+            weightPerCableKg = perCableKg,
+            progressionKg = 0f,
+            isJustLift = false,
+            stopAtTop = false,
+            warmupReps = 3
+        )
+
+        // When: Building program parameters
+        val program = ProtocolBuilder.buildProgramParams(params)
+
+        // Then: Total weight at offset 0x58 should be DOUBLE the per-cable weight
+        val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
+        val totalWeightSent = buffer.getFloat(0x58)
+        val expectedTotalWeight = perCableKg * 2.0f
+
+        assertEquals(
+            expectedTotalWeight,
+            totalWeightSent,
+            0.01f,
+            "Offset 0x58 must contain TOTAL weight (per-cable × 2) so machine splits it correctly"
+        )
+    }
+
+    @Test
+    fun `test weight protocol - effective weight is per cable plus 10kg offset`() {
+        // CRITICAL: This test verifies the effectiveKg calculation
+        // Effective weight = per-cable weight + 10kg (matching web app protocol)
+
+        // Given: User wants 25 kg per cable
+        val perCableKg = 25.0f
+        val params = WorkoutParameters(
+            mode = WorkoutMode.OldSchool,
+            reps = 10,
+            weightPerCableKg = perCableKg,
+            progressionKg = 0f,
+            isJustLift = false,
+            stopAtTop = false,
+            warmupReps = 3
+        )
+
+        // When: Building program parameters
+        val program = ProtocolBuilder.buildProgramParams(params)
+
+        // Then: Effective weight at offset 0x54 should be per-cable + 10
+        val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
+        val effectiveWeightSent = buffer.getFloat(0x54)
+        val expectedEffectiveWeight = perCableKg + 10.0f
+
+        assertEquals(
+            expectedEffectiveWeight,
+            effectiveWeightSent,
+            0.01f,
+            "Offset 0x54 must contain per-cable weight + 10kg offset"
+        )
+    }
+
+    @Test
+    fun `test weight protocol - real world scenario 50 lbs per cable`() {
+        // CRITICAL: Real-world test case
+        // User enters 50 lbs, should get 50 lbs per cable resistance
+
+        // Given: User enters 50 lbs per cable (22.68 kg)
+        val perCableKg = 22.68f // 50 lbs in kg
+        val params = WorkoutParameters(
+            mode = WorkoutMode.OldSchool,
+            reps = 10,
+            weightPerCableKg = perCableKg,
+            progressionKg = 0f,
+            isJustLift = false,
+            stopAtTop = false,
+            warmupReps = 3
+        )
+
+        // When: Building program parameters
+        val program = ProtocolBuilder.buildProgramParams(params)
+
+        // Then: Verify both weight fields are correct
+        val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
+        val totalWeight = buffer.getFloat(0x58) // What machine receives
+        val effectiveWeight = buffer.getFloat(0x54)
+
+        // Machine receives 100 lbs total (45.36 kg) and splits to 50 lbs per cable
+        assertEquals(perCableKg * 2.0f, totalWeight, 0.01f,
+            "Machine should receive DOUBLED weight to split between cables")
+
+        // Effective weight is per-cable + 10kg offset
+        assertEquals(perCableKg + 10.0f, effectiveWeight, 0.01f,
+            "Effective weight should be per-cable + 10kg")
+    }
+
+    @Test
+    fun `test weight protocol - regression test for weight halving bug`() {
+        // REGRESSION TEST: Prevent the bug where entering 100 lbs gave only 50 lbs
+        // This was caused by sending per-cable weight directly instead of doubling it
+
+        // Given: User enters 100 lbs per cable (45.36 kg)
+        val perCableKg = 45.36f // 100 lbs
+        val params = WorkoutParameters(
+            mode = WorkoutMode.OldSchool,
+            reps = 10,
+            weightPerCableKg = perCableKg,
+            progressionKg = 0f,
+            isJustLift = false,
+            stopAtTop = false,
+            warmupReps = 3
+        )
+
+        // When: Building program parameters
+        val program = ProtocolBuilder.buildProgramParams(params)
+
+        // Then: Total weight must be DOUBLED (not the same as input)
+        val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
+        val totalWeightSent = buffer.getFloat(0x58)
+
+        // CRITICAL: If this equals perCableKg, the bug has returned!
+        assertTrue(
+            totalWeightSent > perCableKg,
+            "BUG DETECTED: Total weight must be GREATER than per-cable weight (should be doubled)"
+        )
+
+        assertEquals(
+            perCableKg * 2.0f,
+            totalWeightSent,
+            0.01f,
+            "Total weight at 0x58 must be DOUBLE the per-cable value"
+        )
+    }
 }
 
