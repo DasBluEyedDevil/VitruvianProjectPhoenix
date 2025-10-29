@@ -406,7 +406,7 @@ fun WorkoutSetupDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Stop at top of final rep")
+                    Text("Finish At Top")
                     Switch(
                         checked = workoutParameters.stopAtTop,
                         onCheckedChange = { checked ->
@@ -749,7 +749,7 @@ fun WorkoutParametersCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Stop at top of final rep")
+                Text("Finish At Top")
                 Switch(
                     checked = workoutParameters.stopAtTop,
                     onCheckedChange = { checked ->
@@ -954,6 +954,9 @@ fun LiveMetricsCard(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
 ) {
+    // Determine active position (max of both cables for progress indicator)
+    val maxPosition = maxOf(metric.positionA, metric.positionB)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -972,46 +975,35 @@ fun LiveMetricsCard(
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Total load (prominent)
+            // Current Load - show per-cable resistance (totalLoad / 2)
+            // For cable machines, each cable provides independent resistance
             Text(
-                formatWeight(metric.totalLoad, weightUnit),
+                formatWeight(metric.totalLoad / 2f, weightUnit),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
-            Text("Total Load", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            
+            Text("Per Cable", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Individual cables
-            Row(
+            // Position indicator
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        formatWeight(metric.loadA, weightUnit),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text("Cable A", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator(
-                        progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier.width(100.dp).padding(top = Spacing.extraSmall)
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        formatWeight(metric.loadB, weightUnit),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text("Cable B", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LinearProgressIndicator(
-                        progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier.width(100.dp).padding(top = Spacing.extraSmall)
-                    )
-                }
+                Text(
+                    "Range of Motion",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                LinearProgressIndicator(
+                    progress = { (maxPosition / 1000f).coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .padding(top = Spacing.extraSmall)
+                        .height(8.dp)
+                )
             }
         }
     }

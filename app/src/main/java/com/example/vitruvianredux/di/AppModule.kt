@@ -108,6 +108,19 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 4 to 5: Add equipment type
+     */
+    private val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add equipment column with default value 'LONG_BAR'
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN equipment TEXT NOT NULL DEFAULT 'LONG_BAR'
+            """.trimIndent())
+        }
+    }
+
     @Provides
     @Singleton
     fun provideBleRepository(
@@ -126,7 +139,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .build()
     }
 

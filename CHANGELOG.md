@@ -6,6 +6,98 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed - Critical Weight Protocol Bug (2025-10-29)
+
+**Issue:** Configured weights felt 50% lighter than expected
+- User entering 100 lbs experienced only 50 lbs resistance
+- Official app: Enter 50 lbs → Get 50 lbs per cable
+- Our app (before fix): Enter 100 lbs → Get 50 lbs per cable
+
+**Root Cause:**
+- Vitruvian BLE protocol expects **TOTAL weight** at offset 0x58
+- Machine splits this value between Cable A and Cable B
+- We were sending per-cable weight directly
+- Machine divided it again → 50% resistance
+
+**The Fix (ProtocolBuilder.kt:101-116):**
+```kotlin
+// BEFORE (WRONG):
+buffer.putFloat(0x58, params.weightPerCableKg)  // Machine halves this!
+
+// AFTER (CORRECT):
+val totalWeightKg = params.weightPerCableKg * 2.0f  // Double it
+buffer.putFloat(0x58, totalWeightKg)  // Machine splits it correctly
+```
+
+**Weight Protocol Summary:**
+- **User enters:** Per-cable resistance (e.g., 50 lbs)
+- **Protocol offset 0x54:** Effective weight = per-cable + 10kg
+- **Protocol offset 0x58:** Total weight = per-cable × 2 (machine splits)
+- **Display/History:** Show per-cable resistance (totalLoad / 2)
+
+**Files Modified:**
+- `util/ProtocolBuilder.kt` - Fixed weight doubling calculation
+- `presentation/screen/WorkoutTab.kt` - Display per-cable load (totalLoad / 2)
+- `presentation/viewmodel/MainViewModel.kt` - Store per-cable weight in history
+
+**Verification:** ✅ User tested with 50 lbs input → Got 50 lbs resistance (correct!)
+
+### Added - Weight Protocol Automated Tests (2025-10-29)
+
+**Created comprehensive unit tests to prevent weight bugs without hardware testing.**
+
+**New Tests (ProtocolBuilderTest.kt:314-451):**
+
+1. **`test weight protocol - per cable weight is doubled for total resistance`**
+   - Verifies: offset 0x58 = per-cable × 2
+   - Prevents regression of the weight halving bug
+
+2. **`test weight protocol - effective weight is per cable plus 10kg offset`**
+   - Verifies: offset 0x54 = per-cable + 10
+   - Matches official web app protocol
+
+3. **`test weight protocol - real world scenario 50 lbs per cable`**
+   - Tests actual use case with hardware-validated values
+   - Verifies both weight fields are correct
+
+4. **`test weight protocol - regression test for weight halving bug`**
+   - **Explicitly catches if the "100 lbs → 50 lbs" bug returns**
+   - Fails if totalWeight ≤ perCableWeight
+   - Includes assertion: "BUG DETECTED: Total weight must be GREATER than per-cable weight"
+
+5. **`test weight encoding in program - local calculation`**
+   - Verifies weight values are present in protocol frame
+   - Confirms no server dependency
+
+**Test Results:** ✅ All 18 tests passing (5 new weight tests + 13 existing protocol tests)
+
+**Impact:** Developers can now verify protocol correctness with `./gradlew test` instead of manual hardware testing
+
+### Removed - Equipment/Attachment Tracking (2025-10-29)
+
+**Removed premature equipment tracking system per user feedback: "We don't care about attachments"**
+
+**Removed Components:**
+1. **Exercise.kt** - Removed `EquipmentType` enum with 9 types (Short Bar, Long Bar, Handles, etc.)
+2. **Models.kt** - Removed `equipment` field from `WorkoutParameters`
+3. **Routine.kt** - Removed `equipment` field from `RoutineExercise` and `usesSingleCable` helper
+4. **WorkoutEntities.kt** - Removed `equipment` column from `RoutineExerciseEntity`
+5. **WorkoutRepository.kt** - Removed equipment import and field mapping
+6. **WorkoutTab.kt** - Removed equipment parameter from `LiveMetricsCard` composable
+
+**Database Impact:**
+- Version already at 5 (set in previous session)
+- Equipment column removed from database entity schema
+
+**Rationale:** Equipment/attachment type doesn't affect the BLE protocol or workout tracking. Cable configuration (SINGLE/DOUBLE) is sufficient for machine control.
+
+### Changed - UI Text Improvements (2025-10-29)
+
+**Renamed "Stop At Top" → "Finish At Top"**
+- Clearer language for the option that ends workout at top of final rep
+- Changed in WorkoutTab.kt (appears in exercise setup and live workout view)
+- More positive framing: "Finish" vs "Stop"
+
 ### Added - Per-Set Reps Backend Implementation (2025-10-28)
 
 **Complete Backend for Variable Reps Per Set:**

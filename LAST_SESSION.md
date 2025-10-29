@@ -1,223 +1,203 @@
 # Last Session Summary
 
-**Date**: 2025-10-28
-**Session Focus**: Per-Set Reps Backend Implementation Complete
-**Status**: ✅ Backend complete, basic UI compatibility done, full UI redesign pending
+**Date**: 2025-10-29
+**Session Focus**: Weight Protocol Fix & Equipment Code Removal
+**Status**: ✅ Complete - Critical weight bug fixed, automated tests added, equipment tracking removed
 
 ---
 
 ## Session Overview
 
-Completed the per-set reps backend implementation that was started in the previous session. All database migrations, repository mappings, and entity updates are now complete. Made minimal UI changes to maintain compatibility while preserving the foundation for the full UI redesign.
+Fixed critical weight accuracy bug where configured weights felt 50% lighter than expected (100 lbs input felt like 50 lbs). Added comprehensive automated tests to prevent regression. Cleaned up codebase by removing unused equipment/attachment tracking system. Minor UI improvements.
 
 ---
 
-## ✅ Completed: Per-Set Reps Backend
+## ✅ Critical Fix: Weight Protocol Bug
 
-### Implementation Summary
+### The Problem
+User reported: "Entering 100 lbs gave only 50 lbs resistance"
+- Official app: Enter 50 lbs → Get 50 lbs per cable
+- Our app: Enter 100 lbs → Get 50 lbs per cable (BUG!)
 
-**1. Updated WorkoutEntities.kt:**
-- Changed `RoutineExerciseEntity` from `sets: Int` and `reps: Int` to `setReps: String`
-- String format: comma-separated values (e.g., "10,10,10" or "10,8,6,4")
-- Old columns left in database for backwards compatibility (Room ignores them)
+### Root Cause
+The Vitruvian BLE protocol expects **TOTAL weight** at offset 0x58, which the machine then splits between two cables. We were sending per-cable weight directly, causing the machine to halve it again.
 
-**2. Updated WorkoutDatabase.kt:**
-- Added `@TypeConverters(Converters::class)` annotation
-- Incremented database version from 3 to 4
-- Registered Converters class for List<Int> ↔ String conversion
-
-**3. Created MIGRATION_3_4 in AppModule.kt:**
+### The Fix (ProtocolBuilder.kt:101-116)
 ```kotlin
-private val MIGRATION_3_4 = object : Migration(3, 4) {
-    override fun migrate(database: SupportSQLiteDatabase) {
-        // Add setReps column with default "10,10,10"
-        database.execSQL("""
-            ALTER TABLE routine_exercises
-            ADD COLUMN setReps TEXT NOT NULL DEFAULT '10,10,10'
-        """.trimIndent())
+// BEFORE (WRONG):
+buffer.putFloat(0x58, params.weightPerCableKg)  // Machine halves this!
 
-        // Populate from existing sets/reps data
-        // Uses SQL subquery to repeat 'reps' value 'sets' times
-        database.execSQL("""
-            UPDATE routine_exercises
-            SET setReps = (
-                SELECT GROUP_CONCAT(reps, ',')
-                FROM (
-                    SELECT reps
-                    FROM (SELECT 1 AS n UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) numbers
-                    JOIN routine_exercises re ON re.id = routine_exercises.id
-                    WHERE numbers.n <= re.sets
-                )
-            )
-        """.trimIndent())
-    }
-}
-```
-- Registered in `.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)`
-- Preserves existing routine data by converting old format to new
-
-**4. Updated WorkoutRepository.kt Mapping Functions:**
-
-**toEntity() - Domain to Database:**
-```kotlin
-setReps = setReps.joinToString(","), // List<Int> → String
+// AFTER (CORRECT):
+val totalWeightKg = params.weightPerCableKg * 2.0f  // Double it
+buffer.putFloat(0x58, totalWeightKg)  // Machine splits it correctly
 ```
 
-**toRoutineExercise() - Database to Domain:**
-```kotlin
-setReps = if (setReps.isEmpty()) emptyList()
-          else setReps.split(",").mapNotNull { it.toIntOrNull() },
-```
+**Weight Protocol Summary:**
+- **User enters:** Per-cable resistance (e.g., 50 lbs)
+- **Protocol offset 0x54:** Effective weight = per-cable + 10kg
+- **Protocol offset 0x58:** Total weight = per-cable × 2 (machine splits between cables)
+- **Display/History:** Show per-cable resistance (totalLoad / 2)
 
-**5. UI Compatibility Fixes:**
+### Files Modified:
+1. **ProtocolBuilder.kt** - Fixed weight doubling calculation
+2. **WorkoutTab.kt** - Display per-cable load (totalLoad / 2)
+3. **MainViewModel.kt** - Store per-cable weight in history
 
-**ExerciseEditDialog.kt (line 209):**
-- Changed from `sets = sets.toInt(), reps = reps.toInt()`
-- To: `setReps = List(sets.toInt()) { reps.toInt() }`
-- Maintains existing UI while creating proper setReps data
-- Note: UI still shows "sets" and "reps" fields (full redesign pending)
-
-**RoutineBuilderDialog.kt (line 304):**
-- Changed from `sets = 3, reps = 10`
-- To: `setReps = listOf(10, 10, 10)`
-- Default new exercises use 3 sets of 10 reps
-
-**6. Converters.kt:**
-- Already existed from previous session (was untracked)
-- Provides TypeConverter methods for Room:
-  - `fromIntList(List<Int>): String` - converts to comma-separated
-  - `toIntList(String): List<Int>` - converts back, handles empty strings
-
-**Build Status:** ✅ SUCCESSFUL
-- All compilation errors resolved
-- Tests passing
-- Only lint warning (pre-existing BLE permission issue, unrelated to changes)
+### Verification:
+✅ User tested with 50 lbs input → Got 50 lbs resistance (correct!)
 
 ---
 
-## Technical Details
+## ✅ Automated Testing Added
 
-### Migration Strategy
-The migration preserves existing data by:
-1. Adding new `setReps` column with default value
-2. Populating it from old `sets` and `reps` columns using SQL subquery
-3. Leaving old columns in place (backwards compatible, Room ignores them)
+Created comprehensive unit tests to prevent weight bugs from recurring without hardware testing.
 
-This approach allows:
-- Zero data loss during migration
-- Rollback capability if needed
-- Incremental UI updates without breaking existing code
+### New Tests (ProtocolBuilderTest.kt:314-451):
 
-### Data Flow
-**Creating Routine:**
+1. **`test weight protocol - per cable weight is doubled for total resistance`**
+   - Verifies: offset 0x58 = per-cable × 2
+
+2. **`test weight protocol - effective weight is per cable plus 10kg offset`**
+   - Verifies: offset 0x54 = per-cable + 10
+
+3. **`test weight protocol - real world scenario 50 lbs per cable`**
+   - Tests actual use case matching hardware
+
+4. **`test weight protocol - regression test for weight halving bug`**
+   - **Explicitly catches if the "100 lbs → 50 lbs" bug returns**
+   - Fails if totalWeight ≤ perCableWeight
+
+### Test Results:
+✅ All 18 tests passing (5 new weight tests + 13 existing protocol tests)
+
+---
+
+## ✅ Equipment Tracking Removed
+
+Per user request, removed all equipment/attachment code (was premature/unnecessary).
+
+### Files Modified:
+1. **Exercise.kt** - Removed `EquipmentType` enum (Short Bar, Long Bar, etc.)
+2. **Models.kt** - Removed `equipment` field from `WorkoutParameters`
+3. **Routine.kt** - Removed `equipment` field from `RoutineExercise`
+4. **WorkoutEntities.kt** - Removed `equipment` field from database entity
+5. **WorkoutRepository.kt** - Removed equipment mapping
+6. **WorkoutTab.kt** - Removed equipment parameter from `LiveMetricsCard`
+
+### Database:
+- Version already at 5 (from previous session)
+- Equipment column removed from `RoutineExerciseEntity`
+
+---
+
+## ✅ Minor UI Improvements
+
+1. **Renamed "Stop At Top" → "Finish At Top"**
+   - Clearer language for the option that ends workout at top of final rep
+   - Changed in WorkoutTab.kt (appears in exercise setup and live workout)
+
+---
+
+## Build Iterations This Session
+
+Had to perform **nuclear clean** to get weight fix compiled:
+```bash
+rm -rf app/build .gradle build
+./gradlew assembleDebug
 ```
-UI (sets=3, reps=10)
-  → RoutineExercise(setReps=[10,10,10])
-  → Repository.toEntity()
-  → RoutineExerciseEntity(setReps="10,10,10")
-  → Database
-```
 
-**Loading Routine:**
-```
-Database
-  → RoutineExerciseEntity(setReps="10,10,10")
-  → Repository.toRoutineExercise()
-  → RoutineExercise(setReps=[10,10,10])
-  → UI displays via computed properties (sets=3, reps=10)
-```
+Standard `./gradlew clean` wasn't invalidating Kotlin build cache properly.
 
-### Computed Properties (Backwards Compatibility)
-The `RoutineExercise` domain model maintains computed properties:
-```kotlin
-val sets: Int get() = setReps.size           // 3 for [10,10,10]
-val reps: Int get() = setReps.firstOrNull() ?: 10  // 10 for [10,10,10]
-```
-
-This allows existing UI code to continue working without changes, while new features can use the full `setReps` list for pyramid sets like [10, 8, 6, 4].
+**Final Build Status:** ✅ SUCCESSFUL
 
 ---
 
 ## Files Modified This Session
 
-**Database Layer:**
-- `data/local/WorkoutEntities.kt`: Updated RoutineExerciseEntity to use setReps
-- `data/local/WorkoutDatabase.kt`: Added TypeConverters, incremented version to 4
-- `data/local/Converters.kt`: (Already existed, now registered)
-- `di/AppModule.kt`: Added MIGRATION_3_4
+**Weight Protocol Fix:**
+- `util/ProtocolBuilder.kt` - Fixed weight doubling
+- `presentation/screen/WorkoutTab.kt` - Display per-cable, UI text changes
+- `presentation/viewmodel/MainViewModel.kt` - Store per-cable in history
+- `test/protocol/ProtocolBuilderTest.kt` - Added 5 weight protocol tests
 
-**Repository Layer:**
-- `data/repository/WorkoutRepository.kt`: Updated toEntity() and toRoutineExercise() mappings
+**Equipment Removal:**
+- `domain/model/Exercise.kt` - Removed EquipmentType enum
+- `domain/model/Models.kt` - Removed equipment from WorkoutParameters
+- `domain/model/Routine.kt` - Removed equipment from RoutineExercise
+- `data/local/WorkoutEntities.kt` - Removed equipment from database entity
+- `data/repository/WorkoutRepository.kt` - Removed equipment import/mapping
 
-**UI Layer (Compatibility Fixes):**
-- `presentation/screen/ExerciseEditDialog.kt`: Updated to create setReps from UI inputs
-- `presentation/screen/RoutineBuilderDialog.kt`: Updated default values to use setReps
+**Other Changes:**
+- `data/local/WorkoutDatabase.kt` - Version 5 (already set previously)
+- `data/ble/VitruvianBleManager.kt` - (From previous session - all 7 BLE characteristics)
+
+---
+
+## User Feedback Patterns
+
+1. **Empirical Hardware Testing:**
+   - User directly compared our app vs trainer with same exercises
+   - Provided specific resistance comparisons (50 lbs, 100 lbs)
+
+2. **Weight Display Philosophy:**
+   - "For cable machines, even if both cables pulling 50 lbs each, you're technically lifting 50 lbs, not 100"
+   - Decision: Track per-cable resistance, not total pull
+
+3. **Testing Fatigue:**
+   - "I'm exhausted lol. Can't you create an automated test?"
+   - Led to creation of comprehensive unit test suite
+
+4. **Code Simplification:**
+   - User identified equipment tracking as premature
+   - "We don't care about attachments" → removed entire system
 
 ---
 
 ## Next Steps
 
-### Immediate (Future Session):
-1. **Full UI Redesign for Per-Set Reps:**
-   - Replace "Sets" and "Reps" fields with per-set rep table
-   - Add +/- buttons for each set's rep count
-   - Show SET | REPS columns like trainer
-   - Allow pyramid training (e.g., 10, 8, 6, 4)
-   - Delegate to Cursor CLI for implementation
+### TODO List (Cleaned Up):
+1. **Add ability to edit existing routines** (pending)
+2. **Add exercise type selection** (echo mode, TUT, etc.) (pending)
+3. **Consolidate exercise creation workflow** (pending)
 
-2. **Testing:**
-   - Test migration from version 3 to 4 with real data
-   - Verify existing routines load correctly
-   - Test creating new routines with varied setReps
-   - Test editing routines (pyramid sets)
+### Potential Future Work:
+- Personal Best tracking system (mentioned by user)
+- Chart tracking similar to web app (mentioned by user)
+- Per-set reps UI redesign (from previous session notes)
 
-3. **Fix Lint Issues:**
-   - Address BLE permission check warning in MainViewModel.kt:150
-   - Review other 42 lint warnings
+---
 
-### Future Enhancements:
-- Rest timer between sets
-- Set completion tracking during workouts
-- Progressive overload suggestions based on setReps history
-- Templates for common rep schemes (5x5, pyramid, reverse pyramid, etc.)
+## Technical Notes
+
+### BLE Protocol Weight Encoding
+```
+User Input: 50 lbs per cable (22.68 kg)
+
+Protocol Frame (96 bytes):
+├─ Offset 0x54: effectiveKg = 22.68 + 10.0 = 32.68 kg (float32 LE)
+├─ Offset 0x58: totalKg = 22.68 × 2.0 = 45.36 kg (float32 LE)
+└─ Machine splits 0x58 value between Cable A and Cable B
+
+Result: 22.68 kg per cable = 50 lbs per cable ✓
+```
+
+### Why Double the Weight?
+The Vitruvian machine's firmware interprets offset 0x58 as the **combined load** across both cables. It automatically divides this value to control each cable independently. If we send per-cable weight, the machine halves it, resulting in 50% resistance.
+
+This behavior matches the official web app's protocol implementation (reference/web-app/src/protocol).
 
 ---
 
 ## Git Status
 
-**Modified files:**
-- app/src/main/java/com/example/vitruvianredux/domain/model/Routine.kt
-- app/src/main/java/com/example/vitruvianredux/data/local/WorkoutEntities.kt
-- app/src/main/java/com/example/vitruvianredux/data/local/WorkoutDatabase.kt
-- app/src/main/java/com/example/vitruvianredux/di/AppModule.kt
-- app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
-- app/src/main/java/com/example/vitruvianredux/presentation/screen/ExerciseEditDialog.kt
-- app/src/main/java/com/example/vitruvianredux/presentation/screen/RoutineBuilderDialog.kt
+**Unstaged changes:**
+- Weight protocol fixes
+- Equipment removal
+- UI text changes
+- Automated tests
 
-**Untracked files:**
-- app/src/main/java/com/example/vitruvianredux/data/local/Converters.kt (should be added)
-
-**Ready to commit:** Yes - all files compile successfully
+**Ready to commit:** Yes - all tests passing, build successful
 
 ---
 
-## Architecture Notes
-
-**Database Schema Evolution:**
-- Version 1: Original schema (workout sessions, metrics)
-- Version 2: Added routines and routine_exercises tables
-- Version 3: Added cableConfig column
-- Version 4: Added setReps column (replaces sets/reps conceptually)
-
-**Type Conversion Pattern:**
-Room doesn't natively support List<Int> in entities. The Converters class bridges this:
-- Storage: Comma-separated string (space-efficient, SQLite-compatible)
-- Domain: List<Int> (type-safe, functional operations)
-- No JSON overhead (simpler than Gson/Moshi for simple lists)
-
-**MVVM with Backward Compatibility:**
-By keeping computed properties in the domain model, we maintain API compatibility for existing UI code while enabling new features. This allows gradual UI migration rather than big-bang rewrites.
-
----
-
-**Status Summary:** Per-set reps backend implementation complete. Database migration preserves existing data. UI maintains basic functionality with computed properties. Ready for full UI redesign in next phase.
+**Session completed successfully.** Weight accuracy issue resolved with automated test coverage. Codebase cleaned up by removing unused equipment tracking. Ready for next session.

@@ -92,7 +92,10 @@ class MainViewModel @Inject constructor(
     val isWorkoutSetupDialogVisible: StateFlow<Boolean> = _isWorkoutSetupDialogVisible.asStateFlow()
 
     // Haptic feedback events
-    private val _hapticEvents = MutableSharedFlow<HapticEvent>()
+    private val _hapticEvents = MutableSharedFlow<HapticEvent>(
+        extraBufferCapacity = 10,  // Buffer events to prevent drops
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     val hapticEvents: SharedFlow<HapticEvent> = _hapticEvents.asSharedFlow()
 
     // Current workout tracking
@@ -111,16 +114,35 @@ class MainViewModel @Inject constructor(
         // Set up rep event callback for haptic feedback
         repCounter.onRepEvent = { repEvent ->
             viewModelScope.launch {
+                // Update UI with new rep count
+                val newRepCount = repCounter.getRepCount()
+                _repCount.value = newRepCount
+
+                Timber.d(
+                    "Rep counters updated: warmup=${newRepCount.warmupReps}/${_workoutParameters.value.warmupReps}, " +
+                        "working=${newRepCount.workingReps}/${_workoutParameters.value.reps}"
+                )
+
+                // Emit haptic feedback
                 when (repEvent.type) {
                     RepType.WARMUP_COMPLETED, RepType.WORKING_COMPLETED -> {
+                        Timber.d("Emitting haptic event: REP_COMPLETED")
                         _hapticEvents.emit(HapticEvent.REP_COMPLETED)
                     }
                     RepType.WARMUP_COMPLETE -> {
+                        Timber.d("Emitting haptic event: WARMUP_COMPLETE")
                         _hapticEvents.emit(HapticEvent.WARMUP_COMPLETE)
                     }
                     RepType.WORKOUT_COMPLETE -> {
+                        Timber.d("Emitting haptic event: WORKOUT_COMPLETE")
                         _hapticEvents.emit(HapticEvent.WORKOUT_COMPLETE)
                     }
+                }
+
+                // Check if workout should stop
+                if (repCounter.shouldStopWorkout()) {
+                    Timber.d("Machine indicates workout should stop - requesting stop")
+                    requestAutoStop()
                 }
             }
         }
@@ -212,19 +234,7 @@ class MainViewModel @Inject constructor(
             posA = currentPositions?.positionA ?: 0,
             posB = currentPositions?.positionB ?: 0
         )
-
-        val newRepCount = repCounter.getRepCount()
-        _repCount.value = newRepCount
-
-        Timber.d(
-            "Rep counters updated: warmup=${newRepCount.warmupReps}/${_workoutParameters.value.warmupReps}, " +
-                "working=${newRepCount.workingReps}/${_workoutParameters.value.reps}"
-        )
-
-        if (repCounter.shouldStopWorkout()) {
-            Timber.d("Machine indicates workout should stop - requesting stop")
-            requestAutoStop()
-        }
+        // All other logic (UI update, haptics, auto-stop) handled in onRepEvent callback
     }
 
     private fun requestAutoStop() {
@@ -335,6 +345,11 @@ class MainViewModel @Inject constructor(
 
     fun startWorkout() {
         Timber.d("??? startWorkout() CALLED! ???")
+
+        // CRITICAL: Re-set rep event callback to ensure it's active for this workout
+        // This fixes the issue where callback set in init block may not persist
+
+
         viewModelScope.launch {
             _workoutState.value = WorkoutState.Initializing
 
@@ -361,37 +376,36 @@ class MainViewModel @Inject constructor(
             Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
             Timber.d("")
 
-            viewModelScope.launch {
-                for (i in 5 downTo 1) {
-                    _workoutState.value = WorkoutState.Countdown(i)
-                    delay(1000)
-                }
+            // Countdown
+            for (i in 5 downTo 1) {
+                _workoutState.value = WorkoutState.Countdown(i)
+                delay(1000)
+            }
 
-                _workoutState.value = WorkoutState.Active
+            _workoutState.value = WorkoutState.Active
 
-                Timber.d("")
-                Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
-                Timber.d("")
+            Timber.d("")
+            Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
+            Timber.d("")
 
-                val result = bleRepository.startWorkout(params)
+            val result = bleRepository.startWorkout(params)
 
-                if (result.isSuccess) {
-                    WorkoutForegroundService.startWorkoutService(
-                        getContext(),
-                        params.mode.displayName,
-                        params.reps
-                    )
+            if (result.isSuccess) {
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    params.mode.displayName,
+                    params.reps
+                )
 
-                    Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
-                    
-                    // Emit haptic feedback for workout start
-                    _hapticEvents.emit(HapticEvent.WORKOUT_START)
-                } else {
-                    _workoutState.value = WorkoutState.Error(
-                        result.exceptionOrNull()?.message ?: "Unknown error"
-                    )
-                    Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
-                }
+                Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
+            } else {
+                _workoutState.value = WorkoutState.Error(
+                    result.exceptionOrNull()?.message ?: "Unknown error"
+                )
+                Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
             }
         }
     }
@@ -433,12 +447,20 @@ class MainViewModel @Inject constructor(
         val working = _repCount.value.workingReps
         val duration = System.currentTimeMillis() - workoutStartTime
 
+        // Store actual per-cable weight from machine output (for tracking progress)
+        // Divide totalLoad by 2 to get per-cable resistance
+        val actualPerCableWeightKg = if (collectedMetrics.isNotEmpty()) {
+            collectedMetrics.maxOf { it.totalLoad } / 2f
+        } else {
+            params.weightPerCableKg // Fallback to configured if no metrics
+        }
+
         val session = WorkoutSession(
             id = sessionId,
             timestamp = workoutStartTime,
             mode = params.mode.displayName,
             reps = params.reps,
-            weightPerCableKg = params.weightPerCableKg,
+            weightPerCableKg = actualPerCableWeightKg, // Store per-cable weight
             progressionKg = params.progressionKg,
             duration = duration,
             totalReps = warmup + working,
