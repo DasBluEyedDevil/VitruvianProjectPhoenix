@@ -6,7 +6,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +28,7 @@ fun ExerciseEditDialog(
     onSave: (RoutineExercise) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var sets by remember { mutableStateOf(exercise.sets.toString()) }
-    var reps by remember { mutableStateOf(exercise.reps.toString()) }
+    var setReps by remember { mutableStateOf(exercise.setReps.ifEmpty { listOf(10) }) }
     var weight by remember { mutableStateOf(exercise.weightPerCableKg.toString()) }
     var progression by remember { mutableStateOf(exercise.progressionKg.toString()) }
     var rest by remember { mutableStateOf(exercise.restSeconds.toString()) }
@@ -82,26 +85,11 @@ fun ExerciseEditDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Spacing.medium)
                 ) {
-                    // Sets and Reps row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-                    ) {
-                        NumberInputField(
-                            value = sets,
-                            onValueChange = { sets = it; showError = false },
-                            label = "Sets",
-                            modifier = Modifier.weight(1f),
-                            isError = showError && !isValidInt(sets, min = 1)
-                        )
-                        NumberInputField(
-                            value = reps,
-                            onValueChange = { reps = it; showError = false },
-                            label = "Reps",
-                            modifier = Modifier.weight(1f),
-                            isError = showError && !isValidInt(reps, min = 1)
-                        )
-                    }
+                    // Sets and Reps editor
+                    SetRepsEditor(
+                        setReps = setReps,
+                        onSetRepsChange = { setReps = it; showError = false }
+                    )
 
                     // Weight input
                     NumberInputField(
@@ -171,7 +159,7 @@ fun ExerciseEditDialog(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                "Please enter valid positive numbers for all fields",
+                                "Please enter valid positive numbers for all fields and at least one set",
                                 color = ErrorRed,
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(Spacing.medium)
@@ -199,14 +187,13 @@ fun ExerciseEditDialog(
                     Button(
                         onClick = {
                             // Validate inputs
-                            if (isValidInt(sets, min = 1) &&
-                                isValidInt(reps, min = 1) &&
+                            if (setReps.isNotEmpty() &&
                                 isValidFloat(weight, min = 0f) &&
                                 isValidFloat(progression, min = 0f) &&
                                 isValidInt(rest, min = 0)
                             ) {
                                 val updatedExercise = exercise.copy(
-                                    setReps = List(sets.toInt()) { reps.toInt() },
+                                    setReps = setReps,
                                     weightPerCableKg = weight.toFloat(),
                                     progressionKg = progression.toFloat(),
                                     restSeconds = rest.toInt(),
@@ -267,4 +254,139 @@ private fun isValidInt(value: String, min: Int = Int.MIN_VALUE, max: Int = Int.M
 
 private fun isValidFloat(value: String, min: Float = Float.MIN_VALUE, max: Float = Float.MAX_VALUE): Boolean {
     return value.toFloatOrNull()?.let { it in min..max } ?: false
+}
+
+@Composable
+fun SetRepsEditor(
+    setReps: List<Int>,
+    onSetRepsChange: (List<Int>) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+    ) {
+        // Header
+        Text(
+            "Sets & Reps",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary,
+            modifier = Modifier.padding(bottom = Spacing.extraSmall)
+        )
+
+        // Set rows
+        setReps.forEachIndexed { index, reps ->
+            SetRow(
+                setNumber = index + 1,
+                reps = reps,
+                canDelete = setReps.size > 1,
+                onRepsChange = { newReps ->
+                    val updatedList = setReps.toMutableList()
+                    updatedList[index] = newReps
+                    onSetRepsChange(updatedList)
+                },
+                onDelete = {
+                    onSetRepsChange(setReps.filterIndexed { i, _ -> i != index })
+                }
+            )
+        }
+
+        // Add Set button
+        OutlinedButton(
+            onClick = {
+                val lastReps = setReps.lastOrNull() ?: 10
+                onSetRepsChange(setReps + lastReps)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = PrimaryPurple
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(Spacing.small))
+            Text("Add Set")
+        }
+    }
+}
+
+@Composable
+fun SetRow(
+    setNumber: Int,
+    reps: Int,
+    canDelete: Boolean,
+    onRepsChange: (Int) -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Set label
+            Text(
+                "Set $setNumber",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                modifier = Modifier.width(60.dp)
+            )
+
+            // Rep adjuster
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                IconButton(
+                    onClick = { if (reps > 1) onRepsChange(reps - 1) },
+                    enabled = reps > 1
+                ) {
+                    Icon(
+                        Icons.Default.RemoveCircle,
+                        contentDescription = "Decrease reps",
+                        tint = if (reps > 1) PrimaryPurple else TextDisabled
+                    )
+                }
+
+                Text(
+                    text = "$reps",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    modifier = Modifier.width(40.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                IconButton(
+                    onClick = { onRepsChange(reps + 1) }
+                ) {
+                    Icon(
+                        Icons.Default.AddCircle,
+                        contentDescription = "Increase reps",
+                        tint = PrimaryPurple
+                    )
+                }
+            }
+
+            // Delete button
+            IconButton(
+                onClick = onDelete,
+                enabled = canDelete
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete set",
+                    tint = if (canDelete) ErrorRed else TextDisabled
+                )
+            }
+        }
+    }
 }

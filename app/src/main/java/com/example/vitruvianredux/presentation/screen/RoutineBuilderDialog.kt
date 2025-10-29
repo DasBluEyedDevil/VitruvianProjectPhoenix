@@ -378,7 +378,7 @@ fun ExerciseListItem(
                     }
                     Spacer(modifier = Modifier.height(Spacing.extraSmall))
                     Text(
-                        "${exercise.sets} sets × ${exercise.reps} reps @ ${exercise.weightPerCableKg}kg/cable",
+                        "${formatReps(exercise.setReps)} @ ${exercise.weightPerCableKg}kg/cable",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -432,5 +432,23 @@ fun ExerciseListItem(
                 }
             }
         }
+    }
+}
+
+/**
+ * Format the setReps list for display in the exercise list
+ * Examples:
+ * - [10, 10, 10] -> "3 × 10 reps"
+ * - [10, 8, 6, 4] -> "4 sets: 10/8/6/4"
+ * - [12] -> "1 × 12 reps"
+ */
+private fun formatReps(setReps: List<Int>): String {
+    if (setReps.isEmpty()) return "0 sets"
+    
+    val allSame = setReps.all { it == setReps.first() }
+    return if (allSame) {
+        "${setReps.size} × ${setReps.first()} reps"
+    } else {
+        "${setReps.size} sets: ${setReps.joinToString("/")}"
     }
 }
