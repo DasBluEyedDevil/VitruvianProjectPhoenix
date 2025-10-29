@@ -72,10 +72,10 @@ fun EnhancedMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vitruvian Control", color = Color.White) },
+                title = { Text("Vitruvian Control") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = PrimaryPurple,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
                     when (connectionState) {
@@ -83,7 +83,7 @@ fun EnhancedMainScreen(
                             Icon(
                                 imageVector = Icons.Default.Check,
                                 contentDescription = "Connected",
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                         is ConnectionState.Scanning -> {
@@ -91,7 +91,7 @@ fun EnhancedMainScreen(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .padding(end = 8.dp),
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                         else -> {}
@@ -101,58 +101,58 @@ fun EnhancedMainScreen(
         },
         bottomBar = {
             NavigationBar(
-                containerColor = SurfaceDarkGrey
+                containerColor = MaterialTheme.colorScheme.surface
             ) {
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Workout tab") },
                     label = { Text("Workout") },
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryPurple,
-                        selectedTextColor = PrimaryPurple,
-                        unselectedIconColor = TextTertiary,
-                        unselectedTextColor = TextTertiary,
-                        indicatorColor = CardBackground
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.outline,
+                        unselectedTextColor = MaterialTheme.colorScheme.outline,
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "History tab") },
                     label = { Text("History") },
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryPurple,
-                        selectedTextColor = PrimaryPurple,
-                        unselectedIconColor = TextTertiary,
-                        unselectedTextColor = TextTertiary,
-                        indicatorColor = CardBackground
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.outline,
+                        unselectedTextColor = MaterialTheme.colorScheme.outline,
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.FavoriteBorder, contentDescription = null) },
+                    icon = { Icon(Icons.Default.FavoriteBorder, contentDescription = "Routines tab") },
                     label = { Text("Routines") },
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryPurple,
-                        selectedTextColor = PrimaryPurple,
-                        unselectedIconColor = TextTertiary,
-                        unselectedTextColor = TextTertiary,
-                        indicatorColor = CardBackground
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.outline,
+                        unselectedTextColor = MaterialTheme.colorScheme.outline,
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings tab") },
                     label = { Text("Settings") },
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryPurple,
-                        selectedTextColor = PrimaryPurple,
-                        unselectedIconColor = TextTertiary,
-                        unselectedTextColor = TextTertiary,
-                        indicatorColor = CardBackground
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.outline,
+                        unselectedTextColor = MaterialTheme.colorScheme.outline,
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             }
@@ -174,6 +174,7 @@ fun EnhancedMainScreen(
                     autoStopState = autoStopState,
                     weightUnit = weightUnit,
                     isWorkoutSetupDialogVisible = isWorkoutSetupDialogVisible,
+                    hapticEvents = viewModel.hapticEvents,
                     kgToDisplay = viewModel::kgToDisplay,
                     displayToKg = viewModel::displayToKg,
                     formatWeight = viewModel::formatWeight,
@@ -250,7 +251,7 @@ fun PermissionRequestScreen(
         Icon(
             imageVector = Icons.Default.Info,
             contentDescription = null,
-            tint = PrimaryPurple,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(64.dp)
         )
         Spacer(modifier = Modifier.height(Spacing.medium))
@@ -258,7 +259,7 @@ fun PermissionRequestScreen(
             "Bluetooth permissions required",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(Spacing.small))
         Text(
@@ -269,12 +270,12 @@ fun PermissionRequestScreen(
                 }
             },
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(Spacing.large))
         Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
-            Icon(Icons.Default.Check, contentDescription = null)
+            Icon(Icons.Default.Check, contentDescription = "Confirm")
             Spacer(modifier = Modifier.width(Spacing.small))
             Text("Grant permissions")
         }
@@ -310,7 +311,7 @@ fun DeviceSelectorDialog(
                         } else {
                             Text(
                                 "No devices found. Try scanning again.",
-                                color = TextSecondary,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -319,12 +320,12 @@ fun DeviceSelectorDialog(
 
                 if (devices.isNotEmpty()) {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
-                        items(devices) { device ->
+                        items(devices, key = { it.address }) { device ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onDeviceSelected(device) },
-                                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Row(
@@ -339,18 +340,18 @@ fun DeviceSelectorDialog(
                                             device.name,
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextPrimary
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
                                             device.address,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = TextSecondary
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     Icon(
                                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                         contentDescription = null,
-                                        tint = PrimaryPurple
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
@@ -362,15 +363,15 @@ fun DeviceSelectorDialog(
         confirmButton = {
             if (!isScanning) {
                 TextButton(onClick = onRescan) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp), tint = PrimaryPurple)
+                    Icon(Icons.Default.Refresh, contentDescription = "Rescan for devices", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(Spacing.extraSmall))
-                    Text("Rescan", color = PrimaryPurple)
+                    Text("Rescan", color = MaterialTheme.colorScheme.primary)
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextSecondary)
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )

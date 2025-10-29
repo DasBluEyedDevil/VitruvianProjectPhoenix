@@ -30,10 +30,13 @@ data class RoutineExercise(
         if (it == CableConfiguration.EITHER) CableConfiguration.DOUBLE else it
     },
     val orderIndex: Int,
-    val sets: Int,
-    val reps: Int,
+    val setReps: List<Int> = listOf(10, 10, 10),
     val weightPerCableKg: Float,
     val progressionKg: Float = 0f,
     val restSeconds: Int = 60,
     val notes: String = ""
-)
+) {
+    // Computed property for backwards compatibility
+    val sets: Int get() = setReps.size
+    val reps: Int get() = setReps.firstOrNull() ?: 10
+}

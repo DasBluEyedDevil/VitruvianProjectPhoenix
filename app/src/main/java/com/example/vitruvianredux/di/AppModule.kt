@@ -77,6 +77,37 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 3 to 4: Replace sets/reps with setReps array
+     */
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add setReps column with default value "10,10,10"
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN setReps TEXT NOT NULL DEFAULT '10,10,10'
+            """.trimIndent())
+
+            // Populate setReps from existing sets and reps columns
+            // Creates a comma-separated string like "10,10,10" for 3 sets of 10 reps
+            database.execSQL("""
+                UPDATE routine_exercises
+                SET setReps = (
+                    SELECT GROUP_CONCAT(reps, ',')
+                    FROM (
+                        SELECT reps
+                        FROM (SELECT 1 AS n UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) numbers
+                        JOIN routine_exercises re ON re.id = routine_exercises.id
+                        WHERE numbers.n <= re.sets
+                    )
+                )
+            """.trimIndent())
+
+            // Note: We don't drop the old 'sets' and 'reps' columns to maintain backwards compatibility
+            // Room will ignore them since they're not in the entity definition
+        }
+    }
+
     @Provides
     @Singleton
     fun provideBleRepository(
@@ -95,7 +126,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
         .build()
     }
 

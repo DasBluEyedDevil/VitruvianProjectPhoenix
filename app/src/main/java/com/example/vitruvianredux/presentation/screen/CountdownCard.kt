@@ -16,8 +16,8 @@ fun CountdownCard(secondsRemaining: Int) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, PrimaryPurple, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -32,18 +32,18 @@ fun CountdownCard(secondsRemaining: Int) {
                 text = "Get Ready!",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = "$secondsRemaining",
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
-                color = PrimaryPurple
+                color = MaterialTheme.colorScheme.primary
             )
             Text(
                 text = "Starting in...",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
