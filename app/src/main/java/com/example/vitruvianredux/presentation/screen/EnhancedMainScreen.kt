@@ -31,7 +31,8 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedMainScreen(
-    viewModel: MainViewModel = hiltViewModel()
+    viewModel: MainViewModel = hiltViewModel(),
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository = hiltViewModel<MainViewModel>().exerciseRepository
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
     val workoutState by viewModel.workoutState.collectAsState()
@@ -189,6 +190,7 @@ fun EnhancedMainScreen(
                     onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
                     onShowWorkoutSetupDialog = { viewModel.showWorkoutSetupDialog() },
                     onHideWorkoutSetupDialog = { viewModel.hideWorkoutSetupDialog() },
+                    exerciseRepository = exerciseRepository,
                     modifier = Modifier.padding(padding)
                 )
                 1 -> HistoryTab(

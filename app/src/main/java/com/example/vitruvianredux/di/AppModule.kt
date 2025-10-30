@@ -8,12 +8,14 @@ import com.example.vitruvianredux.data.local.WorkoutDatabase
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.ExerciseDao
 import com.example.vitruvianredux.data.local.ExerciseImporter
+import com.example.vitruvianredux.data.local.PersonalRecordDao
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.BleRepositoryImpl
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepositoryImpl
+import com.example.vitruvianredux.data.repository.PersonalRecordRepository
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import dagger.Module
 import dagger.Provides
@@ -198,6 +200,70 @@ object AppModule {
     }
 
     /**
+     * Migration from version 8 to 9: Rename progressionKg to progressionRegressionKg in workout_sessions
+     * and add personal_records table
+     */
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // 1. Fix workout_sessions table: rename progressionKg → progressionRegressionKg
+            // Create new table with correct schema
+            database.execSQL("""
+                CREATE TABLE `workout_sessions_new` (
+                    `id` TEXT NOT NULL,
+                    `timestamp` INTEGER NOT NULL,
+                    `mode` TEXT NOT NULL,
+                    `reps` INTEGER NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `progressionRegressionKg` REAL NOT NULL,
+                    `duration` INTEGER NOT NULL,
+                    `totalReps` INTEGER NOT NULL,
+                    `warmupReps` INTEGER NOT NULL,
+                    `workingReps` INTEGER NOT NULL,
+                    `isJustLift` INTEGER NOT NULL,
+                    `stopAtTop` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+            """.trimIndent())
+
+            // 2. Copy data from old table (progressionKg → progressionRegressionKg)
+            database.execSQL("""
+                INSERT INTO `workout_sessions_new` (
+                    id, timestamp, mode, reps, weightPerCableKg, progressionRegressionKg,
+                    duration, totalReps, warmupReps, workingReps, isJustLift, stopAtTop
+                )
+                SELECT
+                    id, timestamp, mode, reps, weightPerCableKg, progressionKg,
+                    duration, totalReps, warmupReps, workingReps, isJustLift, stopAtTop
+                FROM `workout_sessions`
+            """.trimIndent())
+
+            // 3. Drop old table
+            database.execSQL("DROP TABLE `workout_sessions`")
+
+            // 4. Rename new table
+            database.execSQL("ALTER TABLE `workout_sessions_new` RENAME TO `workout_sessions`")
+
+            // 5. Create personal_records table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS `personal_records` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `exerciseId` TEXT NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `reps` INTEGER NOT NULL,
+                    `timestamp` INTEGER NOT NULL,
+                    `workoutMode` TEXT NOT NULL
+                )
+            """.trimIndent())
+
+            // 6. Create unique index on exerciseId and workoutMode
+            database.execSQL("""
+                CREATE UNIQUE INDEX `index_personal_records_exerciseId_workoutMode`
+                ON `personal_records` (`exerciseId`, `workoutMode`)
+            """.trimIndent())
+        }
+    }
+
+    /**
      * Migration from version 7 to 8: Fix routine_exercises schema
      * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
      */
@@ -276,7 +342,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
         .build()
     }
 
@@ -327,5 +393,17 @@ object AppModule {
         exerciseImporter: ExerciseImporter
     ): ExerciseRepository {
         return ExerciseRepositoryImpl(exerciseDao, exerciseImporter)
+    }
+
+    @Provides
+    @Singleton
+    fun providePersonalRecordDao(database: WorkoutDatabase): PersonalRecordDao {
+        return database.personalRecordDao()
+    }
+
+    @Provides
+    @Singleton
+    fun providePersonalRecordRepository(personalRecordDao: PersonalRecordDao): PersonalRecordRepository {
+        return PersonalRecordRepository(personalRecordDao)
     }
 }

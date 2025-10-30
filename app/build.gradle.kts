@@ -108,6 +108,9 @@ dependencies {
     // Accompanist - Permissions
     implementation(libs.accompanist.permissions)
 
+    // Coil - Image Loading
+    implementation(libs.coil.compose)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

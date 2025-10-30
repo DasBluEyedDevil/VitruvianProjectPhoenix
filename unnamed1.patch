@@ -1,0 +1,4086 @@
+Index: app/src/main/java/com/example/vitruvianredux/di/AppModule.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/di/AppModule.kt b/app/src/main/java/com/example/vitruvianredux/di/AppModule.kt
+--- a/app/src/main/java/com/example/vitruvianredux/di/AppModule.kt
++++ b/app/src/main/java/com/example/vitruvianredux/di/AppModule.kt
+@@ -216,7 +216,7 @@
+                     `orderIndex` INTEGER NOT NULL,
+                     `setReps` TEXT NOT NULL,
+                     `weightPerCableKg` REAL NOT NULL,
+-                    `progressionKg` REAL NOT NULL,
++                    `progressionRegressionKg` REAL NOT NULL,
+                     `restSeconds` INTEGER NOT NULL,
+                     `notes` TEXT NOT NULL,
+                     PRIMARY KEY(`id`),
+@@ -228,7 +228,7 @@
+             database.execSQL("""
+                 INSERT INTO `routine_exercises_new` (
+                     id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
+-                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
++                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionRegressionKg, restSeconds, notes
+                 )
+                 SELECT
+                     id,
+@@ -258,6 +258,70 @@
+         }
+     }
+ 
++    /**
++     * Migration from version 8 to 9: Fix workout_sessions schema and add personal records table
++     * Renames progressionKg to progressionRegressionKg in workout_sessions table
++     */
++    private val MIGRATION_8_9 = object : Migration(8, 9) {
++        override fun migrate(database: SupportSQLiteDatabase) {
++            // 1. Fix workout_sessions table: rename progressionKg to progressionRegressionKg
++            // Create new table with correct schema
++            database.execSQL("""
++                CREATE TABLE `workout_sessions_new` (
++                    `id` TEXT NOT NULL,
++                    `timestamp` INTEGER NOT NULL,
++                    `mode` TEXT NOT NULL,
++                    `reps` INTEGER NOT NULL,
++                    `weightPerCableKg` REAL NOT NULL,
++                    `progressionRegressionKg` REAL NOT NULL,
++                    `duration` INTEGER NOT NULL,
++                    `totalReps` INTEGER NOT NULL,
++                    `warmupReps` INTEGER NOT NULL,
++                    `workingReps` INTEGER NOT NULL,
++                    `isJustLift` INTEGER NOT NULL,
++                    `stopAtTop` INTEGER NOT NULL,
++                    PRIMARY KEY(`id`)
++                )
++            """.trimIndent())
++
++            // 2. Copy data from old table (mapping progressionKg to progressionRegressionKg)
++            database.execSQL("""
++                INSERT INTO `workout_sessions_new` (
++                    id, timestamp, mode, reps, weightPerCableKg, progressionRegressionKg,
++                    duration, totalReps, warmupReps, workingReps, isJustLift, stopAtTop
++                )
++                SELECT
++                    id, timestamp, mode, reps, weightPerCableKg, progressionKg,
++                    duration, totalReps, warmupReps, workingReps, isJustLift, stopAtTop
++                FROM `workout_sessions`
++            """.trimIndent())
++
++            // 3. Drop old table
++            database.execSQL("DROP TABLE `workout_sessions`")
++
++            // 4. Rename new table
++            database.execSQL("ALTER TABLE `workout_sessions_new` RENAME TO `workout_sessions`")
++
++            // 5. Create personal_records table
++            database.execSQL("""
++                CREATE TABLE IF NOT EXISTS personal_records (
++                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
++                    exerciseId TEXT NOT NULL,
++                    weightPerCableKg REAL NOT NULL,
++                    reps INTEGER NOT NULL,
++                    timestamp INTEGER NOT NULL,
++                    workoutMode TEXT NOT NULL
++                )
++            """.trimIndent())
++
++            // 6. Create unique index on exerciseId and workoutMode
++            database.execSQL("""
++                CREATE UNIQUE INDEX IF NOT EXISTS index_personal_records_exerciseId_workoutMode
++                ON personal_records(exerciseId, workoutMode)
++            """.trimIndent())
++        }
++    }
++
+     @Provides
+     @Singleton
+     fun provideBleRepository(
+@@ -276,7 +340,7 @@
+             WorkoutDatabase::class.java,
+             "vitruvian_workout_db"
+         )
+-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
++        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+         .build()
+     }
+ 
+@@ -328,4 +392,18 @@
+     ): ExerciseRepository {
+         return ExerciseRepositoryImpl(exerciseDao, exerciseImporter)
+     }
++    
++    @Provides
++    @Singleton
++    fun providePersonalRecordDao(database: WorkoutDatabase): com.example.vitruvianredux.data.local.PersonalRecordDao {
++        return database.personalRecordDao()
++    }
++    
++    @Provides
++    @Singleton
++    fun providePersonalRecordRepository(
++        personalRecordDao: com.example.vitruvianredux.data.local.PersonalRecordDao
++    ): com.example.vitruvianredux.data.repository.PersonalRecordRepository {
++        return com.example.vitruvianredux.data.repository.PersonalRecordRepository(personalRecordDao)
++    }
+ }
+Index: app/src/main/java/com/example/vitruvianredux/data/local/WorkoutDatabase.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutDatabase.kt b/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutDatabase.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutDatabase.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutDatabase.kt
+@@ -8,6 +8,7 @@
+  * Room database for workout history
+  *
+  * Version history:
++ * - v9: Added PersonalRecordEntity for PR tracking per exercise
+  * - v7: Added exercise detail fields to RoutineExerciseEntity (muscleGroup, equipment, defaultCableConfig)
+  *       to support Exercise data class instead of enum
+  * - v6: Added ExerciseEntity and ExerciseVideoEntity for exercise library
+@@ -19,13 +20,15 @@
+         RoutineEntity::class,
+         RoutineExerciseEntity::class,
+         ExerciseEntity::class,
+-        ExerciseVideoEntity::class
++        ExerciseVideoEntity::class,
++        PersonalRecordEntity::class
+     ],
+-    version = 8,
++    version = 9,
+     exportSchema = false
+ )
+ @TypeConverters(Converters::class)
+ abstract class WorkoutDatabase : RoomDatabase() {
+     abstract fun workoutDao(): WorkoutDao
+     abstract fun exerciseDao(): ExerciseDao
++    abstract fun personalRecordDao(): PersonalRecordDao
+ }
+Index: app/src/main/java/com/example/vitruvianredux/data/local/WorkoutEntities.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutEntities.kt b/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutEntities.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutEntities.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/local/WorkoutEntities.kt
+@@ -15,7 +15,7 @@
+     val mode: String,
+     val reps: Int,
+     val weightPerCableKg: Float,
+-    val progressionKg: Float,
++    val progressionRegressionKg: Float,  // Positive = progression, negative = regression
+     val duration: Long,
+     val totalReps: Int,
+     val warmupReps: Int,
+@@ -85,7 +85,7 @@
+     val orderIndex: Int,
+     val setReps: String, // Comma-separated rep counts (e.g., "10,10,10" or "10,8,6,4")
+     val weightPerCableKg: Float,
+-    val progressionKg: Float = 0f,
++    val progressionRegressionKg: Float = 0f,  // Positive = progression, negative = regression
+     val restSeconds: Int = 60,
+     val notes: String = ""
+ )
+Index: app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordDao.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordDao.kt b/app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordDao.kt
+new file mode 100644
+--- /dev/null
++++ b/app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordDao.kt
+@@ -0,0 +1,66 @@
++package com.example.vitruvianredux.data.local
++
++import androidx.room.*
++import kotlinx.coroutines.flow.Flow
++
++/**
++ * Data Access Object for personal records
++ */
++@Dao
++interface PersonalRecordDao {
++    
++    @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId AND workoutMode = :workoutMode")
++    suspend fun getLatestPR(exerciseId: String, workoutMode: String): PersonalRecordEntity?
++    
++    @Query("SELECT * FROM personal_records WHERE exerciseId = :exerciseId")
++    suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecordEntity>
++    
++    @Query("SELECT * FROM personal_records ORDER BY timestamp DESC")
++    fun getAllPRs(): Flow<List<PersonalRecordEntity>>
++    
++    @Insert(onConflict = OnConflictStrategy.REPLACE)
++    suspend fun insertPR(personalRecord: PersonalRecordEntity)
++    
++    @Update
++    suspend fun updatePR(personalRecord: PersonalRecordEntity)
++    
++    @Query("DELETE FROM personal_records WHERE exerciseId = :exerciseId AND workoutMode = :workoutMode")
++    suspend fun deletePR(exerciseId: String, workoutMode: String)
++    
++    @Query("DELETE FROM personal_records")
++    suspend fun deleteAllPRs()
++    
++    /**
++     * Update or insert a personal record if the new weight/reps combination is better
++     */
++    @Transaction
++    suspend fun updatePRIfBetter(
++        exerciseId: String,
++        weightPerCableKg: Float,
++        reps: Int,
++        workoutMode: String,
++        timestamp: Long
++    ) {
++        val existingPR = getLatestPR(exerciseId, workoutMode)
++        
++        val shouldUpdate = if (existingPR == null) {
++            true
++        } else {
++            // Update if weight is higher, or if weight is same but reps are higher
++            weightPerCableKg > existingPR.weightPerCableKg ||
++            (weightPerCableKg == existingPR.weightPerCableKg && reps > existingPR.reps)
++        }
++        
++        if (shouldUpdate) {
++            val newPR = PersonalRecordEntity(
++                id = existingPR?.id ?: 0,
++                exerciseId = exerciseId,
++                weightPerCableKg = weightPerCableKg,
++                reps = reps,
++                timestamp = timestamp,
++                workoutMode = workoutMode
++            )
++            insertPR(newPR)
++        }
++    }
++}
+Index: app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordEntity.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordEntity.kt b/app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordEntity.kt
+new file mode 100644
+--- /dev/null
++++ b/app/src/main/java/com/example/vitruvianredux/data/local/PersonalRecordEntity.kt
+@@ -0,0 +1,22 @@
++package com.example.vitruvianredux.data.local
++
++import androidx.room.Entity
++import androidx.room.Index
++import androidx.room.PrimaryKey
++
++/**
++ * Room entity for personal record (PR) tracking per exercise
++ */
++@Entity(
++    tableName = "personal_records",
++    indices = [Index(value = ["exerciseId", "workoutMode"], unique = true)]
++)
++data class PersonalRecordEntity(
++    @PrimaryKey(autoGenerate = true)
++    val id: Long = 0,
++    val exerciseId: String,
++    val weightPerCableKg: Float,
++    val reps: Int,
++    val timestamp: Long,
++    val workoutMode: String
++)
+Index: app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt b/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
+@@ -251,9 +251,9 @@
+ 
+                 // Collect rep events and forward to repository flow
+                 scope.launch {
+-                    Timber.d("🔥 Starting rep event collection from BleManager")
++                    Timber.d("?? Starting rep event collection from BleManager")
+                     repEvents.collect { repNotification ->
+-                        Timber.d("🔥 BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
++                        Timber.d("?? BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
+                         _repEvents.emit(repNotification)
+                     }
+                 }
+@@ -344,7 +344,8 @@
+                     level = params.mode.level,
+                     warmupReps = params.warmupReps,
+                     targetReps = params.reps,
+-                    isJustLift = params.isJustLift
++                    isJustLift = params.isJustLift,
++                    eccentricPct = params.eccentricLoad?.percentage ?: 100
+                 )
+                 bleManager?.sendCommand(echoFrame)?.getOrThrow()
+                 delay(100)
+Index: app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt b/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
+@@ -36,7 +36,7 @@
+                 mode = session.mode,
+                 reps = session.reps,
+                 weightPerCableKg = session.weightPerCableKg,
+-                progressionKg = session.progressionKg,
++                progressionRegressionKg = session.progressionRegressionKg,
+                 duration = session.duration,
+                 totalReps = session.totalReps,
+                 warmupReps = session.warmupReps,
+@@ -236,7 +236,7 @@
+     mode = mode,
+     reps = reps,
+     weightPerCableKg = weightPerCableKg,
+-    progressionKg = progressionKg,
++    progressionRegressionKg = progressionRegressionKg,
+     duration = duration,
+     totalReps = totalReps,
+     warmupReps = warmupReps,
+@@ -277,7 +277,7 @@
+     orderIndex = orderIndex,
+     setReps = setReps.joinToString(","), // Convert List<Int> to comma-separated String
+     weightPerCableKg = weightPerCableKg,
+-    progressionKg = progressionKg,
++    progressionRegressionKg = progressionRegressionKg,
+     restSeconds = restSeconds,
+     notes = notes
+ )
+@@ -305,7 +305,7 @@
+     orderIndex = orderIndex,
+     setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
+     weightPerCableKg = weightPerCableKg,
+-    progressionKg = progressionKg,
++    progressionRegressionKg = progressionRegressionKg,
+     restSeconds = restSeconds,
+     notes = notes
+ )
+Index: app/src/main/java/com/example/vitruvianredux/data/repository/PersonalRecordRepository.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/repository/PersonalRecordRepository.kt b/app/src/main/java/com/example/vitruvianredux/data/repository/PersonalRecordRepository.kt
+new file mode 100644
+--- /dev/null
++++ b/app/src/main/java/com/example/vitruvianredux/data/repository/PersonalRecordRepository.kt
+@@ -0,0 +1,152 @@
++package com.example.vitruvianredux.data.repository
++
++import com.example.vitruvianredux.data.local.PersonalRecordDao
++import com.example.vitruvianredux.data.local.PersonalRecordEntity
++import com.example.vitruvianredux.domain.model.PersonalRecord
++import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.map
++import timber.log.Timber
++import javax.inject.Inject
++import javax.inject.Singleton
++
++/**
++ * Repository for personal record management
++ */
++@Singleton
++class PersonalRecordRepository @Inject constructor(
++    private val personalRecordDao: PersonalRecordDao
++) {
++    
++    /**
++     * Get the latest PR for a specific exercise and workout mode
++     */
++    suspend fun getLatestPR(exerciseId: String, workoutMode: String): PersonalRecord? {
++        return try {
++            personalRecordDao.getLatestPR(exerciseId, workoutMode)?.toPersonalRecord()
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to get latest PR for exercise: $exerciseId, mode: $workoutMode")
++            null
++        }
++    }
++    
++    /**
++     * Get all PRs for a specific exercise across all workout modes
++     */
++    suspend fun getPRsForExercise(exerciseId: String): List<PersonalRecord> {
++        return try {
++            personalRecordDao.getPRsForExercise(exerciseId).map { it.toPersonalRecord() }
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to get PRs for exercise: $exerciseId")
++            emptyList()
++        }
++    }
++    
++    /**
++     * Get all personal records
++     */
++    fun getAllPRs(): Flow<List<PersonalRecord>> {
++        return personalRecordDao.getAllPRs().map { entities ->
++            entities.map { it.toPersonalRecord() }
++        }
++    }
++    
++    /**
++     * Update or insert a PR if the new weight/reps combination is better
++     */
++    suspend fun updatePRIfBetter(
++        exerciseId: String,
++        weightPerCableKg: Float,
++        reps: Int,
++        workoutMode: String,
++        timestamp: Long = System.currentTimeMillis()
++    ): Result<Boolean> {
++        return try {
++            val existingPR = personalRecordDao.getLatestPR(exerciseId, workoutMode)
++            
++            val isNewPR = if (existingPR == null) {
++                true
++            } else {
++                weightPerCableKg > existingPR.weightPerCableKg ||
++                (weightPerCableKg == existingPR.weightPerCableKg && reps > existingPR.reps)
++            }
++            
++            if (isNewPR) {
++                personalRecordDao.updatePRIfBetter(
++                    exerciseId = exerciseId,
++                    weightPerCableKg = weightPerCableKg,
++                    reps = reps,
++                    workoutMode = workoutMode,
++                    timestamp = timestamp
++                )
++                Timber.d("Updated PR for exercise: $exerciseId, mode: $workoutMode, weight: $weightPerCableKg kg, reps: $reps")
++            }
++            
++            Result.success(isNewPR)
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to update PR")
++            Result.failure(e)
++        }
++    }
++    
++    /**
++     * Manually insert or update a PR (bypasses the "better" check)
++     */
++    suspend fun savePR(personalRecord: PersonalRecord): Result<Unit> {
++        return try {
++            val entity = personalRecord.toEntity()
++            personalRecordDao.insertPR(entity)
++            Timber.d("Saved PR for exercise: ${personalRecord.exerciseId}")
++            Result.success(Unit)
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to save PR")
++            Result.failure(e)
++        }
++    }
++    
++    /**
++     * Delete a specific PR
++     */
++    suspend fun deletePR(exerciseId: String, workoutMode: String): Result<Unit> {
++        return try {
++            personalRecordDao.deletePR(exerciseId, workoutMode)
++            Timber.d("Deleted PR for exercise: $exerciseId, mode: $workoutMode")
++            Result.success(Unit)
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to delete PR")
++            Result.failure(e)
++        }
++    }
++    
++    /**
++     * Delete all PRs
++     */
++    suspend fun deleteAllPRs(): Result<Unit> {
++        return try {
++            personalRecordDao.deleteAllPRs()
++            Timber.d("Deleted all PRs")
++            Result.success(Unit)
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to delete all PRs")
++            Result.failure(e)
++        }
++    }
++}
++
++// Extension functions for mapping between entities and domain models
++private fun PersonalRecordEntity.toPersonalRecord() = PersonalRecord(
++    id = id,
++    exerciseId = exerciseId,
++    weightPerCableKg = weightPerCableKg,
++    reps = reps,
++    timestamp = timestamp,
++    workoutMode = workoutMode
++)
++
++private fun PersonalRecord.toEntity() = PersonalRecordEntity(
++    id = id,
++    exerciseId = exerciseId,
++    weightPerCableKg = weightPerCableKg,
++    reps = reps,
++    timestamp = timestamp,
++    workoutMode = workoutMode
++)
+Index: app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt b/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
+--- a/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
++++ b/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
+@@ -116,7 +116,8 @@
+         buffer.putFloat(0x58, totalWeightKg)
+ 
+         // Progression/Regression at offset 0x5C (kg per rep)
+-        buffer.putFloat(0x5c, params.progressionKg)
++        // Positive = progression, negative = regression
++        buffer.putFloat(0x5c, params.progressionRegressionKg)
+ 
+         return frame
+     }
+@@ -307,10 +308,10 @@
+         )
+ 
+         return when (level) {
+-            EchoLevel.LEVEL_1 -> params.copy(gain = 1.0f, cap = 50.0f)
+-            EchoLevel.LEVEL_2 -> params.copy(gain = 1.25f, cap = 40.0f)
+-            EchoLevel.LEVEL_3 -> params.copy(gain = 1.667f, cap = 30.0f)
+-            EchoLevel.LEVEL_4 -> params.copy(gain = 3.333f, cap = 15.0f)
++            EchoLevel.HARD -> params.copy(gain = 1.0f, cap = 50.0f)
++            EchoLevel.HARDER -> params.copy(gain = 1.25f, cap = 40.0f)
++            EchoLevel.HARDEST -> params.copy(gain = 1.667f, cap = 30.0f)
++            EchoLevel.EPIC -> params.copy(gain = 3.333f, cap = 15.0f)
+         }
+     }
+ 
+Index: app/src/main/java/com/example/vitruvianredux/domain/model/Models.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/domain/model/Models.kt b/app/src/main/java/com/example/vitruvianredux/domain/model/Models.kt
+--- a/app/src/main/java/com/example/vitruvianredux/domain/model/Models.kt
++++ b/app/src/main/java/com/example/vitruvianredux/domain/model/Models.kt
+@@ -1,5 +1,17 @@
+ package com.example.vitruvianredux.domain.model
+ 
++/**
++ * Personal record for an exercise
++ */
++data class PersonalRecord(
++    val id: Long = 0,
++    val exerciseId: String,
++    val weightPerCableKg: Float,
++    val reps: Int,
++    val timestamp: Long,
++    val workoutMode: String
++)
++
+ /**
+  * Connection state sealed class representing BLE connection states
+  */
+@@ -33,17 +45,29 @@
+     object TUT : WorkoutMode(3, "TUT")
+     object TUTBeast : WorkoutMode(4, "TUT Beast")
+     object EccentricOnly : WorkoutMode(6, "Eccentric Only")
+-    data class Echo(val level: EchoLevel) : WorkoutMode(10, "Echo ${level.name}")
++    data class Echo(val level: EchoLevel) : WorkoutMode(10, "Echo - ${level.displayName}")
+ }
+ 
+ /**
+  * Echo mode difficulty levels
+  */
+-enum class EchoLevel(val levelValue: Int) {
+-    LEVEL_1(0),
+-    LEVEL_2(1),
+-    LEVEL_3(2),
+-    LEVEL_4(3)
++enum class EchoLevel(val levelValue: Int, val displayName: String) {
++    HARD(0, "Hard"),
++    HARDER(1, "Harder"),
++    HARDEST(2, "Hardest"),
++    EPIC(3, "Epic")
++}
++
++/**
++ * Eccentric Load percentages for Echo mode
++ */
++enum class EccentricLoad(val percentage: Int, val displayName: String) {
++    LOAD_0(0, "0%"),
++    LOAD_50(50, "50%"),
++    LOAD_75(75, "75%"),
++    LOAD_100(100, "100%"),
++    LOAD_125(125, "125%"),
++    LOAD_150(150, "150%")
+ }
+ 
+ /**
+@@ -60,10 +84,12 @@
+     val mode: WorkoutMode,
+     val reps: Int,
+     val weightPerCableKg: Float,
+-    val progressionKg: Float = 0f,
++    val progressionRegressionKg: Float = 0f,  // Positive = progression, negative = regression
+     val isJustLift: Boolean = false,
+     val stopAtTop: Boolean = false,
+-    val warmupReps: Int = 3
++    val warmupReps: Int = 3,
++    val selectedExerciseId: String? = null,
++    val eccentricLoad: EccentricLoad? = EccentricLoad.LOAD_100  // Only applies to Echo mode
+ )
+ 
+ /**
+@@ -130,7 +156,7 @@
+     val mode: String = "OldSchool",
+     val reps: Int = 10,
+     val weightPerCableKg: Float = 10f,
+-    val progressionKg: Float = 0f,
++    val progressionRegressionKg: Float = 0f,  // Positive = progression, negative = regression
+     val duration: Long = 0,
+     val totalReps: Int = 0,
+     val warmupReps: Int = 0,
+Index: app/src/main/java/com/example/vitruvianredux/domain/model/Routine.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/domain/model/Routine.kt b/app/src/main/java/com/example/vitruvianredux/domain/model/Routine.kt
+--- a/app/src/main/java/com/example/vitruvianredux/domain/model/Routine.kt
++++ b/app/src/main/java/com/example/vitruvianredux/domain/model/Routine.kt
+@@ -30,7 +30,7 @@
+     val orderIndex: Int,
+     val setReps: List<Int> = listOf(10, 10, 10),
+     val weightPerCableKg: Float,
+-    val progressionKg: Float = 0f,
++    val progressionRegressionKg: Float = 0f,  // Positive = progression, negative = regression
+     val restSeconds: Int = 60,
+     val notes: String = ""
+ ) {
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
+@@ -1,8 +1,17 @@
+ package com.example.vitruvianredux.presentation.screen
+ 
++import androidx.compose.animation.core.Animatable
++import androidx.compose.animation.core.exponentialDecay
+ import androidx.compose.foundation.BorderStroke
+ import androidx.compose.foundation.border
++import androidx.compose.foundation.gestures.awaitEachGesture
++import androidx.compose.foundation.gestures.awaitFirstDown
++import androidx.compose.foundation.gestures.detectVerticalDragGestures
++import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
++import androidx.compose.foundation.gestures.verticalDrag
+ import androidx.compose.foundation.layout.*
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.foundation.verticalScroll
+@@ -12,11 +21,28 @@
+ import androidx.compose.runtime.*
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.alpha
++import androidx.compose.ui.draw.scale
++import androidx.compose.ui.hapticfeedback.HapticFeedbackType
++import androidx.compose.ui.input.pointer.PointerInputChange
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.input.pointer.positionChange
++import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.unit.dp
++import kotlin.math.abs
++import kotlin.math.roundToInt
++import kotlin.math.sign
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.launch
++import com.example.vitruvianredux.data.local.ExerciseEntity
++import com.example.vitruvianredux.data.repository.ExerciseRepository
+ import com.example.vitruvianredux.domain.model.*
++import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
+ import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
+ import com.example.vitruvianredux.ui.theme.*
++import kotlinx.coroutines.launch
+ 
+ @Composable
+ fun WorkoutTab(
+@@ -40,6 +66,7 @@
+     onUpdateParameters: (WorkoutParameters) -> Unit,
+     onShowWorkoutSetupDialog: () -> Unit = {},
+     onHideWorkoutSetupDialog: () -> Unit = {},
++    exerciseRepository: ExerciseRepository,
+     modifier: Modifier = Modifier
+ ) {
+     // Haptic feedback effect
+@@ -202,10 +229,22 @@
+                 onStartWorkout()
+                 onHideWorkoutSetupDialog()
+             },
+-            onDismiss = onHideWorkoutSetupDialog
++            onDismiss = onHideWorkoutSetupDialog,
++            exerciseRepository = exerciseRepository
+         )
+     }
+ }
++
++/**
++ * Get display name for workout mode including eccentric load if applicable
++ */
++private fun getWorkoutModeDisplayName(params: WorkoutParameters): String {
++    return if (params.mode is WorkoutMode.Echo && params.eccentricLoad != null) {
++        "${params.mode.displayName} (${params.eccentricLoad.displayName})"
++    } else {
++        params.mode.displayName
++    }
++}
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+@@ -216,12 +255,26 @@
+     displayToKg: (Float, WeightUnit) -> Float,
+     onUpdateParameters: (WorkoutParameters) -> Unit,
+     onStartWorkout: () -> Unit,
+-    onDismiss: () -> Unit
++    onDismiss: () -> Unit,
++    exerciseRepository: ExerciseRepository
+ ) {
++    var selectedExercise by remember { mutableStateOf<ExerciseEntity?>(null) }
++    var showExercisePicker by remember { mutableStateOf(false) }
++    var showModeSubSelector by remember { mutableStateOf(false) }
++    var modeSubSelectorType by remember { mutableStateOf<String?>(null) }
++    
++    // Load exercise if ID is set
++    LaunchedEffect(workoutParameters.selectedExerciseId) {
++        workoutParameters.selectedExerciseId?.let { id ->
++            selectedExercise = exerciseRepository.getExerciseById(id)
++        }
++    }
++
+     AlertDialog(
+         onDismissRequest = onDismiss,
+         containerColor = MaterialTheme.colorScheme.surface,
+         shape = RoundedCornerShape(16.dp),
++        modifier = Modifier.fillMaxWidth(0.95f),
+         title = {
+             Text(
+                 "Workout Setup",
+@@ -235,191 +288,378 @@
+                 modifier = Modifier
+                     .fillMaxWidth()
+                     .verticalScroll(rememberScrollState()),
+-                verticalArrangement = Arrangement.spacedBy(Spacing.small)
++                verticalArrangement = Arrangement.spacedBy(16.dp)
+             ) {
+-                var showModeMenu by remember { mutableStateOf(false) }
+-                var showEchoLevelDialog by remember { mutableStateOf(false) }
+-
+-                val modeLabel = if (workoutParameters.isJustLift) "Base Mode (resistance profile)" else "Workout Mode"
+-                ExposedDropdownMenuBox(
+-                    expanded = showModeMenu,
+-                    onExpandedChange = { showModeMenu = !showModeMenu }
+-                ) {
+-                    OutlinedTextField(
+-                        value = workoutParameters.mode.displayName,
+-                        onValueChange = {},
+-                        readOnly = true,
+-                        label = { Text(modeLabel) },
+-                        trailingIcon = {
+-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeMenu)
+-                        },
+-                        modifier = Modifier
+-                            .fillMaxWidth()
+-                            .menuAnchor(),
+-                        colors = OutlinedTextFieldDefaults.colors()
+-                    )
+-                    ExposedDropdownMenu(
+-                        expanded = showModeMenu,
+-                        onDismissRequest = { showModeMenu = false }
+-                    ) {
+-                        DropdownMenuItem(
+-                            text = { Text("Old School") },
+-                            onClick = {
+-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.OldSchool))
+-                                showModeMenu = false
+-                            }
+-                        )
+-                        DropdownMenuItem(
+-                            text = { Text("Pump") },
+-                            onClick = {
+-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Pump))
+-                                showModeMenu = false
+-                            }
+-                        )
+-                        DropdownMenuItem(
+-                            text = { Text("TUT") },
+-                            onClick = {
+-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUT))
+-                                showModeMenu = false
+-                            }
+-                        )
+-                        DropdownMenuItem(
+-                            text = { Text("TUT Beast") },
+-                            onClick = {
+-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUTBeast))
+-                                showModeMenu = false
+-                            }
+-                        )
+-                        DropdownMenuItem(
+-                            text = { Text("Eccentric Only") },
+-                            onClick = {
+-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
+-                                showModeMenu = false
+-                            }
++                // SECTION 1: Exercise Selection
++                Card(
++                    modifier = Modifier.fillMaxWidth(),
++                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
++                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
++                ) {
++                    Column(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .padding(horizontal = 16.dp, vertical = 8.dp)
++                    ) {
++                        Text(
++                            "Exercise",
++                            style = MaterialTheme.typography.titleMedium,
++                            fontWeight = FontWeight.Bold
++                        )
++                        Spacer(modifier = Modifier.height(8.dp))
++                        OutlinedButton(
++                            onClick = { showExercisePicker = true },
++                            modifier = Modifier.fillMaxWidth()
++                        ) {
++                            Text(selectedExercise?.name ?: "Select Exercise")
++                        }
++                    }
++                }
++
++                // SECTION 2: Workout Mode Selection (Hierarchical)
++                Card(
++                    modifier = Modifier.fillMaxWidth(),
++                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
++                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
++                ) {
++                    Column(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .padding(horizontal = 16.dp, vertical = 8.dp)
++                    ) {
++                        Text(
++                            "Workout Mode",
++                            style = MaterialTheme.typography.titleMedium,
++                            fontWeight = FontWeight.Bold
++                        )
++                        Spacer(modifier = Modifier.height(8.dp))
++                        
++                        var showModeMenu by remember { mutableStateOf(false) }
++                        
++                        ExposedDropdownMenuBox(
++                            expanded = showModeMenu,
++                            onExpandedChange = { showModeMenu = !showModeMenu }
++                        ) {
++                            OutlinedTextField(
++                                value = getWorkoutModeDisplayName(workoutParameters),
++                                onValueChange = {},
++                                readOnly = true,
++                                label = { Text("Mode") },
++                                trailingIcon = {
++                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = showModeMenu)
++                                },
++                                modifier = Modifier
++                                    .fillMaxWidth()
++                                    .menuAnchor(),
++                                colors = OutlinedTextFieldDefaults.colors()
++                            )
++                            ExposedDropdownMenu(
++                                expanded = showModeMenu,
++                                onDismissRequest = { showModeMenu = false }
++                            ) {
++                                DropdownMenuItem(
++                                    text = { Text("Old School") },
++                                    onClick = {
++                                        onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.OldSchool))
++                                        showModeMenu = false
++                                    }
++                                )
++                                DropdownMenuItem(
++                                    text = { Text("Pump") },
++                                    onClick = {
++                                        onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Pump))
++                                        showModeMenu = false
++                                    }
++                                )
++                                DropdownMenuItem(
++                                    text = {
++                                        Row(
++                                            horizontalArrangement = Arrangement.SpaceBetween,
++                                            modifier = Modifier.fillMaxWidth()
++                                        ) {
++                                            Text("TUT")
++                                            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
++                                        }
++                                    },
++                                    onClick = {
++                                        showModeMenu = false
++                                        modeSubSelectorType = "TUT"
++                                        showModeSubSelector = true
++                                    }
++                                )
++                                DropdownMenuItem(
++                                    text = {
++                                        Row(
++                                            horizontalArrangement = Arrangement.SpaceBetween,
++                                            modifier = Modifier.fillMaxWidth()
++                                        ) {
++                                            Text("Echo")
++                                            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
++                                        }
++                                    },
++                                    onClick = {
++                                        showModeMenu = false
++                                        modeSubSelectorType = "Echo"
++                                        showModeSubSelector = true
++                                    }
++                                )
++                                DropdownMenuItem(
++                                    text = { Text("Eccentric Only") },
++                                    onClick = {
++                                        onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
++                                        showModeMenu = false
++                                    }
++                                )
++                            }
++                        }
++                    }
++                }
++
++                // SECTION 3: Weight & Reps (Side-by-Side Compact Wheel Pickers)
++                Card(
++                    modifier = Modifier.fillMaxWidth(),
++                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
++                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
++                ) {
++                    Column(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .padding(horizontal = 16.dp, vertical = 8.dp)
++                    ) {
++                        Text(
++                            "Weight & Reps",
++                            style = MaterialTheme.typography.titleMedium,
++                            fontWeight = FontWeight.Bold
+                         )
+-                        DropdownMenuItem(
+-                            text = {
+-                                Row(
+-                                    horizontalArrangement = Arrangement.SpaceBetween,
+-                                    modifier = Modifier.fillMaxWidth()
+-                                ) {
+-                                    Text("Echo Mode")
+-                                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+-                                }
+-                            },
+-                            onClick = {
+-                                showModeMenu = false
+-                                showEchoLevelDialog = true
+-                            }
+-                        )
+-                    }
+-                }
+-
+-                if (showEchoLevelDialog) {
+-                    AlertDialog(
+-                        onDismissRequest = { showEchoLevelDialog = false },
+-                        title = { Text("Select Echo Level") },
+-                        containerColor = MaterialTheme.colorScheme.surface,
+-                        shape = RoundedCornerShape(16.dp),
+-                        text = {
+-                            Column {
++                        Spacer(modifier = Modifier.height(8.dp))
++
++                        Row(
++                            modifier = Modifier.fillMaxWidth(),
++                            horizontalArrangement = Arrangement.spacedBy(8.dp)
++                        ) {
++                            // Weight Per Cable Picker
++                            Column(
++                                modifier = Modifier.weight(1f),
++                                horizontalAlignment = Alignment.CenterHorizontally
++                            ) {
+                                 Text(
+-                                    "Echo adapts to your output. Select a level:",
+-                                    style = MaterialTheme.typography.bodyMedium
++                                    "Weight (${weightUnit.name.lowercase()})",
++                                    style = MaterialTheme.typography.bodyMedium,
++                                    fontWeight = FontWeight.SemiBold
+                                 )
+-                                Spacer(modifier = Modifier.height(Spacing.medium))
+-                                listOf(
+-                                    EchoLevel.LEVEL_1 to "Level 1 - Beginner (75% eccentric)",
+-                                    EchoLevel.LEVEL_2 to "Level 2 - Intermediate",
+-                                    EchoLevel.LEVEL_3 to "Level 3 - Advanced",
+-                                    EchoLevel.LEVEL_4 to "Level 4 - Expert"
+-                                ).forEach { (level, label) ->
+-                                    OutlinedButton(
+-                                        onClick = {
+-                                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
+-                                            showEchoLevelDialog = false
+-                                        },
+-                                        modifier = Modifier.fillMaxWidth()
++                                Spacer(modifier = Modifier.height(4.dp))
++                                // Show "Adaptive" for Echo mode, otherwise show picker
++                                if (workoutParameters.mode is WorkoutMode.Echo) {
++                                    Box(
++                                        modifier = Modifier
++                                            .fillMaxWidth()
++                                            .height(80.dp),
++                                        contentAlignment = Alignment.Center
+                                     ) {
+-                                        Text(label)
+-                                    }
+-                                    Spacer(modifier = Modifier.height(Spacing.small))
+-                                }
+-                            }
+-                        },
+-                        confirmButton = {
+-                            TextButton(onClick = { showEchoLevelDialog = false }) {
+-                                Text("Cancel")
+-                            }
+-                        }
+-                    )
+-                }
+-
+-                var weightText by remember(workoutParameters.weightPerCableKg, weightUnit) {
+-                    mutableStateOf(kgToDisplay(workoutParameters.weightPerCableKg, weightUnit).toString())
+-                }
+-                OutlinedTextField(
+-                    value = weightText,
+-                    onValueChange = {
+-                        weightText = it
+-                        it.toFloatOrNull()?.let { displayWeight ->
+-                            val kg = displayToKg(displayWeight, weightUnit)
+-                            onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
+-                        }
+-                    },
+-                    label = { Text("Weight per cable (${weightUnit.name.lowercase()})") },
+-                    modifier = Modifier.fillMaxWidth()
+-                )
++                                        Surface(
++                                            modifier = Modifier
++                                                .fillMaxWidth()
++                                                .fillMaxHeight(),
++                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
++                                            shape = RoundedCornerShape(12.dp)
++                                        ) {
++                                            Box(
++                                                modifier = Modifier.fillMaxSize(),
++                                                contentAlignment = Alignment.Center
++                                            ) {
++                                                Text(
++                                                    text = "Adaptive",
++                                                    style = MaterialTheme.typography.titleMedium,
++                                                    fontWeight = FontWeight.Bold,
++                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
++                                                )
++                                            }
++                                        }
++                                    }
++                                } else {
++                                    CompactNumberPicker(
++                                        value = kgToDisplay(workoutParameters.weightPerCableKg, weightUnit).toInt(),
++                                        onValueChange = { displayWeight ->
++                                            val kg = displayToKg(displayWeight.toFloat(), weightUnit)
++                                            onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
++                                        },
++                                        range = if (weightUnit == WeightUnit.LB) 1..220 else 1..100
++                                    )
++                                }
++                            }
+ 
+-                var repsText by remember(workoutParameters) {
+-                    mutableStateOf(workoutParameters.reps.toString())
+-                }
+-                OutlinedTextField(
+-                    value = repsText,
+-                    onValueChange = {
+-                        repsText = it
+-                        it.toIntOrNull()?.let { reps ->
+-                            onUpdateParameters(workoutParameters.copy(reps = reps))
++                            // Target Reps Picker
++                            Column(
++                                modifier = Modifier.weight(1f),
++                                horizontalAlignment = Alignment.CenterHorizontally
++                            ) {
++                                Text(
++                                    "Reps",
++                                    style = MaterialTheme.typography.bodyMedium,
++                                    fontWeight = FontWeight.SemiBold
++                                )
++                                Spacer(modifier = Modifier.height(4.dp))
++                                CompactNumberPicker(
++                                    value = workoutParameters.reps,
++                                    onValueChange = { reps ->
++                                        onUpdateParameters(workoutParameters.copy(reps = reps))
++                                    },
++                                    range = 1..50
++                                )
++                            }
+                         }
+-                    },
+-                    label = { Text("Target reps") },
+-                    modifier = Modifier.fillMaxWidth(),
+-                    enabled = !workoutParameters.isJustLift
+-                )
+-
+-                Row(
+-                    modifier = Modifier.fillMaxWidth(),
+-                    horizontalArrangement = Arrangement.SpaceBetween,
+-                    verticalAlignment = Alignment.CenterVertically
+-                ) {
+-                    Text("Just Lift")
+-                    Switch(
+-                        checked = workoutParameters.isJustLift,
+-                        onCheckedChange = { checked ->
+-                            onUpdateParameters(workoutParameters.copy(isJustLift = checked))
+-                        }
+-                    )
++                    }
++                }
++
++                // SECTION 5: Progression/Regression (Show for Pump, Old School, Eccentric Only, TUT, TUT Beast)
++                if (workoutParameters.mode is WorkoutMode.Pump ||
++                    workoutParameters.mode is WorkoutMode.OldSchool ||
++                    workoutParameters.mode is WorkoutMode.EccentricOnly ||
++                    workoutParameters.mode is WorkoutMode.TUT ||
++                    workoutParameters.mode is WorkoutMode.TUTBeast
++                ) {
++                    Card(
++                        modifier = Modifier.fillMaxWidth(),
++                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
++                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
++                    ) {
++                        Column(
++                            modifier = Modifier
++                                .fillMaxWidth()
++                                .padding(horizontal = 16.dp, vertical = 8.dp)
++                        ) {
++                            Text(
++                                "Progression/Regression per Cable",
++                                style = MaterialTheme.typography.titleMedium,
++                                fontWeight = FontWeight.Bold
++                            )
++                            Text(
++                                "Weight change when moving between levels",
++                                style = MaterialTheme.typography.bodySmall,
++                                color = MaterialTheme.colorScheme.outline
++                            )
++                            Spacer(modifier = Modifier.height(8.dp))
++                            
++                            // FilterChips for Progression/Regression
++                            Row(
++                                modifier = Modifier.fillMaxWidth(),
++                                horizontalArrangement = Arrangement.spacedBy(8.dp)
++                            ) {
++                                val isProgression = workoutParameters.progressionRegressionKg >= 0
++                                
++                                FilterChip(
++                                    selected = isProgression,
++                                    onClick = {
++                                        if (!isProgression) {
++                                            // Switch to progression, keep absolute value (or make 1 if currently 0)
++                                            val newValue = if (workoutParameters.progressionRegressionKg == 0f) {
++                                                displayToKg(1f, weightUnit)  // Default to 1 lb/kg
++                                            } else {
++                                                abs(workoutParameters.progressionRegressionKg)
++                                            }
++                                            onUpdateParameters(
++                                                workoutParameters.copy(
++                                                    progressionRegressionKg = newValue
++                                                )
++                                            )
++                                        }
++                                    },
++                                    label = { Text("Prog") },
++                                    leadingIcon = if (isProgression) {
++                                        {
++                                            Icon(
++                                                Icons.Filled.KeyboardArrowUp,
++                                                contentDescription = null,
++                                                modifier = Modifier.size(FilterChipDefaults.IconSize)
++                                            )
++                                        }
++                                    } else null,
++                                    modifier = Modifier.weight(1f)
++                                )
++
++                                FilterChip(
++                                    selected = !isProgression,
++                                    onClick = {
++                                        if (isProgression) {
++                                            // Switch to regression, negate value (or make -1 if currently 0)
++                                            val newValue = if (workoutParameters.progressionRegressionKg == 0f) {
++                                                -displayToKg(1f, weightUnit)  // Default to 1 lb/kg
++                                            } else {
++                                                -abs(workoutParameters.progressionRegressionKg)
++                                            }
++                                            onUpdateParameters(
++                                                workoutParameters.copy(
++                                                    progressionRegressionKg = newValue
++                                                )
++                                            )
++                                        }
++                                    },
++                                    label = { Text("Regr") },
++                                    leadingIcon = if (!isProgression) {
++                                        {
++                                            Icon(
++                                                Icons.Filled.KeyboardArrowDown,
++                                                contentDescription = null,
++                                                modifier = Modifier.size(FilterChipDefaults.IconSize)
++                                            )
++                                        }
++                                    } else null,
++                                    modifier = Modifier.weight(1f)
++                                )
++                            }
++                            
++                            Spacer(modifier = Modifier.height(8.dp))
++                            
++                            // Single picker for the absolute value (1-6 lbs / ~0.5-3 kg)
++                            CompactNumberPicker(
++                                value = kgToDisplay(abs(workoutParameters.progressionRegressionKg), weightUnit).toInt(),
++                                onValueChange = { displayValue ->
++                                    val kg = displayToKg(displayValue.toFloat(), weightUnit)
++                                    val isProgression = workoutParameters.progressionRegressionKg >= 0
++                                    onUpdateParameters(
++                                        workoutParameters.copy(
++                                            progressionRegressionKg = if (isProgression) kg else -kg
++                                        )
++                                    )
++                                },
++                                range = if (weightUnit == WeightUnit.LB) 1..6 else 1..3
++                            )
++                        }
++                    }
+                 }
+ 
+-                Row(
++                // SECTION 7: Finish At Top Toggle
++                Card(
+                     modifier = Modifier.fillMaxWidth(),
+-                    horizontalArrangement = Arrangement.SpaceBetween,
+-                    verticalAlignment = Alignment.CenterVertically
+-                ) {
+-                    Text("Finish At Top")
+-                    Switch(
+-                        checked = workoutParameters.stopAtTop,
+-                        onCheckedChange = { checked ->
+-                            onUpdateParameters(workoutParameters.copy(stopAtTop = checked))
+-                        },
+-                        enabled = !workoutParameters.isJustLift
+-                    )
++                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
++                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
++                ) {
++                    Row(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .padding(horizontal = 16.dp, vertical = 8.dp),
++                        horizontalArrangement = Arrangement.SpaceBetween,
++                        verticalAlignment = Alignment.CenterVertically
++                    ) {
++                        Text(
++                            "Finish At Top",
++                            style = MaterialTheme.typography.titleMedium,
++                            fontWeight = FontWeight.Bold
++                        )
++                        Switch(
++                            checked = workoutParameters.stopAtTop,
++                            onCheckedChange = { checked ->
++                                onUpdateParameters(workoutParameters.copy(stopAtTop = checked))
++                            }
++                        )
++                    }
+                 }
+             }
+         },
+         confirmButton = {
+             Button(
+-                onClick = onStartWorkout
++                onClick = onStartWorkout,
++                enabled = selectedExercise != null
+             ) {
+                 Icon(Icons.Default.PlayArrow, contentDescription = "Start workout")
+                 Spacer(modifier = Modifier.width(Spacing.small))
+@@ -432,6 +672,386 @@
+             }
+         }
+     )
++
++    // Exercise Picker Dialog
++    ExercisePickerDialog(
++        showDialog = showExercisePicker,
++        onDismiss = { showExercisePicker = false },
++        onExerciseSelected = { exercise ->
++            selectedExercise = exercise
++            onUpdateParameters(workoutParameters.copy(selectedExerciseId = exercise.id))
++        },
++        exerciseRepository = exerciseRepository
++    )
++
++    // Mode Sub-Selector Dialog
++    if (showModeSubSelector) {
++        ModeSubSelectorDialog(
++            type = modeSubSelectorType ?: "",
++            onDismiss = { showModeSubSelector = false },
++            onModeSelected = { mode, eccentricLoad ->
++                onUpdateParameters(workoutParameters.copy(mode = mode, eccentricLoad = eccentricLoad))
++                showModeSubSelector = false
++            }
++        )
++    }
++}
++
++/**
++ * Mode Sub-Selector Dialog for TUT and Echo hierarchical selection
++ */
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++private fun ModeSubSelectorDialog(
++    type: String,
++    onDismiss: () -> Unit,
++    onModeSelected: (WorkoutMode, EccentricLoad?) -> Unit
++) {
++    AlertDialog(
++        onDismissRequest = onDismiss,
++        title = { Text("Select $type Mode") },
++        containerColor = MaterialTheme.colorScheme.surface,
++        shape = RoundedCornerShape(16.dp),
++        text = {
++            Column(
++                modifier = Modifier.fillMaxWidth(),
++                verticalArrangement = Arrangement.spacedBy(8.dp)
++            ) {
++                when (type) {
++                    "TUT" -> {
++                        Text(
++                            "Time Under Tension modes:",
++                            style = MaterialTheme.typography.bodyMedium
++                        )
++                        Spacer(modifier = Modifier.height(8.dp))
++                        OutlinedButton(
++                            onClick = { onModeSelected(WorkoutMode.TUT, null) },
++                            modifier = Modifier.fillMaxWidth()
++                        ) {
++                            Text("TUT Standard")
++                        }
++                        OutlinedButton(
++                            onClick = { onModeSelected(WorkoutMode.TUTBeast, null) },
++                            modifier = Modifier.fillMaxWidth()
++                        ) {
++                            Text("TUT Beast")
++                        }
++                    }
++                    "Echo" -> {
++                        var selectedEchoLevel by remember { mutableStateOf(EchoLevel.HARD) }
++                        var selectedEccentricLoad by remember { mutableStateOf(EccentricLoad.LOAD_100) }
++                        
++                        Column(
++                            modifier = Modifier.fillMaxWidth(),
++                            verticalArrangement = Arrangement.spacedBy(12.dp)
++                        ) {
++                            Text(
++                                "Echo adapts to your output.",
++                                style = MaterialTheme.typography.bodyMedium
++                            )
++                            Spacer(modifier = Modifier.height(8.dp))
++                            
++                            // Echo Level Selector
++                            Text(
++                                "Level",
++                                style = MaterialTheme.typography.titleSmall,
++                                fontWeight = FontWeight.Bold
++                            )
++                            var showLevelMenu by remember { mutableStateOf(false) }
++                            ExposedDropdownMenuBox(
++                                expanded = showLevelMenu,
++                                onExpandedChange = { showLevelMenu = !showLevelMenu }
++                            ) {
++                                OutlinedTextField(
++                                    value = selectedEchoLevel.displayName,
++                                    onValueChange = {},
++                                    readOnly = true,
++                                    label = { Text("Difficulty") },
++                                    trailingIcon = {
++                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = showLevelMenu)
++                                    },
++                                    modifier = Modifier
++                                        .fillMaxWidth()
++                                        .menuAnchor(),
++                                    colors = OutlinedTextFieldDefaults.colors()
++                                )
++                                ExposedDropdownMenu(
++                                    expanded = showLevelMenu,
++                                    onDismissRequest = { showLevelMenu = false }
++                                ) {
++                                    listOf(
++                                        EchoLevel.HARD,
++                                        EchoLevel.HARDER,
++                                        EchoLevel.HARDEST,
++                                        EchoLevel.EPIC
++                                    ).forEach { level ->
++                                        DropdownMenuItem(
++                                            text = { Text(level.displayName) },
++                                            onClick = {
++                                                selectedEchoLevel = level
++                                                showLevelMenu = false
++                                            }
++                                        )
++                                    }
++                                }
++                            }
++                            
++                            // Eccentric Load Selector
++                            Text(
++                                "Eccentric Load",
++                                style = MaterialTheme.typography.titleSmall,
++                                fontWeight = FontWeight.Bold
++                            )
++                            var showLoadMenu by remember { mutableStateOf(false) }
++                            ExposedDropdownMenuBox(
++                                expanded = showLoadMenu,
++                                onExpandedChange = { showLoadMenu = !showLoadMenu }
++                            ) {
++                                OutlinedTextField(
++                                    value = selectedEccentricLoad.displayName,
++                                    onValueChange = {},
++                                    readOnly = true,
++                                    label = { Text("Load") },
++                                    trailingIcon = {
++                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = showLoadMenu)
++                                    },
++                                    modifier = Modifier
++                                        .fillMaxWidth()
++                                        .menuAnchor(),
++                                    colors = OutlinedTextFieldDefaults.colors()
++                                )
++                                ExposedDropdownMenu(
++                                    expanded = showLoadMenu,
++                                    onDismissRequest = { showLoadMenu = false }
++                                ) {
++                                    listOf(
++                                        EccentricLoad.LOAD_0,
++                                        EccentricLoad.LOAD_50,
++                                        EccentricLoad.LOAD_75,
++                                        EccentricLoad.LOAD_100,
++                                        EccentricLoad.LOAD_125,
++                                        EccentricLoad.LOAD_150
++                                    ).forEach { load ->
++                                        DropdownMenuItem(
++                                            text = { Text(load.displayName) },
++                                            onClick = {
++                                                selectedEccentricLoad = load
++                                                showLoadMenu = false
++                                            }
++                                        )
++                                    }
++                                }
++                            }
++                            
++                            Spacer(modifier = Modifier.height(8.dp))
++                            
++                            Button(
++                                onClick = {
++                                    onModeSelected(WorkoutMode.Echo(selectedEchoLevel), selectedEccentricLoad)
++                                },
++                                modifier = Modifier.fillMaxWidth()
++                            ) {
++                                Text("Select Echo - ${selectedEchoLevel.displayName} (${selectedEccentricLoad.displayName})")
++                            }
++                        }
++                    }
++                }
++            }
++        },
++        confirmButton = {
++            TextButton(onClick = onDismiss) {
++                Text("Cancel")
++            }
++        }
++    )
++}
++
++/**
++ * Compact Number Picker - Swipe-based picker that shows only the current value
++ * Swipe up to increment, swipe down to decrement
++ * Height: 60dp (compact design matching official app)
++ */
++@Composable
++private fun CompactNumberPicker(
++    value: Int,
++    onValueChange: (Int) -> Unit,
++    range: IntRange,
++    modifier: Modifier = Modifier
++) {
++    val haptic = LocalHapticFeedback.current
++    var isDragging by remember { mutableStateOf(false) }
++    var accumulatedDrag by remember { mutableFloatStateOf(0f) }
++
++    // Much lower threshold for better responsiveness
++    val dragThreshold = 3f
++
++    // Row layout with +/- buttons on sides
++    Row(
++        modifier = modifier
++            .fillMaxWidth()
++            .height(80.dp),  // Increased from 60dp for easier touch
++        verticalAlignment = Alignment.CenterVertically,
++        horizontalArrangement = Arrangement.spacedBy(8.dp)
++    ) {
++        // Decrement button
++        IconButton(
++            onClick = {
++                val newValue = (value - 1).coerceIn(range)
++                if (newValue != value) {
++                    onValueChange(newValue)
++                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++                }
++            },
++            enabled = value > range.first,
++            modifier = Modifier.size(48.dp)
++        ) {
++            Text(
++                text = "−",
++                style = MaterialTheme.typography.headlineSmall,
++                fontWeight = FontWeight.Bold,
++                color = if (value > range.first)
++                    MaterialTheme.colorScheme.primary
++                else
++                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
++            )
++        }
++
++        // Draggable center area
++        Box(
++            modifier = Modifier
++                .weight(1f)
++                .fillMaxHeight()
++                .pointerInput(value, range) {
++                    detectVerticalDragGestures(
++                        onDragStart = {
++                            isDragging = true
++                            accumulatedDrag = 0f
++                        },
++                        onDragEnd = {
++                            isDragging = false
++                            accumulatedDrag = 0f
++                        },
++                        onDragCancel = {
++                            isDragging = false
++                            accumulatedDrag = 0f
++                        },
++                        onVerticalDrag = { _, dragAmount ->
++                            // Accumulate drag amount for continuous scrolling
++                            accumulatedDrag += dragAmount
++
++                            // Calculate how many steps to change based on accumulated drag
++                            val steps = (accumulatedDrag / dragThreshold).roundToInt()
++
++                            if (steps != 0) {
++                                val newValue = if (steps > 0) {
++                                    // Dragging down = decrement
++                                    (value - steps).coerceIn(range)
++                                } else {
++                                    // Dragging up = increment
++                                    (value + abs(steps)).coerceIn(range)
++                                }
++
++                                if (newValue != value) {
++                                    onValueChange(newValue)
++                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++                                    // Reduce accumulated drag by the amount we used
++                                    accumulatedDrag -= steps * dragThreshold
++                                } else {
++                                    // Hit boundary, reset accumulation
++                                    accumulatedDrag = 0f
++                                }
++                            }
++                        }
++                    )
++                },
++            contentAlignment = Alignment.Center
++        ) {
++            // Background container
++            Surface(
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .fillMaxHeight(),
++                color = MaterialTheme.colorScheme.surfaceVariant,
++                shape = RoundedCornerShape(12.dp)
++            ) {
++                Box(
++                    modifier = Modifier.fillMaxSize(),
++                    contentAlignment = Alignment.Center
++                ) {
++                    // Show adjacent numbers only while dragging (very subtle)
++                    if (isDragging) {
++                        Column(
++                            modifier = Modifier.fillMaxSize(),
++                            horizontalAlignment = Alignment.CenterHorizontally,
++                            verticalArrangement = Arrangement.SpaceBetween
++                        ) {
++                            // Top number (next value when swiping up)
++                            if (value < range.last) {
++                                Text(
++                                    text = (value + 1).toString(),
++                                    style = MaterialTheme.typography.bodyMedium,
++                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
++                                    modifier = Modifier
++                                        .alpha(0.3f)
++                                        .padding(top = 4.dp)
++                                )
++                            } else {
++                                Spacer(modifier = Modifier.height(20.dp))
++                            }
++
++                            // Center spacer for current value
++                            Spacer(modifier = Modifier.weight(1f))
++
++                            // Bottom number (next value when swiping down)
++                            if (value > range.first) {
++                                Text(
++                                    text = (value - 1).toString(),
++                                    style = MaterialTheme.typography.bodyMedium,
++                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
++                                    modifier = Modifier
++                                        .alpha(0.3f)
++                                        .padding(bottom = 4.dp)
++                                )
++                            } else {
++                                Spacer(modifier = Modifier.height(20.dp))
++                            }
++                        }
++                    }
++
++                    // Current value - always centered and prominent
++                    Text(
++                        text = value.toString(),
++                        style = MaterialTheme.typography.headlineMedium,
++                        fontWeight = FontWeight.Bold,
++                        color = MaterialTheme.colorScheme.primary
++                    )
++                }
++            }
++        }
++
++        // Increment button
++        IconButton(
++            onClick = {
++                val newValue = (value + 1).coerceIn(range)
++                if (newValue != value) {
++                    onValueChange(newValue)
++                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
++                }
++            },
++            enabled = value < range.last,
++            modifier = Modifier.size(48.dp)
++        ) {
++            Text(
++                text = "+",
++                style = MaterialTheme.typography.headlineSmall,
++                fontWeight = FontWeight.Bold,
++                color = if (value < range.last)
++                    MaterialTheme.colorScheme.primary
++                else
++                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
++            )
++        }
++    }
+ }
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+@@ -581,7 +1201,7 @@
+                 onExpandedChange = { showModeMenu = !showModeMenu && workoutState is WorkoutState.Idle }
+             ) {
+                 OutlinedTextField(
+-                    value = workoutParameters.mode.displayName,
++                    value = getWorkoutModeDisplayName(workoutParameters),
+                     onValueChange = {},
+                     readOnly = true,
+                     label = { Text(modeLabel) },
+@@ -665,10 +1285,10 @@
+                             )
+                             Spacer(modifier = Modifier.height(Spacing.medium))
+                             listOf(
+-                                EchoLevel.LEVEL_1 to "Level 1 - Beginner (75% eccentric)",
+-                                EchoLevel.LEVEL_2 to "Level 2 - Intermediate",
+-                                EchoLevel.LEVEL_3 to "Level 3 - Advanced",
+-                                EchoLevel.LEVEL_4 to "Level 4 - Expert"
++                                EchoLevel.HARD to "Hard",
++                                EchoLevel.HARDER to "Harder",
++                                EchoLevel.HARDEST to "Hardest",
++                                EchoLevel.EPIC to "Epic"
+                             ).forEach { (level, label) ->
+                                 OutlinedButton(
+                                     onClick = {
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
+@@ -189,6 +189,7 @@
+                     onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
+                     onShowWorkoutSetupDialog = { viewModel.showWorkoutSetupDialog() },
+                     onHideWorkoutSetupDialog = { viewModel.hideWorkoutSetupDialog() },
++                    exerciseRepository = viewModel.exerciseRepository,
+                     modifier = Modifier.padding(padding)
+                 )
+                 1 -> HistoryTab(
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/ExerciseEditDialog.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/ExerciseEditDialog.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/ExerciseEditDialog.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/ExerciseEditDialog.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/ExerciseEditDialog.kt
+@@ -21,6 +21,7 @@
+ import androidx.compose.ui.window.Dialog
+ import com.example.vitruvianredux.domain.model.RoutineExercise
+ import com.example.vitruvianredux.ui.theme.*
++import kotlin.math.abs
+ 
+ @Composable
+ fun ExerciseEditDialog(
+@@ -31,7 +32,7 @@
+     var setReps by remember { mutableStateOf(exercise.setReps.ifEmpty { listOf(10) }) }
+     var weight by remember { mutableStateOf(exercise.weightPerCableKg.toString()) }
+     var weightError by remember { mutableStateOf<String?>(null) }
+-    var progression by remember { mutableStateOf(exercise.progressionKg.toString()) }
++    var progression by remember { mutableStateOf(abs(exercise.progressionRegressionKg).toString()) }
+     var progressionError by remember { mutableStateOf<String?>(null) }
+     var rest by remember { mutableStateOf(exercise.restSeconds.toString()) }
+     var restError by remember { mutableStateOf<String?>(null) }
+@@ -192,7 +193,7 @@
+                                 val updatedExercise = exercise.copy(
+                                     setReps = setReps,
+                                     weightPerCableKg = weight.toFloatOrNull() ?: 0f,
+-                                    progressionKg = progression.toFloatOrNull() ?: 0f,
++                                    progressionRegressionKg = progression.toFloatOrNull() ?: 0f,
+                                     restSeconds = rest.toIntOrNull() ?: 0,
+                                     notes = notes.trim()
+                                 )
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/RoutineBuilderDialog.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/RoutineBuilderDialog.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/RoutineBuilderDialog.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/RoutineBuilderDialog.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/RoutineBuilderDialog.kt
+@@ -302,11 +302,11 @@
+             val newRoutineExercise = RoutineExercise(
+                 id = UUID.randomUUID().toString(),
+                 exercise = exercise,
+-                cableConfig = exercise.resolveDefaultCableConfig(), // Use helper to resolve EITHER → DOUBLE
++                cableConfig = exercise.resolveDefaultCableConfig(), // Use helper to resolve EITHER ? DOUBLE
+                 orderIndex = exercises.size,
+                 setReps = listOf(10, 10, 10),
+                 weightPerCableKg = 20f,
+-                progressionKg = 2.5f,
++                progressionRegressionKg = 2.5f,  // Default to 2.5kg progression
+                 restSeconds = 60,
+                 notes = ""
+             )
+@@ -440,16 +440,16 @@
+ /**
+  * Format the setReps list for display in the exercise list
+  * Examples:
+- * - [10, 10, 10] -> "3 × 10 reps"
++ * - [10, 10, 10] -> "3 ? 10 reps"
+  * - [10, 8, 6, 4] -> "4 sets: 10/8/6/4"
+- * - [12] -> "1 × 12 reps"
++ * - [12] -> "1 ? 12 reps"
+  */
+ private fun formatReps(setReps: List<Int>): String {
+     if (setReps.isEmpty()) return "0 sets"
+     
+     val allSame = setReps.all { it == setReps.first() }
+     return if (allSame) {
+-        "${setReps.size} × ${setReps.first()} reps"
++        "${setReps.size} ? ${setReps.first()} reps"
+     } else {
+         "${setReps.size} sets: ${setReps.joinToString("/")}"
+     }
+Index: app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt b/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
+@@ -34,6 +34,7 @@
+     private val bleRepository: BleRepository,
+     private val workoutRepository: WorkoutRepository,
+     val exerciseRepository: ExerciseRepository,
++    private val personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+     private val repCounter: RepCounterFromMachine,
+     private val preferencesManager: PreferencesManager
+ ) : AndroidViewModel(application) {
+@@ -54,7 +55,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -343,6 +344,25 @@
+ 
+     fun updateWorkoutParameters(params: WorkoutParameters) {
+         _workoutParameters.value = params
++        
++        // When exercise is selected, fetch and apply latest PR weight
++        params.selectedExerciseId?.let { exerciseId ->
++            viewModelScope.launch {
++                val pr = personalRecordRepository.getLatestPR(
++                    exerciseId = exerciseId,
++                    workoutMode = params.mode.displayName
++                )
++                
++                pr?.let {
++                    Timber.d("Found PR for exercise $exerciseId: ${it.weightPerCableKg} kg x ${it.reps} reps")
++                    // Update parameters with PR weight as default
++                    _workoutParameters.value = params.copy(
++                        weightPerCableKg = it.weightPerCableKg,
++                        reps = it.reps
++                    )
++                }
++            }
++        }
+     }
+ 
+     fun startWorkout() {
+@@ -463,7 +483,7 @@
+             mode = params.mode.displayName,
+             reps = params.reps,
+             weightPerCableKg = actualPerCableWeightKg, // Store per-cable weight
+-            progressionKg = params.progressionKg,
++            progressionRegressionKg = params.progressionRegressionKg,
+             duration = duration,
+             totalReps = warmup + working,
+             warmupReps = warmup,
+@@ -479,6 +499,23 @@
+         }
+ 
+         Timber.d("Saved workout session: $sessionId with ${collectedMetrics.size} metrics")
++        
++        // Update personal record if exercise is selected
++        params.selectedExerciseId?.let { exerciseId ->
++            viewModelScope.launch {
++                val result = personalRecordRepository.updatePRIfBetter(
++                    exerciseId = exerciseId,
++                    weightPerCableKg = actualPerCableWeightKg,
++                    reps = working,
++                    workoutMode = params.mode.displayName,
++                    timestamp = workoutStartTime
++                )
++                
++                if (result.isSuccess && result.getOrNull() == true) {
++                    Timber.d("New PR set for exercise: $exerciseId!")
++                }
++            }
++        }
+     }
+ 
+     fun setColorScheme(schemeIndex: Int) {
+@@ -616,7 +653,7 @@
+                 mode = _workoutParameters.value.mode, // Keep current mode
+                 reps = firstExercise.reps,
+                 weightPerCableKg = firstExercise.weightPerCableKg,
+-                progressionKg = firstExercise.progressionKg,
++                progressionRegressionKg = firstExercise.progressionRegressionKg,
+                 isJustLift = _workoutParameters.value.isJustLift,
+                 stopAtTop = _workoutParameters.value.stopAtTop,
+                 warmupReps = _workoutParameters.value.warmupReps
+@@ -647,7 +684,7 @@
+                 _workoutParameters.value.copy(
+                     reps = nextExercise.reps,
+                     weightPerCableKg = nextExercise.weightPerCableKg,
+-                    progressionKg = nextExercise.progressionKg
++                    progressionRegressionKg = nextExercise.progressionRegressionKg
+                 )
+             )
+ 
+@@ -674,7 +711,7 @@
+                 _workoutParameters.value.copy(
+                     reps = prevExercise.reps,
+                     weightPerCableKg = prevExercise.weightPerCableKg,
+-                    progressionKg = prevExercise.progressionKg
++                    progressionRegressionKg = prevExercise.progressionRegressionKg
+                 )
+             )
+ 
+Index: app/src/main/java/com/example/vitruvianredux/presentation/components/ExercisePickerDialog.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/components/ExercisePickerDialog.kt b/app/src/main/java/com/example/vitruvianredux/presentation/components/ExercisePickerDialog.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/components/ExercisePickerDialog.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/components/ExercisePickerDialog.kt
+@@ -29,6 +29,59 @@
+ import com.example.vitruvianredux.data.repository.ExerciseRepository
+ import kotlinx.coroutines.FlowPreview
+ 
++/**
++ * Map display equipment names back to database values for filtering
++ * Handles variations and database naming conventions
++ */
++private fun getEquipmentDatabaseValues(displayName: String): List<String> {
++    return when (displayName) {
++        "Long Bar" -> listOf("BAR", "LONG_BAR", "BARBELL")
++        "Short Bar" -> listOf("SHORT_BAR")
++        "Ankle Strap" -> listOf("ANKLE_STRAP", "STRAPS")
++        "Handles" -> listOf("HANDLES", "SINGLE_HANDLE", "BOTH_HANDLES")
++        "Bench" -> listOf("BENCH")
++        "Rope" -> listOf("ROPE")
++        "Belt" -> listOf("BELT")
++        "Bodyweight" -> listOf("BODYWEIGHT")
++        else -> emptyList()
++    }
++}
++
++/**
++ * Format raw equipment string from database to user-friendly display
++ * Filters out technical values like BLACK_CABLES and formats equipment names
++ */
++private fun formatEquipment(rawEquipment: String): String {
++    val equipmentMap = mapOf(
++        "BAR" to "Long Bar",           // Database uses 'BAR' for Long Bar
++        "LONG_BAR" to "Long Bar",
++        "BARBELL" to "Long Bar",
++        "SHORT_BAR" to "Short Bar",
++        "BENCH" to "Bench",
++        "HANDLES" to "Handles",
++        "SINGLE_HANDLE" to "Handles",
++        "BOTH_HANDLES" to "Handles",
++        "STRAPS" to "Ankle Strap",     // Database uses 'STRAPS' for Ankle Strap
++        "ANKLE_STRAP" to "Ankle Strap",
++        "BELT" to "Belt",
++        "ROPE" to "Rope",
++        "BODYWEIGHT" to "Bodyweight"
++    )
++    
++    // Filter out technical values and map to display names
++    val filteredValues = rawEquipment
++        .split(",")
++        .map { it.trim().uppercase() }
++        .filter { 
++            // Exclude technical values that aren't meaningful to users
++            it !in listOf("BLACK_CABLES", "RED_CABLES", "GREY_CABLES", "CABLES", "CABLE", "NULL", "", "PUMP_HANDLES", "DUMBBELLS")
++        }
++        .mapNotNull { equipmentMap[it] }
++        .distinct()
++    
++    return filteredValues.joinToString(", ")
++}
++
+ /**
+  * Exercise Picker Dialog - Streamlined exercise selection component
+  *
+@@ -64,7 +117,17 @@
+     val exercises = remember(allExercises, selectedEquipmentFilter) {
+         if (selectedEquipmentFilter != "All") {
+             allExercises.filter { exercise ->
+-                exercise.equipment.contains(selectedEquipmentFilter, ignoreCase = true)
++                // Get database values that match the selected filter display name
++                val databaseValues = getEquipmentDatabaseValues(selectedEquipmentFilter)
++
++                // Split equipment string and check for exact matches (not substring)
++                val equipmentList = exercise.equipment.uppercase()
++                    .split(",")
++                    .map { it.trim() }
++
++                databaseValues.any { dbValue ->
++                    equipmentList.contains(dbValue.uppercase())
++                }
+             }
+         } else {
+             allExercises
+@@ -127,7 +190,7 @@
+                 }
+             }
+ 
+-            // Equipment filter chips
++            // Equipment filter chips - Official Vitruvian equipment
+             Text(
+                 text = "Equipment",
+                 style = MaterialTheme.typography.labelMedium,
+@@ -137,7 +200,17 @@
+                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                 modifier = Modifier.padding(bottom = 16.dp)
+             ) {
+-                val equipmentFilters = listOf("All", "BENCH", "HANDLES", "BARBELL", "DUMBBELLS", "CABLE", "BODYWEIGHT")
++                val equipmentFilters = listOf(
++                    "All",
++                    "Long Bar",
++                    "Short Bar",
++                    "Handles",
++                    "Rope",
++                    "Belt",
++                    "Ankle Strap",
++                    "Bench",
++                    "Bodyweight"
++                )
+                 items(equipmentFilters) { filter ->
+                     FilterChip(
+                         selected = selectedEquipmentFilter == filter,
+@@ -158,12 +231,27 @@
+                         horizontalAlignment = Alignment.CenterHorizontally,
+                         verticalArrangement = Arrangement.spacedBy(8.dp)
+                     ) {
+-                        CircularProgressIndicator()
+-                        Text(
+-                            text = if (searchQuery.isNotBlank()) "No exercises found" else "Loading exercises...",
+-                            style = MaterialTheme.typography.bodyMedium,
+-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+-                        )
++                        // Check if any filter is active
++                        val hasActiveFilters = searchQuery.isNotBlank() || 
++                                               selectedMuscleFilter != "All" || 
++                                               selectedEquipmentFilter != "All"
++                        
++                        if (hasActiveFilters) {
++                            // Show "No exercises found" when filters are active
++                            Text(
++                                text = "No exercises found",
++                                style = MaterialTheme.typography.bodyMedium,
++                                color = MaterialTheme.colorScheme.onSurfaceVariant
++                            )
++                        } else {
++                            // Show loading state only when no filters are active
++                            CircularProgressIndicator()
++                            Text(
++                                text = "Loading exercises...",
++                                style = MaterialTheme.typography.bodyMedium,
++                                color = MaterialTheme.colorScheme.onSurfaceVariant
++                            )
++                        }
+                     }
+                 }
+             } else {
+@@ -230,7 +318,7 @@
+                 // Muscle groups - always on first line
+                 if (exercise.muscleGroups.isNotBlank()) {
+                     Text(
+-                        text = exercise.muscleGroups.replace(",", ", "),
++                        text = "Muscle Group: ${exercise.muscleGroups.split(",").joinToString(", ") { it.trim().lowercase().replaceFirstChar { c -> c.uppercase() } }}",
+                         style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                     )
+@@ -238,25 +326,16 @@
+ 
+                 // Equipment - always on second line if present
+                 if (exercise.equipment.isNotBlank() && exercise.equipment.lowercase() != "null") {
+-                    val equipmentText = buildString {
+-                        append(exercise.equipment.replace(",", ", "))
++                    val formattedEquipment = formatEquipment(exercise.equipment)
+ 
+-                        // Add grip and width info inline if present
+-                        if (!exercise.grip.isNullOrBlank() && exercise.grip.lowercase() != "null") {
+-                            append(" • ${exercise.grip}")
+-                            if (!exercise.gripWidth.isNullOrBlank() && exercise.gripWidth.lowercase() != "null") {
+-                                append(" ${exercise.gripWidth}")
+-                            }
+-                        } else if (!exercise.gripWidth.isNullOrBlank() && exercise.gripWidth.lowercase() != "null") {
+-                            append(" • ${exercise.gripWidth}")
+-                        }
+-                    }
+-
+-                    Text(
+-                        text = equipmentText,
+-                        style = MaterialTheme.typography.bodySmall,
+-                        color = MaterialTheme.colorScheme.secondary
+-                    )
++                    // Only show equipment if we have meaningful values after formatting
++                    if (formattedEquipment.isNotBlank()) {
++                        Text(
++                            text = "Equipment: $formattedEquipment",
++                            style = MaterialTheme.typography.bodySmall,
++                            color = MaterialTheme.colorScheme.onSurfaceVariant
++                        )
++                    }
+                 }
+             }
+         },
+Index: app/src/test/java/com/example/vitruvianredux/ui/MainViewModelTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/example/vitruvianredux/ui/MainViewModelTest.kt b/app/src/test/java/com/example/vitruvianredux/ui/MainViewModelTest.kt
+--- a/app/src/test/java/com/example/vitruvianredux/ui/MainViewModelTest.kt
++++ b/app/src/test/java/com/example/vitruvianredux/ui/MainViewModelTest.kt
+@@ -51,7 +51,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -145,7 +145,7 @@
+             WorkoutMode.TUT,
+             WorkoutMode.TUTBeast,
+             WorkoutMode.EccentricOnly,
+-            WorkoutMode.Echo(EchoLevel.LEVEL_1)
++            WorkoutMode.Echo(EchoLevel.HARD)
+         )
+ 
+         assertEquals(6, modes.size)
+@@ -191,7 +191,7 @@
+             mode = "Old School",
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 300000L,
+             totalReps = 13,
+             warmupReps = 3,
+Index: app/src/test/java/com/example/vitruvianredux/offline/OfflineFunctionalityTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/example/vitruvianredux/offline/OfflineFunctionalityTest.kt b/app/src/test/java/com/example/vitruvianredux/offline/OfflineFunctionalityTest.kt
+--- a/app/src/test/java/com/example/vitruvianredux/offline/OfflineFunctionalityTest.kt
++++ b/app/src/test/java/com/example/vitruvianredux/offline/OfflineFunctionalityTest.kt
+@@ -57,7 +57,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -93,7 +93,7 @@
+             mode = "Old School",
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 5000L,
+             totalReps = 13,
+             warmupReps = 3,
+@@ -156,7 +156,7 @@
+                 mode = listOf("Old School", "Pump", "TUT", "Echo", "TUT Beast")[index],
+                 reps = 10 + index,
+                 weightPerCableKg = 15.0f + index * 2.5f,
+-                progressionKg = 0f,
++                progressionRegressionKg = 0f,
+                 duration = 300000L + index * 60000L,
+                 totalReps = 13 + index,
+                 warmupReps = 3,
+@@ -174,7 +174,7 @@
+                 mode = session.mode,
+                 reps = session.reps,
+                 weightPerCableKg = session.weightPerCableKg,
+-                progressionKg = session.progressionKg,
++                progressionRegressionKg = session.progressionRegressionKg,
+                 duration = session.duration,
+                 totalReps = session.totalReps,
+                 warmupReps = session.warmupReps,
+@@ -215,7 +215,7 @@
+             mode = WorkoutMode.Pump,
+             reps = 15,
+             weightPerCableKg = 20.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -232,7 +232,7 @@
+             mode = "Pump",
+             reps = 15,
+             weightPerCableKg = 20.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 450000L,
+             totalReps = 18,
+             warmupReps = 3,
+@@ -312,7 +312,7 @@
+                 mode = "Old School",
+                 reps = 10,
+                 weightPerCableKg = 15.0f + index * 0.5f,
+-                progressionKg = 0f,
++                progressionRegressionKg = 0f,
+                 duration = 300000L,
+                 totalReps = 13,
+                 warmupReps = 3,
+@@ -329,7 +329,7 @@
+                 mode = session.mode,
+                 reps = session.reps,
+                 weightPerCableKg = session.weightPerCableKg,
+-                progressionKg = session.progressionKg,
++                progressionRegressionKg = session.progressionRegressionKg,
+                 duration = session.duration,
+                 totalReps = session.totalReps,
+                 warmupReps = session.warmupReps,
+@@ -371,7 +371,7 @@
+             mode = WorkoutMode.TUT,
+             reps = 12,
+             weightPerCableKg = 18.0f,
+-            progressionKg = 2.5f,
++            progressionRegressionKg = 2.5f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -400,7 +400,7 @@
+                 mode = "TUT",
+                 reps = 12,
+                 weightPerCableKg = 18.0f,
+-                progressionKg = 2.5f,
++                progressionRegressionKg = 2.5f,
+                 duration = 360000L,
+                 totalReps = 15,
+                 warmupReps = 3,
+@@ -434,7 +434,7 @@
+             mode = "Pump",
+             reps = 15,
+             weightPerCableKg = 20.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 450000L,
+             totalReps = 18,
+             warmupReps = 3,
+@@ -460,7 +460,7 @@
+             mode = session.mode,
+             reps = session.reps,
+             weightPerCableKg = session.weightPerCableKg,
+-            progressionKg = session.progressionKg,
++            progressionRegressionKg = session.progressionRegressionKg,
+             duration = session.duration,
+             totalReps = session.totalReps,
+             warmupReps = session.warmupReps,
+Index: app/src/test/java/com/example/vitruvianredux/protocol/ProtocolBuilderTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/example/vitruvianredux/protocol/ProtocolBuilderTest.kt b/app/src/test/java/com/example/vitruvianredux/protocol/ProtocolBuilderTest.kt
+--- a/app/src/test/java/com/example/vitruvianredux/protocol/ProtocolBuilderTest.kt
++++ b/app/src/test/java/com/example/vitruvianredux/protocol/ProtocolBuilderTest.kt
+@@ -56,7 +56,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -81,7 +81,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 20.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = true,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -101,7 +101,7 @@
+             mode = WorkoutMode.Pump,
+             reps = 15,
+             weightPerCableKg = 12.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -123,7 +123,7 @@
+             mode = WorkoutMode.TUT,
+             reps = 8,
+             weightPerCableKg = 18.0f,
+-            progressionKg = 2.5f,
++            progressionRegressionKg = 2.5f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -142,10 +142,10 @@
+     fun `test echo mode program generation`() {
+         // Given: Echo mode parameters
+         val params = WorkoutParameters(
+-            mode = WorkoutMode.Echo(EchoLevel.LEVEL_2),
++            mode = WorkoutMode.Echo(EchoLevel.HARDER),
+             reps = 12,
+             weightPerCableKg = 16.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -166,7 +166,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = true,
+             warmupReps = 3
+@@ -187,7 +187,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 25.0f,
+-            progressionKg = 5.0f,
++            progressionRegressionKg = 5.0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -259,7 +259,7 @@
+             WorkoutParameters(WorkoutMode.TUT, 8, 18f, 2.5f, false, false, 3),
+             WorkoutParameters(WorkoutMode.TUTBeast, 6, 20f, 0f, false, false, 3),
+             WorkoutParameters(WorkoutMode.EccentricOnly, 5, 22f, 0f, false, false, 3),
+-            WorkoutParameters(WorkoutMode.Echo(EchoLevel.LEVEL_1), 12, 16f, 0f, false, false, 3),
++            WorkoutParameters(WorkoutMode.Echo(EchoLevel.HARD), 12, 16f, 0f, false, false, 3),
+             WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, true, false, 3), // Just Lift
+             WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, false, true, 3)  // Stop at top
+         )
+@@ -294,7 +294,7 @@
+             mode = WorkoutMode.Pump,
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -323,7 +323,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = perCableKg,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -341,7 +341,7 @@
+             expectedTotalWeight,
+             totalWeightSent,
+             0.01f,
+-            "Offset 0x58 must contain TOTAL weight (per-cable × 2) so machine splits it correctly"
++            "Offset 0x58 must contain TOTAL weight (per-cable ? 2) so machine splits it correctly"
+         )
+     }
+ 
+@@ -356,7 +356,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = perCableKg,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -389,7 +389,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = perCableKg,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -423,7 +423,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = perCableKg,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+Index: app/src/test/java/com/example/vitruvianredux/repository/WorkoutRepositoryTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/example/vitruvianredux/repository/WorkoutRepositoryTest.kt b/app/src/test/java/com/example/vitruvianredux/repository/WorkoutRepositoryTest.kt
+--- a/app/src/test/java/com/example/vitruvianredux/repository/WorkoutRepositoryTest.kt
++++ b/app/src/test/java/com/example/vitruvianredux/repository/WorkoutRepositoryTest.kt
+@@ -48,7 +48,7 @@
+             mode = "Old School",
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 300000L,
+             totalReps = 13,
+             warmupReps = 3,
+@@ -193,7 +193,7 @@
+             mode = "Pump",
+             reps = 15,
+             weightPerCableKg = 20.0f,
+-            progressionKg = 2.5f,
++            progressionRegressionKg = 2.5f,
+             duration = 600000L,
+             totalReps = 18,
+             warmupReps = 3,
+@@ -261,7 +261,7 @@
+             mode = mode,
+             reps = reps,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 300000L,
+             totalReps = reps + 3,
+             warmupReps = 3,
+Index: app/src/test/java/com/example/vitruvianredux/integration/WorkoutIntegrationTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/example/vitruvianredux/integration/WorkoutIntegrationTest.kt b/app/src/test/java/com/example/vitruvianredux/integration/WorkoutIntegrationTest.kt
+--- a/app/src/test/java/com/example/vitruvianredux/integration/WorkoutIntegrationTest.kt
++++ b/app/src/test/java/com/example/vitruvianredux/integration/WorkoutIntegrationTest.kt
+@@ -78,7 +78,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = false,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -112,7 +112,7 @@
+             mode = "Old School",
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 5000L,
+             totalReps = 13,
+             warmupReps = 3,
+@@ -150,10 +150,10 @@
+             WorkoutMode.TUT,
+             WorkoutMode.TUTBeast,
+             WorkoutMode.EccentricOnly,
+-            WorkoutMode.Echo(EchoLevel.LEVEL_1),
+-            WorkoutMode.Echo(EchoLevel.LEVEL_2),
+-            WorkoutMode.Echo(EchoLevel.LEVEL_3),
+-            WorkoutMode.Echo(EchoLevel.LEVEL_4)
++            WorkoutMode.Echo(EchoLevel.HARD),
++            WorkoutMode.Echo(EchoLevel.HARDER),
++            WorkoutMode.Echo(EchoLevel.HARDEST),
++            WorkoutMode.Echo(EchoLevel.EPIC)
+         )
+ 
+         coEvery { bleRepository.startWorkout(any()) } returns Result.success(Unit)
+@@ -165,7 +165,7 @@
+                 mode = mode,
+                 reps = 10,
+                 weightPerCableKg = 15.0f,
+-                progressionKg = 0f,
++                progressionRegressionKg = 0f,
+                 isJustLift = false,
+                 stopAtTop = false,
+                 warmupReps = 3
+@@ -244,7 +244,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = true,
+             stopAtTop = false,
+             warmupReps = 3
+@@ -284,7 +284,7 @@
+                 mode = listOf("Old School", "Pump", "TUT", "Echo", "TUT Beast")[index],
+                 reps = 10 + index,
+                 weightPerCableKg = 15.0f + index * 2.5f,
+-                progressionKg = 0f,
++                progressionRegressionKg = 0f,
+                 duration = 300000L + index * 60000L,
+                 totalReps = 13 + index,
+                 warmupReps = 3,
+@@ -301,7 +301,7 @@
+                 mode = session.mode,
+                 reps = session.reps,
+                 weightPerCableKg = session.weightPerCableKg,
+-                progressionKg = session.progressionKg,
++                progressionRegressionKg = session.progressionRegressionKg,
+                 duration = session.duration,
+                 totalReps = session.totalReps,
+                 warmupReps = session.warmupReps,
+@@ -362,7 +362,7 @@
+                 mode = "Old School",
+                 reps = 10,
+                 weightPerCableKg = 15.0f,
+-                progressionKg = 0f,
++                progressionRegressionKg = 0f,
+                 duration = 300000L,
+                 totalReps = 13,
+                 warmupReps = 3,
+@@ -380,7 +380,7 @@
+                 mode = session.mode,
+                 reps = session.reps,
+                 weightPerCableKg = session.weightPerCableKg,
+-                progressionKg = session.progressionKg,
++                progressionRegressionKg = session.progressionRegressionKg,
+                 duration = session.duration,
+                 totalReps = session.totalReps,
+                 warmupReps = session.warmupReps,
+@@ -419,7 +419,7 @@
+             mode = "Pump",
+             reps = 15,
+             weightPerCableKg = 20.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 450000L,
+             totalReps = 18,
+             warmupReps = 3,
+@@ -434,7 +434,7 @@
+             mode = oldSession.mode,
+             reps = oldSession.reps,
+             weightPerCableKg = oldSession.weightPerCableKg,
+-            progressionKg = oldSession.progressionKg,
++            progressionRegressionKg = oldSession.progressionRegressionKg,
+             duration = oldSession.duration,
+             totalReps = oldSession.totalReps,
+             warmupReps = oldSession.warmupReps,
+@@ -510,7 +510,7 @@
+             mode = "Old School",
+             reps = 10,
+             weightPerCableKg = 15.0f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             duration = 300000L,
+             totalReps = 13,
+             warmupReps = 3,
+Index: app/src/test/java/com/example/vitruvianredux/presentation/RepTrackingTest.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/test/java/com/example/vitruvianredux/presentation/RepTrackingTest.kt b/app/src/test/java/com/example/vitruvianredux/presentation/RepTrackingTest.kt
+--- a/app/src/test/java/com/example/vitruvianredux/presentation/RepTrackingTest.kt
++++ b/app/src/test/java/com/example/vitruvianredux/presentation/RepTrackingTest.kt
+@@ -27,7 +27,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 5,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             warmupReps = 3
+         )
+         
+@@ -56,7 +56,7 @@
+             mode = WorkoutMode.Pump,
+             reps = 10,
+             weightPerCableKg = 5f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             warmupReps = 3
+         )
+         
+@@ -81,7 +81,7 @@
+             mode = WorkoutMode.TUT,
+             reps = 6,
+             weightPerCableKg = 8f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             warmupReps = 3
+         )
+         
+@@ -105,7 +105,7 @@
+             mode = WorkoutMode.TUTBeast,
+             reps = 4,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             warmupReps = 3
+         )
+         
+@@ -129,7 +129,7 @@
+             mode = WorkoutMode.EccentricOnly,
+             reps = 8,
+             weightPerCableKg = 12f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             warmupReps = 3
+         )
+         
+@@ -154,7 +154,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 0,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             isJustLift = true,
+             warmupReps = 3
+         )
+@@ -181,7 +181,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 5,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             warmupReps = 3
+         )
+         
+@@ -230,7 +230,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 5,
+             weightPerCableKg = 10f,
+-            progressionKg = 0f,
++            progressionRegressionKg = 0f,
+             stopAtTop = true,
+             warmupReps = 3
+         )
+@@ -258,7 +258,7 @@
+             mode = WorkoutMode.OldSchool,
+             reps = 5,
+             weightPerCableKg = 10f,
+-            progressionKg = 2f, // 2kg increase per rep
++            progressionRegressionKg = 2f, // 2kg increase per rep
+             warmupReps = 3
+         )
+         
+@@ -357,7 +357,7 @@
+                 
+                 // Update weight for next rep with progression
+                 params?.let { p ->
+-                    currentRepWeight = p.weightPerCableKg + (newWorking * p.progressionKg)
++                    currentRepWeight = p.weightPerCableKg + (newWorking * p.progressionRegressionKg)
+                 }
+             }
+         }
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordDaoFactory.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordDaoFactory.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordDaoFactory.java
+new file mode 100644
+--- /dev/null
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordDaoFactory.java
+@@ -0,0 +1,47 @@
++package com.example.vitruvianredux.di;
++
++import com.example.vitruvianredux.data.local.PersonalRecordDao;
++import com.example.vitruvianredux.data.local.WorkoutDatabase;
++import dagger.internal.DaggerGenerated;
++import dagger.internal.Factory;
++import dagger.internal.Preconditions;
++import dagger.internal.QualifierMetadata;
++import dagger.internal.ScopeMetadata;
++import javax.annotation.processing.Generated;
++import javax.inject.Provider;
++
++@ScopeMetadata("javax.inject.Singleton")
++@QualifierMetadata
++@DaggerGenerated
++@Generated(
++    value = "dagger.internal.codegen.ComponentProcessor",
++    comments = "https://dagger.dev"
++)
++@SuppressWarnings({
++    "unchecked",
++    "rawtypes",
++    "KotlinInternal",
++    "KotlinInternalInJava",
++    "cast"
++})
++public final class AppModule_ProvidePersonalRecordDaoFactory implements Factory<PersonalRecordDao> {
++  private final Provider<WorkoutDatabase> databaseProvider;
++
++  public AppModule_ProvidePersonalRecordDaoFactory(Provider<WorkoutDatabase> databaseProvider) {
++    this.databaseProvider = databaseProvider;
++  }
++
++  @Override
++  public PersonalRecordDao get() {
++    return providePersonalRecordDao(databaseProvider.get());
++  }
++
++  public static AppModule_ProvidePersonalRecordDaoFactory create(
++      Provider<WorkoutDatabase> databaseProvider) {
++    return new AppModule_ProvidePersonalRecordDaoFactory(databaseProvider);
++  }
++
++  public static PersonalRecordDao providePersonalRecordDao(WorkoutDatabase database) {
++    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.providePersonalRecordDao(database));
++  }
++}
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordRepositoryFactory.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordRepositoryFactory.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordRepositoryFactory.java
+new file mode 100644
+--- /dev/null
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/di/AppModule_ProvidePersonalRecordRepositoryFactory.java
+@@ -0,0 +1,49 @@
++package com.example.vitruvianredux.di;
++
++import com.example.vitruvianredux.data.local.PersonalRecordDao;
++import com.example.vitruvianredux.data.repository.PersonalRecordRepository;
++import dagger.internal.DaggerGenerated;
++import dagger.internal.Factory;
++import dagger.internal.Preconditions;
++import dagger.internal.QualifierMetadata;
++import dagger.internal.ScopeMetadata;
++import javax.annotation.processing.Generated;
++import javax.inject.Provider;
++
++@ScopeMetadata("javax.inject.Singleton")
++@QualifierMetadata
++@DaggerGenerated
++@Generated(
++    value = "dagger.internal.codegen.ComponentProcessor",
++    comments = "https://dagger.dev"
++)
++@SuppressWarnings({
++    "unchecked",
++    "rawtypes",
++    "KotlinInternal",
++    "KotlinInternalInJava",
++    "cast"
++})
++public final class AppModule_ProvidePersonalRecordRepositoryFactory implements Factory<PersonalRecordRepository> {
++  private final Provider<PersonalRecordDao> personalRecordDaoProvider;
++
++  public AppModule_ProvidePersonalRecordRepositoryFactory(
++      Provider<PersonalRecordDao> personalRecordDaoProvider) {
++    this.personalRecordDaoProvider = personalRecordDaoProvider;
++  }
++
++  @Override
++  public PersonalRecordRepository get() {
++    return providePersonalRecordRepository(personalRecordDaoProvider.get());
++  }
++
++  public static AppModule_ProvidePersonalRecordRepositoryFactory create(
++      Provider<PersonalRecordDao> personalRecordDaoProvider) {
++    return new AppModule_ProvidePersonalRecordRepositoryFactory(personalRecordDaoProvider);
++  }
++
++  public static PersonalRecordRepository providePersonalRecordRepository(
++      PersonalRecordDao personalRecordDao) {
++    return Preconditions.checkNotNullFromProvides(AppModule.INSTANCE.providePersonalRecordRepository(personalRecordDao));
++  }
++}
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDao_Impl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDao_Impl.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDao_Impl.java
+--- a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDao_Impl.java
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDao_Impl.java
+@@ -73,7 +73,7 @@
+       @Override
+       @NonNull
+       protected String createQuery() {
+-        return "INSERT OR REPLACE INTO `workout_sessions` (`id`,`timestamp`,`mode`,`reps`,`weightPerCableKg`,`progressionKg`,`duration`,`totalReps`,`warmupReps`,`workingReps`,`isJustLift`,`stopAtTop`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
++        return "INSERT OR REPLACE INTO `workout_sessions` (`id`,`timestamp`,`mode`,`reps`,`weightPerCableKg`,`progressionRegressionKg`,`duration`,`totalReps`,`warmupReps`,`workingReps`,`isJustLift`,`stopAtTop`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+       }
+ 
+       @Override
+@@ -92,7 +92,7 @@
+         }
+         statement.bindLong(4, entity.getReps());
+         statement.bindDouble(5, entity.getWeightPerCableKg());
+-        statement.bindDouble(6, entity.getProgressionKg());
++        statement.bindDouble(6, entity.getProgressionRegressionKg());
+         statement.bindLong(7, entity.getDuration());
+         statement.bindLong(8, entity.getTotalReps());
+         statement.bindLong(9, entity.getWarmupReps());
+@@ -165,7 +165,7 @@
+       @Override
+       @NonNull
+       protected String createQuery() {
+-        return "INSERT OR REPLACE INTO `routine_exercises` (`id`,`routineId`,`exerciseName`,`exerciseMuscleGroup`,`exerciseEquipment`,`exerciseDefaultCableConfig`,`cableConfig`,`orderIndex`,`setReps`,`weightPerCableKg`,`progressionKg`,`restSeconds`,`notes`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
++        return "INSERT OR REPLACE INTO `routine_exercises` (`id`,`routineId`,`exerciseName`,`exerciseMuscleGroup`,`exerciseEquipment`,`exerciseDefaultCableConfig`,`cableConfig`,`orderIndex`,`setReps`,`weightPerCableKg`,`progressionRegressionKg`,`restSeconds`,`notes`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
+       }
+ 
+       @Override
+@@ -213,7 +213,7 @@
+           statement.bindString(9, entity.getSetReps());
+         }
+         statement.bindDouble(10, entity.getWeightPerCableKg());
+-        statement.bindDouble(11, entity.getProgressionKg());
++        statement.bindDouble(11, entity.getProgressionRegressionKg());
+         statement.bindLong(12, entity.getRestSeconds());
+         if (entity.getNotes() == null) {
+           statement.bindNull(13);
+@@ -299,7 +299,7 @@
+       @Override
+       @NonNull
+       protected String createQuery() {
+-        return "UPDATE OR ABORT `routine_exercises` SET `id` = ?,`routineId` = ?,`exerciseName` = ?,`exerciseMuscleGroup` = ?,`exerciseEquipment` = ?,`exerciseDefaultCableConfig` = ?,`cableConfig` = ?,`orderIndex` = ?,`setReps` = ?,`weightPerCableKg` = ?,`progressionKg` = ?,`restSeconds` = ?,`notes` = ? WHERE `id` = ?";
++        return "UPDATE OR ABORT `routine_exercises` SET `id` = ?,`routineId` = ?,`exerciseName` = ?,`exerciseMuscleGroup` = ?,`exerciseEquipment` = ?,`exerciseDefaultCableConfig` = ?,`cableConfig` = ?,`orderIndex` = ?,`setReps` = ?,`weightPerCableKg` = ?,`progressionRegressionKg` = ?,`restSeconds` = ?,`notes` = ? WHERE `id` = ?";
+       }
+ 
+       @Override
+@@ -347,7 +347,7 @@
+           statement.bindString(9, entity.getSetReps());
+         }
+         statement.bindDouble(10, entity.getWeightPerCableKg());
+-        statement.bindDouble(11, entity.getProgressionKg());
++        statement.bindDouble(11, entity.getProgressionRegressionKg());
+         statement.bindLong(12, entity.getRestSeconds());
+         if (entity.getNotes() == null) {
+           statement.bindNull(13);
+@@ -889,7 +889,7 @@
+           final int _cursorIndexOfMode = CursorUtil.getColumnIndexOrThrow(_cursor, "mode");
+           final int _cursorIndexOfReps = CursorUtil.getColumnIndexOrThrow(_cursor, "reps");
+           final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
+-          final int _cursorIndexOfProgressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionKg");
++          final int _cursorIndexOfProgressionRegressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionRegressionKg");
+           final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
+           final int _cursorIndexOfTotalReps = CursorUtil.getColumnIndexOrThrow(_cursor, "totalReps");
+           final int _cursorIndexOfWarmupReps = CursorUtil.getColumnIndexOrThrow(_cursor, "warmupReps");
+@@ -917,8 +917,8 @@
+             _tmpReps = _cursor.getInt(_cursorIndexOfReps);
+             final float _tmpWeightPerCableKg;
+             _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
+-            final float _tmpProgressionKg;
+-            _tmpProgressionKg = _cursor.getFloat(_cursorIndexOfProgressionKg);
++            final float _tmpProgressionRegressionKg;
++            _tmpProgressionRegressionKg = _cursor.getFloat(_cursorIndexOfProgressionRegressionKg);
+             final long _tmpDuration;
+             _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
+             final int _tmpTotalReps;
+@@ -935,7 +935,7 @@
+             final int _tmp_1;
+             _tmp_1 = _cursor.getInt(_cursorIndexOfStopAtTop);
+             _tmpStopAtTop = _tmp_1 != 0;
+-            _item = new WorkoutSessionEntity(_tmpId,_tmpTimestamp,_tmpMode,_tmpReps,_tmpWeightPerCableKg,_tmpProgressionKg,_tmpDuration,_tmpTotalReps,_tmpWarmupReps,_tmpWorkingReps,_tmpIsJustLift,_tmpStopAtTop);
++            _item = new WorkoutSessionEntity(_tmpId,_tmpTimestamp,_tmpMode,_tmpReps,_tmpWeightPerCableKg,_tmpProgressionRegressionKg,_tmpDuration,_tmpTotalReps,_tmpWarmupReps,_tmpWorkingReps,_tmpIsJustLift,_tmpStopAtTop);
+             _result.add(_item);
+           }
+           return _result;
+@@ -974,7 +974,7 @@
+           final int _cursorIndexOfMode = CursorUtil.getColumnIndexOrThrow(_cursor, "mode");
+           final int _cursorIndexOfReps = CursorUtil.getColumnIndexOrThrow(_cursor, "reps");
+           final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
+-          final int _cursorIndexOfProgressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionKg");
++          final int _cursorIndexOfProgressionRegressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionRegressionKg");
+           final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
+           final int _cursorIndexOfTotalReps = CursorUtil.getColumnIndexOrThrow(_cursor, "totalReps");
+           final int _cursorIndexOfWarmupReps = CursorUtil.getColumnIndexOrThrow(_cursor, "warmupReps");
+@@ -1001,8 +1001,8 @@
+             _tmpReps = _cursor.getInt(_cursorIndexOfReps);
+             final float _tmpWeightPerCableKg;
+             _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
+-            final float _tmpProgressionKg;
+-            _tmpProgressionKg = _cursor.getFloat(_cursorIndexOfProgressionKg);
++            final float _tmpProgressionRegressionKg;
++            _tmpProgressionRegressionKg = _cursor.getFloat(_cursorIndexOfProgressionRegressionKg);
+             final long _tmpDuration;
+             _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
+             final int _tmpTotalReps;
+@@ -1019,7 +1019,7 @@
+             final int _tmp_1;
+             _tmp_1 = _cursor.getInt(_cursorIndexOfStopAtTop);
+             _tmpStopAtTop = _tmp_1 != 0;
+-            _result = new WorkoutSessionEntity(_tmpId,_tmpTimestamp,_tmpMode,_tmpReps,_tmpWeightPerCableKg,_tmpProgressionKg,_tmpDuration,_tmpTotalReps,_tmpWarmupReps,_tmpWorkingReps,_tmpIsJustLift,_tmpStopAtTop);
++            _result = new WorkoutSessionEntity(_tmpId,_tmpTimestamp,_tmpMode,_tmpReps,_tmpWeightPerCableKg,_tmpProgressionRegressionKg,_tmpDuration,_tmpTotalReps,_tmpWarmupReps,_tmpWorkingReps,_tmpIsJustLift,_tmpStopAtTop);
+           } else {
+             _result = null;
+           }
+@@ -1049,7 +1049,7 @@
+           final int _cursorIndexOfMode = CursorUtil.getColumnIndexOrThrow(_cursor, "mode");
+           final int _cursorIndexOfReps = CursorUtil.getColumnIndexOrThrow(_cursor, "reps");
+           final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
+-          final int _cursorIndexOfProgressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionKg");
++          final int _cursorIndexOfProgressionRegressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionRegressionKg");
+           final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
+           final int _cursorIndexOfTotalReps = CursorUtil.getColumnIndexOrThrow(_cursor, "totalReps");
+           final int _cursorIndexOfWarmupReps = CursorUtil.getColumnIndexOrThrow(_cursor, "warmupReps");
+@@ -1077,8 +1077,8 @@
+             _tmpReps = _cursor.getInt(_cursorIndexOfReps);
+             final float _tmpWeightPerCableKg;
+             _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
+-            final float _tmpProgressionKg;
+-            _tmpProgressionKg = _cursor.getFloat(_cursorIndexOfProgressionKg);
++            final float _tmpProgressionRegressionKg;
++            _tmpProgressionRegressionKg = _cursor.getFloat(_cursorIndexOfProgressionRegressionKg);
+             final long _tmpDuration;
+             _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
+             final int _tmpTotalReps;
+@@ -1095,7 +1095,7 @@
+             final int _tmp_1;
+             _tmp_1 = _cursor.getInt(_cursorIndexOfStopAtTop);
+             _tmpStopAtTop = _tmp_1 != 0;
+-            _item = new WorkoutSessionEntity(_tmpId,_tmpTimestamp,_tmpMode,_tmpReps,_tmpWeightPerCableKg,_tmpProgressionKg,_tmpDuration,_tmpTotalReps,_tmpWarmupReps,_tmpWorkingReps,_tmpIsJustLift,_tmpStopAtTop);
++            _item = new WorkoutSessionEntity(_tmpId,_tmpTimestamp,_tmpMode,_tmpReps,_tmpWeightPerCableKg,_tmpProgressionRegressionKg,_tmpDuration,_tmpTotalReps,_tmpWarmupReps,_tmpWorkingReps,_tmpIsJustLift,_tmpStopAtTop);
+             _result.add(_item);
+           }
+           return _result;
+@@ -1399,7 +1399,7 @@
+           final int _cursorIndexOfOrderIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "orderIndex");
+           final int _cursorIndexOfSetReps = CursorUtil.getColumnIndexOrThrow(_cursor, "setReps");
+           final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
+-          final int _cursorIndexOfProgressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionKg");
++          final int _cursorIndexOfProgressionRegressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionRegressionKg");
+           final int _cursorIndexOfRestSeconds = CursorUtil.getColumnIndexOrThrow(_cursor, "restSeconds");
+           final int _cursorIndexOfNotes = CursorUtil.getColumnIndexOrThrow(_cursor, "notes");
+           final List<RoutineExerciseEntity> _result = new ArrayList<RoutineExerciseEntity>(_cursor.getCount());
+@@ -1457,8 +1457,8 @@
+             }
+             final float _tmpWeightPerCableKg;
+             _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
+-            final float _tmpProgressionKg;
+-            _tmpProgressionKg = _cursor.getFloat(_cursorIndexOfProgressionKg);
++            final float _tmpProgressionRegressionKg;
++            _tmpProgressionRegressionKg = _cursor.getFloat(_cursorIndexOfProgressionRegressionKg);
+             final int _tmpRestSeconds;
+             _tmpRestSeconds = _cursor.getInt(_cursorIndexOfRestSeconds);
+             final String _tmpNotes;
+@@ -1467,7 +1467,7 @@
+             } else {
+               _tmpNotes = _cursor.getString(_cursorIndexOfNotes);
+             }
+-            _item = new RoutineExerciseEntity(_tmpId,_tmpRoutineId,_tmpExerciseName,_tmpExerciseMuscleGroup,_tmpExerciseEquipment,_tmpExerciseDefaultCableConfig,_tmpCableConfig,_tmpOrderIndex,_tmpSetReps,_tmpWeightPerCableKg,_tmpProgressionKg,_tmpRestSeconds,_tmpNotes);
++            _item = new RoutineExerciseEntity(_tmpId,_tmpRoutineId,_tmpExerciseName,_tmpExerciseMuscleGroup,_tmpExerciseEquipment,_tmpExerciseDefaultCableConfig,_tmpCableConfig,_tmpOrderIndex,_tmpSetReps,_tmpWeightPerCableKg,_tmpProgressionRegressionKg,_tmpRestSeconds,_tmpNotes);
+             _result.add(_item);
+           }
+           return _result;
+@@ -1511,7 +1511,7 @@
+           final int _cursorIndexOfOrderIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "orderIndex");
+           final int _cursorIndexOfSetReps = CursorUtil.getColumnIndexOrThrow(_cursor, "setReps");
+           final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
+-          final int _cursorIndexOfProgressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionKg");
++          final int _cursorIndexOfProgressionRegressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionRegressionKg");
+           final int _cursorIndexOfRestSeconds = CursorUtil.getColumnIndexOrThrow(_cursor, "restSeconds");
+           final int _cursorIndexOfNotes = CursorUtil.getColumnIndexOrThrow(_cursor, "notes");
+           final List<RoutineExerciseEntity> _result = new ArrayList<RoutineExerciseEntity>(_cursor.getCount());
+@@ -1569,8 +1569,8 @@
+             }
+             final float _tmpWeightPerCableKg;
+             _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
+-            final float _tmpProgressionKg;
+-            _tmpProgressionKg = _cursor.getFloat(_cursorIndexOfProgressionKg);
++            final float _tmpProgressionRegressionKg;
++            _tmpProgressionRegressionKg = _cursor.getFloat(_cursorIndexOfProgressionRegressionKg);
+             final int _tmpRestSeconds;
+             _tmpRestSeconds = _cursor.getInt(_cursorIndexOfRestSeconds);
+             final String _tmpNotes;
+@@ -1579,7 +1579,7 @@
+             } else {
+               _tmpNotes = _cursor.getString(_cursorIndexOfNotes);
+             }
+-            _item = new RoutineExerciseEntity(_tmpId,_tmpRoutineId,_tmpExerciseName,_tmpExerciseMuscleGroup,_tmpExerciseEquipment,_tmpExerciseDefaultCableConfig,_tmpCableConfig,_tmpOrderIndex,_tmpSetReps,_tmpWeightPerCableKg,_tmpProgressionKg,_tmpRestSeconds,_tmpNotes);
++            _item = new RoutineExerciseEntity(_tmpId,_tmpRoutineId,_tmpExerciseName,_tmpExerciseMuscleGroup,_tmpExerciseEquipment,_tmpExerciseDefaultCableConfig,_tmpCableConfig,_tmpOrderIndex,_tmpSetReps,_tmpWeightPerCableKg,_tmpProgressionRegressionKg,_tmpRestSeconds,_tmpNotes);
+             _result.add(_item);
+           }
+           return _result;
+@@ -1619,7 +1619,7 @@
+           final int _cursorIndexOfOrderIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "orderIndex");
+           final int _cursorIndexOfSetReps = CursorUtil.getColumnIndexOrThrow(_cursor, "setReps");
+           final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
+-          final int _cursorIndexOfProgressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionKg");
++          final int _cursorIndexOfProgressionRegressionKg = CursorUtil.getColumnIndexOrThrow(_cursor, "progressionRegressionKg");
+           final int _cursorIndexOfRestSeconds = CursorUtil.getColumnIndexOrThrow(_cursor, "restSeconds");
+           final int _cursorIndexOfNotes = CursorUtil.getColumnIndexOrThrow(_cursor, "notes");
+           final RoutineExerciseEntity _result;
+@@ -1676,8 +1676,8 @@
+             }
+             final float _tmpWeightPerCableKg;
+             _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
+-            final float _tmpProgressionKg;
+-            _tmpProgressionKg = _cursor.getFloat(_cursorIndexOfProgressionKg);
++            final float _tmpProgressionRegressionKg;
++            _tmpProgressionRegressionKg = _cursor.getFloat(_cursorIndexOfProgressionRegressionKg);
+             final int _tmpRestSeconds;
+             _tmpRestSeconds = _cursor.getInt(_cursorIndexOfRestSeconds);
+             final String _tmpNotes;
+@@ -1686,7 +1686,7 @@
+             } else {
+               _tmpNotes = _cursor.getString(_cursorIndexOfNotes);
+             }
+-            _result = new RoutineExerciseEntity(_tmpId,_tmpRoutineId,_tmpExerciseName,_tmpExerciseMuscleGroup,_tmpExerciseEquipment,_tmpExerciseDefaultCableConfig,_tmpCableConfig,_tmpOrderIndex,_tmpSetReps,_tmpWeightPerCableKg,_tmpProgressionKg,_tmpRestSeconds,_tmpNotes);
++            _result = new RoutineExerciseEntity(_tmpId,_tmpRoutineId,_tmpExerciseName,_tmpExerciseMuscleGroup,_tmpExerciseEquipment,_tmpExerciseDefaultCableConfig,_tmpCableConfig,_tmpOrderIndex,_tmpSetReps,_tmpWeightPerCableKg,_tmpProgressionRegressionKg,_tmpRestSeconds,_tmpNotes);
+           } else {
+             _result = null;
+           }
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/ExerciseDao_Impl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/ExerciseDao_Impl.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/ExerciseDao_Impl.java
+--- a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/ExerciseDao_Impl.java
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/ExerciseDao_Impl.java
+@@ -201,7 +201,7 @@
+ 
+   @Override
+   public Object insertAll(final List<ExerciseEntity> exercises,
+-      final Continuation<? super Unit> $completion) {
++      final Continuation<? super Unit> arg1) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -215,12 +215,11 @@
+           __db.endTransaction();
+         }
+       }
+-    }, $completion);
++    }, arg1);
+   }
+ 
+   @Override
+-  public Object insert(final ExerciseEntity exercise,
+-      final Continuation<? super Unit> $completion) {
++  public Object insert(final ExerciseEntity exercise, final Continuation<? super Unit> arg1) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -234,12 +233,12 @@
+           __db.endTransaction();
+         }
+       }
+-    }, $completion);
++    }, arg1);
+   }
+ 
+   @Override
+   public Object insertVideos(final List<ExerciseVideoEntity> videos,
+-      final Continuation<? super Unit> $completion) {
++      final Continuation<? super Unit> arg1) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -253,12 +252,12 @@
+           __db.endTransaction();
+         }
+       }
+-    }, $completion);
++    }, arg1);
+   }
+ 
+   @Override
+   public Object insertVideo(final ExerciseVideoEntity video,
+-      final Continuation<? super Unit> $completion) {
++      final Continuation<? super Unit> arg1) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -272,18 +271,18 @@
+           __db.endTransaction();
+         }
+       }
+-    }, $completion);
++    }, arg1);
+   }
+ 
+   @Override
+   public Object insertExerciseWithVideos(final ExerciseEntity exercise,
+-      final List<ExerciseVideoEntity> videos, final Continuation<? super Unit> $completion) {
+-    return RoomDatabaseKt.withTransaction(__db, (__cont) -> ExerciseDao.DefaultImpls.insertExerciseWithVideos(ExerciseDao_Impl.this, exercise, videos, __cont), $completion);
++      final List<ExerciseVideoEntity> videos, final Continuation<? super Unit> arg2) {
++    return RoomDatabaseKt.withTransaction(__db, (__cont) -> ExerciseDao.DefaultImpls.insertExerciseWithVideos(ExerciseDao_Impl.this, exercise, videos, __cont), arg2);
+   }
+ 
+   @Override
+   public Object updateFavorite(final String id, final boolean isFavorite,
+-      final Continuation<? super Unit> $completion) {
++      final Continuation<? super Unit> arg2) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -311,12 +310,12 @@
+           __preparedStmtOfUpdateFavorite.release(_stmt);
+         }
+       }
+-    }, $completion);
++    }, arg2);
+   }
+ 
+   @Override
+   public Object incrementPerformed(final String id, final long timestamp,
+-      final Continuation<? super Unit> $completion) {
++      final Continuation<? super Unit> arg2) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -343,11 +342,11 @@
+           __preparedStmtOfIncrementPerformed.release(_stmt);
+         }
+       }
+-    }, $completion);
++    }, arg2);
+   }
+ 
+   @Override
+-  public Object deleteAll(final Continuation<? super Unit> $completion) {
++  public Object deleteAll(final Continuation<? super Unit> arg0) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -366,11 +365,11 @@
+           __preparedStmtOfDeleteAll.release(_stmt);
+         }
+       }
+-    }, $completion);
++    }, arg0);
+   }
+ 
+   @Override
+-  public Object deleteAllVideos(final Continuation<? super Unit> $completion) {
++  public Object deleteAllVideos(final Continuation<? super Unit> arg0) {
+     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+       @Override
+       @NonNull
+@@ -389,7 +388,7 @@
+           __preparedStmtOfDeleteAllVideos.release(_stmt);
+         }
+       }
+-    }, $completion);
++    }, arg0);
+   }
+ 
+   @Override
+@@ -529,8 +528,7 @@
+   }
+ 
+   @Override
+-  public Object getExerciseById(final String id,
+-      final Continuation<? super ExerciseEntity> $completion) {
++  public Object getExerciseById(final String id, final Continuation<? super ExerciseEntity> arg1) {
+     final String _sql = "SELECT * FROM exercises WHERE id = ?";
+     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+     int _argIndex = 1;
+@@ -665,7 +663,7 @@
+           _statement.release();
+         }
+       }
+-    }, $completion);
++    }, arg1);
+   }
+ 
+   @Override
+@@ -1258,7 +1256,7 @@
+ 
+   @Override
+   public Object getVideos(final String exerciseId,
+-      final Continuation<? super List<ExerciseVideoEntity>> $completion) {
++      final Continuation<? super List<ExerciseVideoEntity>> arg1) {
+     final String _sql = "SELECT * FROM exercise_videos WHERE exerciseId = ? ORDER BY angle ASC";
+     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+     int _argIndex = 1;
+@@ -1317,7 +1315,7 @@
+           _statement.release();
+         }
+       }
+-    }, $completion);
++    }, arg1);
+   }
+ 
+   @Override
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDatabase_Impl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDatabase_Impl.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDatabase_Impl.java
+--- a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDatabase_Impl.java
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/WorkoutDatabase_Impl.java
+@@ -31,22 +31,26 @@
+ 
+   private volatile ExerciseDao _exerciseDao;
+ 
++  private volatile PersonalRecordDao _personalRecordDao;
++
+   @Override
+   @NonNull
+   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
+-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(8) {
++    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(9) {
+       @Override
+       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
+-        db.execSQL("CREATE TABLE IF NOT EXISTS `workout_sessions` (`id` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `mode` TEXT NOT NULL, `reps` INTEGER NOT NULL, `weightPerCableKg` REAL NOT NULL, `progressionKg` REAL NOT NULL, `duration` INTEGER NOT NULL, `totalReps` INTEGER NOT NULL, `warmupReps` INTEGER NOT NULL, `workingReps` INTEGER NOT NULL, `isJustLift` INTEGER NOT NULL, `stopAtTop` INTEGER NOT NULL, PRIMARY KEY(`id`))");
++        db.execSQL("CREATE TABLE IF NOT EXISTS `workout_sessions` (`id` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `mode` TEXT NOT NULL, `reps` INTEGER NOT NULL, `weightPerCableKg` REAL NOT NULL, `progressionRegressionKg` REAL NOT NULL, `duration` INTEGER NOT NULL, `totalReps` INTEGER NOT NULL, `warmupReps` INTEGER NOT NULL, `workingReps` INTEGER NOT NULL, `isJustLift` INTEGER NOT NULL, `stopAtTop` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+         db.execSQL("CREATE TABLE IF NOT EXISTS `workout_metrics` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sessionId` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `loadA` REAL NOT NULL, `loadB` REAL NOT NULL, `positionA` INTEGER NOT NULL, `positionB` INTEGER NOT NULL, `ticks` INTEGER NOT NULL)");
+         db.execSQL("CREATE TABLE IF NOT EXISTS `routines` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `lastUsed` INTEGER, `useCount` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+-        db.execSQL("CREATE TABLE IF NOT EXISTS `routine_exercises` (`id` TEXT NOT NULL, `routineId` TEXT NOT NULL, `exerciseName` TEXT NOT NULL, `exerciseMuscleGroup` TEXT NOT NULL, `exerciseEquipment` TEXT NOT NULL, `exerciseDefaultCableConfig` TEXT NOT NULL, `cableConfig` TEXT NOT NULL, `orderIndex` INTEGER NOT NULL, `setReps` TEXT NOT NULL, `weightPerCableKg` REAL NOT NULL, `progressionKg` REAL NOT NULL, `restSeconds` INTEGER NOT NULL, `notes` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
++        db.execSQL("CREATE TABLE IF NOT EXISTS `routine_exercises` (`id` TEXT NOT NULL, `routineId` TEXT NOT NULL, `exerciseName` TEXT NOT NULL, `exerciseMuscleGroup` TEXT NOT NULL, `exerciseEquipment` TEXT NOT NULL, `exerciseDefaultCableConfig` TEXT NOT NULL, `cableConfig` TEXT NOT NULL, `orderIndex` INTEGER NOT NULL, `setReps` TEXT NOT NULL, `weightPerCableKg` REAL NOT NULL, `progressionRegressionKg` REAL NOT NULL, `restSeconds` INTEGER NOT NULL, `notes` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
+         db.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)");
+         db.execSQL("CREATE TABLE IF NOT EXISTS `exercises` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `created` TEXT NOT NULL, `muscleGroups` TEXT NOT NULL, `muscles` TEXT NOT NULL, `equipment` TEXT NOT NULL, `movement` TEXT, `sidedness` TEXT, `grip` TEXT, `gripWidth` TEXT, `minRepRange` REAL, `popularity` REAL NOT NULL, `archived` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, `timesPerformed` INTEGER NOT NULL, `lastPerformed` INTEGER, PRIMARY KEY(`id`))");
+         db.execSQL("CREATE TABLE IF NOT EXISTS `exercise_videos` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `exerciseId` TEXT NOT NULL, `angle` TEXT NOT NULL, `videoUrl` TEXT NOT NULL, `thumbnailUrl` TEXT NOT NULL, FOREIGN KEY(`exerciseId`) REFERENCES `exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
+         db.execSQL("CREATE INDEX IF NOT EXISTS `index_exercise_videos_exerciseId` ON `exercise_videos` (`exerciseId`)");
++        db.execSQL("CREATE TABLE IF NOT EXISTS `personal_records` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `exerciseId` TEXT NOT NULL, `weightPerCableKg` REAL NOT NULL, `reps` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `workoutMode` TEXT NOT NULL)");
++        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_personal_records_exerciseId_workoutMode` ON `personal_records` (`exerciseId`, `workoutMode`)");
+         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
+-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ec86bbaac5c6acb48e2ff61ea3476374')");
++        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '31af2bc44a4311d531d728b5a8e5b14d')");
+       }
+ 
+       @Override
+@@ -57,6 +61,7 @@
+         db.execSQL("DROP TABLE IF EXISTS `routine_exercises`");
+         db.execSQL("DROP TABLE IF EXISTS `exercises`");
+         db.execSQL("DROP TABLE IF EXISTS `exercise_videos`");
++        db.execSQL("DROP TABLE IF EXISTS `personal_records`");
+         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
+         if (_callbacks != null) {
+           for (RoomDatabase.Callback _callback : _callbacks) {
+@@ -107,7 +112,7 @@
+         _columnsWorkoutSessions.put("mode", new TableInfo.Column("mode", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsWorkoutSessions.put("reps", new TableInfo.Column("reps", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsWorkoutSessions.put("weightPerCableKg", new TableInfo.Column("weightPerCableKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+-        _columnsWorkoutSessions.put("progressionKg", new TableInfo.Column("progressionKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsWorkoutSessions.put("progressionRegressionKg", new TableInfo.Column("progressionRegressionKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsWorkoutSessions.put("duration", new TableInfo.Column("duration", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsWorkoutSessions.put("totalReps", new TableInfo.Column("totalReps", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsWorkoutSessions.put("warmupReps", new TableInfo.Column("warmupReps", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+@@ -168,7 +173,7 @@
+         _columnsRoutineExercises.put("orderIndex", new TableInfo.Column("orderIndex", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsRoutineExercises.put("setReps", new TableInfo.Column("setReps", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsRoutineExercises.put("weightPerCableKg", new TableInfo.Column("weightPerCableKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+-        _columnsRoutineExercises.put("progressionKg", new TableInfo.Column("progressionKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsRoutineExercises.put("progressionRegressionKg", new TableInfo.Column("progressionRegressionKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsRoutineExercises.put("restSeconds", new TableInfo.Column("restSeconds", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         _columnsRoutineExercises.put("notes", new TableInfo.Column("notes", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+         final HashSet<TableInfo.ForeignKey> _foreignKeysRoutineExercises = new HashSet<TableInfo.ForeignKey>(1);
+@@ -226,9 +231,26 @@
+                   + " Expected:\n" + _infoExerciseVideos + "\n"
+                   + " Found:\n" + _existingExerciseVideos);
+         }
++        final HashMap<String, TableInfo.Column> _columnsPersonalRecords = new HashMap<String, TableInfo.Column>(6);
++        _columnsPersonalRecords.put("id", new TableInfo.Column("id", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsPersonalRecords.put("exerciseId", new TableInfo.Column("exerciseId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsPersonalRecords.put("weightPerCableKg", new TableInfo.Column("weightPerCableKg", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsPersonalRecords.put("reps", new TableInfo.Column("reps", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsPersonalRecords.put("timestamp", new TableInfo.Column("timestamp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        _columnsPersonalRecords.put("workoutMode", new TableInfo.Column("workoutMode", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
++        final HashSet<TableInfo.ForeignKey> _foreignKeysPersonalRecords = new HashSet<TableInfo.ForeignKey>(0);
++        final HashSet<TableInfo.Index> _indicesPersonalRecords = new HashSet<TableInfo.Index>(1);
++        _indicesPersonalRecords.add(new TableInfo.Index("index_personal_records_exerciseId_workoutMode", true, Arrays.asList("exerciseId", "workoutMode"), Arrays.asList("ASC", "ASC")));
++        final TableInfo _infoPersonalRecords = new TableInfo("personal_records", _columnsPersonalRecords, _foreignKeysPersonalRecords, _indicesPersonalRecords);
++        final TableInfo _existingPersonalRecords = TableInfo.read(db, "personal_records");
++        if (!_infoPersonalRecords.equals(_existingPersonalRecords)) {
++          return new RoomOpenHelper.ValidationResult(false, "personal_records(com.example.vitruvianredux.data.local.PersonalRecordEntity).\n"
++                  + " Expected:\n" + _infoPersonalRecords + "\n"
++                  + " Found:\n" + _existingPersonalRecords);
++        }
+         return new RoomOpenHelper.ValidationResult(true, null);
+       }
+-    }, "ec86bbaac5c6acb48e2ff61ea3476374", "ddec94ce10d85edcdc14db43a7812edf");
++    }, "31af2bc44a4311d531d728b5a8e5b14d", "072e439de36c9bfc7028d514d7abd41f");
+     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
+     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
+     return _helper;
+@@ -239,7 +261,7 @@
+   protected InvalidationTracker createInvalidationTracker() {
+     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
+     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
+-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "workout_sessions","workout_metrics","routines","routine_exercises","exercises","exercise_videos");
++    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "workout_sessions","workout_metrics","routines","routine_exercises","exercises","exercise_videos","personal_records");
+   }
+ 
+   @Override
+@@ -261,6 +283,7 @@
+       _db.execSQL("DELETE FROM `routine_exercises`");
+       _db.execSQL("DELETE FROM `exercises`");
+       _db.execSQL("DELETE FROM `exercise_videos`");
++      _db.execSQL("DELETE FROM `personal_records`");
+       super.setTransactionSuccessful();
+     } finally {
+       super.endTransaction();
+@@ -280,6 +303,7 @@
+     final HashMap<Class<?>, List<Class<?>>> _typeConvertersMap = new HashMap<Class<?>, List<Class<?>>>();
+     _typeConvertersMap.put(WorkoutDao.class, WorkoutDao_Impl.getRequiredConverters());
+     _typeConvertersMap.put(ExerciseDao.class, ExerciseDao_Impl.getRequiredConverters());
++    _typeConvertersMap.put(PersonalRecordDao.class, PersonalRecordDao_Impl.getRequiredConverters());
+     return _typeConvertersMap;
+   }
+ 
+@@ -325,4 +349,18 @@
+       }
+     }
+   }
++
++  @Override
++  public PersonalRecordDao personalRecordDao() {
++    if (_personalRecordDao != null) {
++      return _personalRecordDao;
++    } else {
++      synchronized(this) {
++        if(_personalRecordDao == null) {
++          _personalRecordDao = new PersonalRecordDao_Impl(this);
++        }
++        return _personalRecordDao;
++      }
++    }
++  }
+ }
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/PersonalRecordDao_Impl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/PersonalRecordDao_Impl.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/PersonalRecordDao_Impl.java
+new file mode 100644
+--- /dev/null
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/local/PersonalRecordDao_Impl.java
+@@ -0,0 +1,405 @@
++package com.example.vitruvianredux.data.local;
++
++import android.database.Cursor;
++import android.os.CancellationSignal;
++import androidx.annotation.NonNull;
++import androidx.annotation.Nullable;
++import androidx.room.CoroutinesRoom;
++import androidx.room.EntityDeletionOrUpdateAdapter;
++import androidx.room.EntityInsertionAdapter;
++import androidx.room.RoomDatabase;
++import androidx.room.RoomDatabaseKt;
++import androidx.room.RoomSQLiteQuery;
++import androidx.room.SharedSQLiteStatement;
++import androidx.room.util.CursorUtil;
++import androidx.room.util.DBUtil;
++import androidx.sqlite.db.SupportSQLiteStatement;
++import java.lang.Class;
++import java.lang.Exception;
++import java.lang.Object;
++import java.lang.Override;
++import java.lang.String;
++import java.lang.SuppressWarnings;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.List;
++import java.util.concurrent.Callable;
++import javax.annotation.processing.Generated;
++import kotlin.Unit;
++import kotlin.coroutines.Continuation;
++import kotlinx.coroutines.flow.Flow;
++
++@Generated("androidx.room.RoomProcessor")
++@SuppressWarnings({"unchecked", "deprecation"})
++public final class PersonalRecordDao_Impl implements PersonalRecordDao {
++  private final RoomDatabase __db;
++
++  private final EntityInsertionAdapter<PersonalRecordEntity> __insertionAdapterOfPersonalRecordEntity;
++
++  private final EntityDeletionOrUpdateAdapter<PersonalRecordEntity> __updateAdapterOfPersonalRecordEntity;
++
++  private final SharedSQLiteStatement __preparedStmtOfDeletePR;
++
++  private final SharedSQLiteStatement __preparedStmtOfDeleteAllPRs;
++
++  public PersonalRecordDao_Impl(@NonNull final RoomDatabase __db) {
++    this.__db = __db;
++    this.__insertionAdapterOfPersonalRecordEntity = new EntityInsertionAdapter<PersonalRecordEntity>(__db) {
++      @Override
++      @NonNull
++      protected String createQuery() {
++        return "INSERT OR REPLACE INTO `personal_records` (`id`,`exerciseId`,`weightPerCableKg`,`reps`,`timestamp`,`workoutMode`) VALUES (nullif(?, 0),?,?,?,?,?)";
++      }
++
++      @Override
++      protected void bind(@NonNull final SupportSQLiteStatement statement,
++          @NonNull final PersonalRecordEntity entity) {
++        statement.bindLong(1, entity.getId());
++        if (entity.getExerciseId() == null) {
++          statement.bindNull(2);
++        } else {
++          statement.bindString(2, entity.getExerciseId());
++        }
++        statement.bindDouble(3, entity.getWeightPerCableKg());
++        statement.bindLong(4, entity.getReps());
++        statement.bindLong(5, entity.getTimestamp());
++        if (entity.getWorkoutMode() == null) {
++          statement.bindNull(6);
++        } else {
++          statement.bindString(6, entity.getWorkoutMode());
++        }
++      }
++    };
++    this.__updateAdapterOfPersonalRecordEntity = new EntityDeletionOrUpdateAdapter<PersonalRecordEntity>(__db) {
++      @Override
++      @NonNull
++      protected String createQuery() {
++        return "UPDATE OR ABORT `personal_records` SET `id` = ?,`exerciseId` = ?,`weightPerCableKg` = ?,`reps` = ?,`timestamp` = ?,`workoutMode` = ? WHERE `id` = ?";
++      }
++
++      @Override
++      protected void bind(@NonNull final SupportSQLiteStatement statement,
++          @NonNull final PersonalRecordEntity entity) {
++        statement.bindLong(1, entity.getId());
++        if (entity.getExerciseId() == null) {
++          statement.bindNull(2);
++        } else {
++          statement.bindString(2, entity.getExerciseId());
++        }
++        statement.bindDouble(3, entity.getWeightPerCableKg());
++        statement.bindLong(4, entity.getReps());
++        statement.bindLong(5, entity.getTimestamp());
++        if (entity.getWorkoutMode() == null) {
++          statement.bindNull(6);
++        } else {
++          statement.bindString(6, entity.getWorkoutMode());
++        }
++        statement.bindLong(7, entity.getId());
++      }
++    };
++    this.__preparedStmtOfDeletePR = new SharedSQLiteStatement(__db) {
++      @Override
++      @NonNull
++      public String createQuery() {
++        final String _query = "DELETE FROM personal_records WHERE exerciseId = ? AND workoutMode = ?";
++        return _query;
++      }
++    };
++    this.__preparedStmtOfDeleteAllPRs = new SharedSQLiteStatement(__db) {
++      @Override
++      @NonNull
++      public String createQuery() {
++        final String _query = "DELETE FROM personal_records";
++        return _query;
++      }
++    };
++  }
++
++  @Override
++  public Object insertPR(final PersonalRecordEntity personalRecord,
++      final Continuation<? super Unit> $completion) {
++    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
++      @Override
++      @NonNull
++      public Unit call() throws Exception {
++        __db.beginTransaction();
++        try {
++          __insertionAdapterOfPersonalRecordEntity.insert(personalRecord);
++          __db.setTransactionSuccessful();
++          return Unit.INSTANCE;
++        } finally {
++          __db.endTransaction();
++        }
++      }
++    }, $completion);
++  }
++
++  @Override
++  public Object updatePR(final PersonalRecordEntity personalRecord,
++      final Continuation<? super Unit> $completion) {
++    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
++      @Override
++      @NonNull
++      public Unit call() throws Exception {
++        __db.beginTransaction();
++        try {
++          __updateAdapterOfPersonalRecordEntity.handle(personalRecord);
++          __db.setTransactionSuccessful();
++          return Unit.INSTANCE;
++        } finally {
++          __db.endTransaction();
++        }
++      }
++    }, $completion);
++  }
++
++  @Override
++  public Object updatePRIfBetter(final String exerciseId, final float weightPerCableKg,
++      final int reps, final String workoutMode, final long timestamp,
++      final Continuation<? super Unit> $completion) {
++    return RoomDatabaseKt.withTransaction(__db, (__cont) -> PersonalRecordDao.DefaultImpls.updatePRIfBetter(PersonalRecordDao_Impl.this, exerciseId, weightPerCableKg, reps, workoutMode, timestamp, __cont), $completion);
++  }
++
++  @Override
++  public Object deletePR(final String exerciseId, final String workoutMode,
++      final Continuation<? super Unit> $completion) {
++    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
++      @Override
++      @NonNull
++      public Unit call() throws Exception {
++        final SupportSQLiteStatement _stmt = __preparedStmtOfDeletePR.acquire();
++        int _argIndex = 1;
++        if (exerciseId == null) {
++          _stmt.bindNull(_argIndex);
++        } else {
++          _stmt.bindString(_argIndex, exerciseId);
++        }
++        _argIndex = 2;
++        if (workoutMode == null) {
++          _stmt.bindNull(_argIndex);
++        } else {
++          _stmt.bindString(_argIndex, workoutMode);
++        }
++        try {
++          __db.beginTransaction();
++          try {
++            _stmt.executeUpdateDelete();
++            __db.setTransactionSuccessful();
++            return Unit.INSTANCE;
++          } finally {
++            __db.endTransaction();
++          }
++        } finally {
++          __preparedStmtOfDeletePR.release(_stmt);
++        }
++      }
++    }, $completion);
++  }
++
++  @Override
++  public Object deleteAllPRs(final Continuation<? super Unit> $completion) {
++    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
++      @Override
++      @NonNull
++      public Unit call() throws Exception {
++        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteAllPRs.acquire();
++        try {
++          __db.beginTransaction();
++          try {
++            _stmt.executeUpdateDelete();
++            __db.setTransactionSuccessful();
++            return Unit.INSTANCE;
++          } finally {
++            __db.endTransaction();
++          }
++        } finally {
++          __preparedStmtOfDeleteAllPRs.release(_stmt);
++        }
++      }
++    }, $completion);
++  }
++
++  @Override
++  public Object getLatestPR(final String exerciseId, final String workoutMode,
++      final Continuation<? super PersonalRecordEntity> $completion) {
++    final String _sql = "SELECT * FROM personal_records WHERE exerciseId = ? AND workoutMode = ?";
++    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 2);
++    int _argIndex = 1;
++    if (exerciseId == null) {
++      _statement.bindNull(_argIndex);
++    } else {
++      _statement.bindString(_argIndex, exerciseId);
++    }
++    _argIndex = 2;
++    if (workoutMode == null) {
++      _statement.bindNull(_argIndex);
++    } else {
++      _statement.bindString(_argIndex, workoutMode);
++    }
++    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
++    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<PersonalRecordEntity>() {
++      @Override
++      @Nullable
++      public PersonalRecordEntity call() throws Exception {
++        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
++        try {
++          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
++          final int _cursorIndexOfExerciseId = CursorUtil.getColumnIndexOrThrow(_cursor, "exerciseId");
++          final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
++          final int _cursorIndexOfReps = CursorUtil.getColumnIndexOrThrow(_cursor, "reps");
++          final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
++          final int _cursorIndexOfWorkoutMode = CursorUtil.getColumnIndexOrThrow(_cursor, "workoutMode");
++          final PersonalRecordEntity _result;
++          if (_cursor.moveToFirst()) {
++            final long _tmpId;
++            _tmpId = _cursor.getLong(_cursorIndexOfId);
++            final String _tmpExerciseId;
++            if (_cursor.isNull(_cursorIndexOfExerciseId)) {
++              _tmpExerciseId = null;
++            } else {
++              _tmpExerciseId = _cursor.getString(_cursorIndexOfExerciseId);
++            }
++            final float _tmpWeightPerCableKg;
++            _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
++            final int _tmpReps;
++            _tmpReps = _cursor.getInt(_cursorIndexOfReps);
++            final long _tmpTimestamp;
++            _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
++            final String _tmpWorkoutMode;
++            if (_cursor.isNull(_cursorIndexOfWorkoutMode)) {
++              _tmpWorkoutMode = null;
++            } else {
++              _tmpWorkoutMode = _cursor.getString(_cursorIndexOfWorkoutMode);
++            }
++            _result = new PersonalRecordEntity(_tmpId,_tmpExerciseId,_tmpWeightPerCableKg,_tmpReps,_tmpTimestamp,_tmpWorkoutMode);
++          } else {
++            _result = null;
++          }
++          return _result;
++        } finally {
++          _cursor.close();
++          _statement.release();
++        }
++      }
++    }, $completion);
++  }
++
++  @Override
++  public Object getPRsForExercise(final String exerciseId,
++      final Continuation<? super List<PersonalRecordEntity>> $completion) {
++    final String _sql = "SELECT * FROM personal_records WHERE exerciseId = ?";
++    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
++    int _argIndex = 1;
++    if (exerciseId == null) {
++      _statement.bindNull(_argIndex);
++    } else {
++      _statement.bindString(_argIndex, exerciseId);
++    }
++    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
++    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<PersonalRecordEntity>>() {
++      @Override
++      @NonNull
++      public List<PersonalRecordEntity> call() throws Exception {
++        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
++        try {
++          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
++          final int _cursorIndexOfExerciseId = CursorUtil.getColumnIndexOrThrow(_cursor, "exerciseId");
++          final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
++          final int _cursorIndexOfReps = CursorUtil.getColumnIndexOrThrow(_cursor, "reps");
++          final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
++          final int _cursorIndexOfWorkoutMode = CursorUtil.getColumnIndexOrThrow(_cursor, "workoutMode");
++          final List<PersonalRecordEntity> _result = new ArrayList<PersonalRecordEntity>(_cursor.getCount());
++          while (_cursor.moveToNext()) {
++            final PersonalRecordEntity _item;
++            final long _tmpId;
++            _tmpId = _cursor.getLong(_cursorIndexOfId);
++            final String _tmpExerciseId;
++            if (_cursor.isNull(_cursorIndexOfExerciseId)) {
++              _tmpExerciseId = null;
++            } else {
++              _tmpExerciseId = _cursor.getString(_cursorIndexOfExerciseId);
++            }
++            final float _tmpWeightPerCableKg;
++            _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
++            final int _tmpReps;
++            _tmpReps = _cursor.getInt(_cursorIndexOfReps);
++            final long _tmpTimestamp;
++            _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
++            final String _tmpWorkoutMode;
++            if (_cursor.isNull(_cursorIndexOfWorkoutMode)) {
++              _tmpWorkoutMode = null;
++            } else {
++              _tmpWorkoutMode = _cursor.getString(_cursorIndexOfWorkoutMode);
++            }
++            _item = new PersonalRecordEntity(_tmpId,_tmpExerciseId,_tmpWeightPerCableKg,_tmpReps,_tmpTimestamp,_tmpWorkoutMode);
++            _result.add(_item);
++          }
++          return _result;
++        } finally {
++          _cursor.close();
++          _statement.release();
++        }
++      }
++    }, $completion);
++  }
++
++  @Override
++  public Flow<List<PersonalRecordEntity>> getAllPRs() {
++    final String _sql = "SELECT * FROM personal_records ORDER BY timestamp DESC";
++    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
++    return CoroutinesRoom.createFlow(__db, false, new String[] {"personal_records"}, new Callable<List<PersonalRecordEntity>>() {
++      @Override
++      @NonNull
++      public List<PersonalRecordEntity> call() throws Exception {
++        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
++        try {
++          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
++          final int _cursorIndexOfExerciseId = CursorUtil.getColumnIndexOrThrow(_cursor, "exerciseId");
++          final int _cursorIndexOfWeightPerCableKg = CursorUtil.getColumnIndexOrThrow(_cursor, "weightPerCableKg");
++          final int _cursorIndexOfReps = CursorUtil.getColumnIndexOrThrow(_cursor, "reps");
++          final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
++          final int _cursorIndexOfWorkoutMode = CursorUtil.getColumnIndexOrThrow(_cursor, "workoutMode");
++          final List<PersonalRecordEntity> _result = new ArrayList<PersonalRecordEntity>(_cursor.getCount());
++          while (_cursor.moveToNext()) {
++            final PersonalRecordEntity _item;
++            final long _tmpId;
++            _tmpId = _cursor.getLong(_cursorIndexOfId);
++            final String _tmpExerciseId;
++            if (_cursor.isNull(_cursorIndexOfExerciseId)) {
++              _tmpExerciseId = null;
++            } else {
++              _tmpExerciseId = _cursor.getString(_cursorIndexOfExerciseId);
++            }
++            final float _tmpWeightPerCableKg;
++            _tmpWeightPerCableKg = _cursor.getFloat(_cursorIndexOfWeightPerCableKg);
++            final int _tmpReps;
++            _tmpReps = _cursor.getInt(_cursorIndexOfReps);
++            final long _tmpTimestamp;
++            _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
++            final String _tmpWorkoutMode;
++            if (_cursor.isNull(_cursorIndexOfWorkoutMode)) {
++              _tmpWorkoutMode = null;
++            } else {
++              _tmpWorkoutMode = _cursor.getString(_cursorIndexOfWorkoutMode);
++            }
++            _item = new PersonalRecordEntity(_tmpId,_tmpExerciseId,_tmpWeightPerCableKg,_tmpReps,_tmpTimestamp,_tmpWorkoutMode);
++            _result.add(_item);
++          }
++          return _result;
++        } finally {
++          _cursor.close();
++        }
++      }
++
++      @Override
++      protected void finalize() {
++        _statement.release();
++      }
++    });
++  }
++
++  @NonNull
++  public static List<Class<?>> getRequiredConverters() {
++    return Collections.emptyList();
++  }
++}
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/repository/PersonalRecordRepository_Factory.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/repository/PersonalRecordRepository_Factory.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/repository/PersonalRecordRepository_Factory.java
+new file mode 100644
+--- /dev/null
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/data/repository/PersonalRecordRepository_Factory.java
+@@ -0,0 +1,45 @@
++package com.example.vitruvianredux.data.repository;
++
++import com.example.vitruvianredux.data.local.PersonalRecordDao;
++import dagger.internal.DaggerGenerated;
++import dagger.internal.Factory;
++import dagger.internal.QualifierMetadata;
++import dagger.internal.ScopeMetadata;
++import javax.annotation.processing.Generated;
++import javax.inject.Provider;
++
++@ScopeMetadata("javax.inject.Singleton")
++@QualifierMetadata
++@DaggerGenerated
++@Generated(
++    value = "dagger.internal.codegen.ComponentProcessor",
++    comments = "https://dagger.dev"
++)
++@SuppressWarnings({
++    "unchecked",
++    "rawtypes",
++    "KotlinInternal",
++    "KotlinInternalInJava",
++    "cast"
++})
++public final class PersonalRecordRepository_Factory implements Factory<PersonalRecordRepository> {
++  private final Provider<PersonalRecordDao> personalRecordDaoProvider;
++
++  public PersonalRecordRepository_Factory(Provider<PersonalRecordDao> personalRecordDaoProvider) {
++    this.personalRecordDaoProvider = personalRecordDaoProvider;
++  }
++
++  @Override
++  public PersonalRecordRepository get() {
++    return newInstance(personalRecordDaoProvider.get());
++  }
++
++  public static PersonalRecordRepository_Factory create(
++      Provider<PersonalRecordDao> personalRecordDaoProvider) {
++    return new PersonalRecordRepository_Factory(personalRecordDaoProvider);
++  }
++
++  public static PersonalRecordRepository newInstance(PersonalRecordDao personalRecordDao) {
++    return new PersonalRecordRepository(personalRecordDao);
++  }
++}
+Index: app/build/generated/source/kapt/debug/com/example/vitruvianredux/presentation/viewmodel/MainViewModel_Factory.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/presentation/viewmodel/MainViewModel_Factory.java b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/presentation/viewmodel/MainViewModel_Factory.java
+--- a/app/build/generated/source/kapt/debug/com/example/vitruvianredux/presentation/viewmodel/MainViewModel_Factory.java
++++ b/app/build/generated/source/kapt/debug/com/example/vitruvianredux/presentation/viewmodel/MainViewModel_Factory.java
+@@ -4,6 +4,7 @@
+ import com.example.vitruvianredux.data.preferences.PreferencesManager;
+ import com.example.vitruvianredux.data.repository.BleRepository;
+ import com.example.vitruvianredux.data.repository.ExerciseRepository;
++import com.example.vitruvianredux.data.repository.PersonalRecordRepository;
+ import com.example.vitruvianredux.data.repository.WorkoutRepository;
+ import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine;
+ import dagger.internal.DaggerGenerated;
+@@ -36,6 +37,8 @@
+ 
+   private final Provider<ExerciseRepository> exerciseRepositoryProvider;
+ 
++  private final Provider<PersonalRecordRepository> personalRecordRepositoryProvider;
++
+   private final Provider<RepCounterFromMachine> repCounterProvider;
+ 
+   private final Provider<PreferencesManager> preferencesManagerProvider;
+@@ -44,33 +47,37 @@
+       Provider<BleRepository> bleRepositoryProvider,
+       Provider<WorkoutRepository> workoutRepositoryProvider,
+       Provider<ExerciseRepository> exerciseRepositoryProvider,
++      Provider<PersonalRecordRepository> personalRecordRepositoryProvider,
+       Provider<RepCounterFromMachine> repCounterProvider,
+       Provider<PreferencesManager> preferencesManagerProvider) {
+     this.applicationProvider = applicationProvider;
+     this.bleRepositoryProvider = bleRepositoryProvider;
+     this.workoutRepositoryProvider = workoutRepositoryProvider;
+     this.exerciseRepositoryProvider = exerciseRepositoryProvider;
++    this.personalRecordRepositoryProvider = personalRecordRepositoryProvider;
+     this.repCounterProvider = repCounterProvider;
+     this.preferencesManagerProvider = preferencesManagerProvider;
+   }
+ 
+   @Override
+   public MainViewModel get() {
+-    return newInstance(applicationProvider.get(), bleRepositoryProvider.get(), workoutRepositoryProvider.get(), exerciseRepositoryProvider.get(), repCounterProvider.get(), preferencesManagerProvider.get());
++    return newInstance(applicationProvider.get(), bleRepositoryProvider.get(), workoutRepositoryProvider.get(), exerciseRepositoryProvider.get(), personalRecordRepositoryProvider.get(), repCounterProvider.get(), preferencesManagerProvider.get());
+   }
+ 
+   public static MainViewModel_Factory create(Provider<Application> applicationProvider,
+       Provider<BleRepository> bleRepositoryProvider,
+       Provider<WorkoutRepository> workoutRepositoryProvider,
+       Provider<ExerciseRepository> exerciseRepositoryProvider,
++      Provider<PersonalRecordRepository> personalRecordRepositoryProvider,
+       Provider<RepCounterFromMachine> repCounterProvider,
+       Provider<PreferencesManager> preferencesManagerProvider) {
+-    return new MainViewModel_Factory(applicationProvider, bleRepositoryProvider, workoutRepositoryProvider, exerciseRepositoryProvider, repCounterProvider, preferencesManagerProvider);
++    return new MainViewModel_Factory(applicationProvider, bleRepositoryProvider, workoutRepositoryProvider, exerciseRepositoryProvider, personalRecordRepositoryProvider, repCounterProvider, preferencesManagerProvider);
+   }
+ 
+   public static MainViewModel newInstance(Application application, BleRepository bleRepository,
+       WorkoutRepository workoutRepository, ExerciseRepository exerciseRepository,
+-      RepCounterFromMachine repCounter, PreferencesManager preferencesManager) {
+-    return new MainViewModel(application, bleRepository, workoutRepository, exerciseRepository, repCounter, preferencesManager);
++      PersonalRecordRepository personalRecordRepository, RepCounterFromMachine repCounter,
++      PreferencesManager preferencesManager) {
++    return new MainViewModel(application, bleRepository, workoutRepository, exerciseRepository, personalRecordRepository, repCounter, preferencesManager);
+   }
+ }
+Index: CLAUDE.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/CLAUDE.md b/CLAUDE.md
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -1,1 +1,2 @@
+-- Always put newly created documents and .md files into the /docs directory to keep the project clean
+\ No newline at end of file
++- Always put newly created documents and .md files into the /docs directory to keep the project clean
++- Instead of immediately recreating docs, check the /docs directory first
+\ No newline at end of file
+Index: .gitignore
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.gitignore b/.gitignore
+--- a/.gitignore
++++ b/.gitignore
+@@ -17,3 +17,7 @@
+ /docs
+ /scripts
+ /CLAUDE.md
++
++# Session memory files (root directory)
++LAST_SESSION.md
++CHANGELOG.md
+Index: CHANGELOG.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,61 @@
++# Changelog
++
++All notable changes to the Vitruvian Redux project will be documented in this file.
++
++The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
++and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
++
++## [Unreleased]
++
++### Added
++- Equipment display formatter for user-friendly equipment names in exercise picker
++- Equipment filter chips matching official Vitruvian Trainer equipment list
++- Flexible equipment filtering logic supporting both raw database values and formatted names
++
++### Fixed
++- Exercise equipment now displays user-friendly names ("Bar, Bench") instead of raw database values ("BAR, BENCH, BLACK_CABLES")
++- Equipment filter chips now match actual Vitruvian equipment (Barbell, Bar, Bench, Handles, Rope, Belt, Ankle Strap, Bodyweight)
++- Copilot CLI wrapper documentation showing incorrect default model name (sonnet-4.5 → claude-sonnet-4.5)
++- Cursor CLI wrapper prompt escaping failures with backticks in code blocks (replaced sed-based escaping with base64 encoding)
++- WorkoutSetupDialog UX issues: Weight and Reps pickers now side-by-side for easier scrolling
++- Progression/Regression FilterChip labels no longer line-break (shortened to "Prog"/"Regr")
++- CompactNumberPicker usability: Added +/- buttons, increased height to 80dp, lowered drag threshold to 3px
++- Database migration MIGRATION_8_9 now properly handles progressionKg → progressionRegressionKg field rename
++
++### Changed
++- Updated equipment filter chips from generic (DUMBBELLS, CABLE) to Vitruvian-specific (Barbell, Bar, Handles, Rope, etc.)
++- Equipment display now hides meaningless internal values like "BLACK_CABLES"
++- WorkoutSetupDialog Weight and Reps pickers combined into single Card with Row layout for improved UX
++- FilterChip labels shortened: "Progression" → "Prog", "Regression" → "Regr" (icons retained for clarity)
++
++## [0.1.0-alpha] - Previous Work
++
++### Added
++- Exercise picker with search functionality
++- Dual filter system (muscle groups + equipment)
++- Video thumbnails for exercises using Coil image library
++- Video player dialog with angle selection (FRONT, SIDE, ISOMETRIC)
++- Personal record (PR) badges in exercise picker
++- Material Design 3 theming and WCAG accessibility compliance
++- Haptic and audio feedback for workout events
++- Automated tests for weight protocol
++- Per-set reps backend functionality
++
++### Fixed
++- Critical weight protocol bug
++- BLE permission warnings
++- Set and reps editor in exercise dialog
++
++### Technical
++- Standardized exercise detail formatting to consistent 2-line format
++- Implemented auto-play video looping with MediaController
++- Added loading states and fallback for missing thumbnails
++- Used 56dp × 56dp rounded corners for video thumbnails
++
++---
++
++## Notes
++
++- Testing performed on Pixel 9 Pro via ADB (192.168.0.100:32941)
++- Black screen issue on Android 12+ emulator is low priority (physical devices unaffected)
++- Wrapper script fixes enable reliable delegation to Cursor/Copilot CLIs
+Index: LAST_SESSION.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/LAST_SESSION.md b/LAST_SESSION.md
+new file mode 100644
+--- /dev/null
++++ b/LAST_SESSION.md
+@@ -0,0 +1,95 @@
++# Last Session Summary
++
++**Date:** 2025-10-29 (Session 3 - Continued)
++**Branch:** working_branch
++**Status:** ✅ WorkoutSetupDialog UX Improvements Complete & Deployed
++
++## Current Session: WorkoutSetupDialog UX Fixes
++
++### Completed Work
++
++1. **Side-by-Side Weight & Reps Pickers** (`WorkoutTab.kt`)
++   - **Issue:** Weight and Reps pickers were stacked vertically in separate Cards, making vertical scrolling difficult
++   - **Solution:** Combined both pickers into single Card with Row layout
++   - **Result:** More horizontal space per picker = easier vertical scrolling
++   - **Implementation:** Lines 418-512
++   - **Layout Change:**
++     - Before: Two separate Cards stacked vertically
++     - After: Single Card with Row layout, each picker gets `.weight(1f)` for equal spacing
++     - Labels: "Weight (kg/lb)" and "Reps" above each picker
++
++2. **Shortened FilterChip Labels** (`WorkoutTab.kt`)
++   - **Issue:** "Progression" and "Regression" labels were too wide, causing line-breaking
++   - **Solution:** Shortened labels from "Progression" → "Prog", "Regression" → "Regr"
++   - **Result:** No line-breaking, cleaner layout
++   - **Implementation:** Lines 567 and 597
++   - **Icons:** Kept up/down arrow icons for visual clarity
++
++3. **Compilation Verified**
++   - ✅ Built successfully with `./gradlew compileDebugKotlin`
++   - ✅ No syntax errors or compilation issues
++   - All changes compile cleanly
++
++4. **Deployment Complete**
++   - ✅ Built debug APK with `./gradlew installDebug`
++   - ✅ Installed successfully on Pixel 9 Pro
++   - ✅ Ready for user testing
++
++### Technical Details
++
++**Combined Weight & Reps Card Structure:**
++```kotlin
++Card: "Weight & Reps"
++  Row(horizontalArrangement = spacedBy(8.dp)):
++    Column(weight = 1f):  // Weight Picker
++      Text("Weight (unit)")
++      CompactNumberPicker(...)
++    Column(weight = 1f):  // Reps Picker
++      Text("Reps")
++      CompactNumberPicker(...)
++```
++
++**FilterChip Label Changes:**
++- "Progression" → "Prog" (with ↑ icon)
++- "Regression" → "Regr" (with ↓ icon)
++
++### Files Modified This Session
++1. `app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt`
++   - Combined Weight Per Cable and Target Reps into single Row layout (lines 418-512)
++   - Shortened Progression/Regression FilterChip labels (lines 567, 597)
++
++## Git Status
++```
++M  app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
++```
++
++## Next Steps
++
++### Immediate
++1. **User Testing** - User should verify on device:
++   - Weight and Reps pickers are now side-by-side
++   - Vertical scrolling on pickers is easier with more space
++   - Progression/Regression chips don't line-break
++   - Dialog layout is clean and usable
++
++### If User Approves
++1. Consider building and deploying debug APK
++2. Commit changes with appropriate message
++3. Update CHANGELOG.md with UX improvements
++
++### Documentation
++- Add CHANGELOG.md entry for UX improvements when approved
++
++## Session Context
++
++This session focused on fixing UX issues in WorkoutSetupDialog based on user feedback:
++- CompactNumberPicker scrollers were hard to use (too narrow)
++- Progression/Regression FilterChips were line-breaking
++
++**Solution:** Combined pickers side-by-side for more vertical scrolling space, shortened chip labels to prevent line-breaking.
++
++## For Next Session
++1. Get user feedback on UX improvements
++2. Deploy to device if approved
++3. Commit changes and update CHANGELOG.md
++4. Check on background tasks from previous sessions
