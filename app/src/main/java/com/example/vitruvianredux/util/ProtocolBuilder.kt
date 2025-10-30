@@ -116,7 +116,7 @@ object ProtocolBuilder {
         buffer.putFloat(0x58, totalWeightKg)
 
         // Progression/Regression at offset 0x5C (kg per rep)
-        buffer.putFloat(0x5c, params.progressionKg)
+        buffer.putFloat(0x5c, params.progressionRegressionKg)
 
         return frame
     }
@@ -307,10 +307,10 @@ object ProtocolBuilder {
         )
 
         return when (level) {
-            EchoLevel.LEVEL_1 -> params.copy(gain = 1.0f, cap = 50.0f)
-            EchoLevel.LEVEL_2 -> params.copy(gain = 1.25f, cap = 40.0f)
-            EchoLevel.LEVEL_3 -> params.copy(gain = 1.667f, cap = 30.0f)
-            EchoLevel.LEVEL_4 -> params.copy(gain = 3.333f, cap = 15.0f)
+            EchoLevel.HARD -> params.copy(gain = 1.0f, cap = 50.0f)
+            EchoLevel.HARDER -> params.copy(gain = 1.25f, cap = 40.0f)
+            EchoLevel.HARDEST -> params.copy(gain = 1.667f, cap = 30.0f)
+            EchoLevel.EPIC -> params.copy(gain = 3.333f, cap = 15.0f)
         }
     }
 

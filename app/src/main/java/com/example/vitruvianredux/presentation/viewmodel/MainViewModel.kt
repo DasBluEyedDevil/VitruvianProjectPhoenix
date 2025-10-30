@@ -54,7 +54,7 @@ class MainViewModel @Inject constructor(
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -463,7 +463,7 @@ class MainViewModel @Inject constructor(
             mode = params.mode.displayName,
             reps = params.reps,
             weightPerCableKg = actualPerCableWeightKg, // Store per-cable weight
-            progressionKg = params.progressionKg,
+            progressionKg = params.progressionRegressionKg,
             duration = duration,
             totalReps = warmup + working,
             warmupReps = warmup,
@@ -616,7 +616,7 @@ class MainViewModel @Inject constructor(
                 mode = _workoutParameters.value.mode, // Keep current mode
                 reps = firstExercise.reps,
                 weightPerCableKg = firstExercise.weightPerCableKg,
-                progressionKg = firstExercise.progressionKg,
+                progressionRegressionKg = firstExercise.progressionKg,
                 isJustLift = _workoutParameters.value.isJustLift,
                 stopAtTop = _workoutParameters.value.stopAtTop,
                 warmupReps = _workoutParameters.value.warmupReps
@@ -647,7 +647,7 @@ class MainViewModel @Inject constructor(
                 _workoutParameters.value.copy(
                     reps = nextExercise.reps,
                     weightPerCableKg = nextExercise.weightPerCableKg,
-                    progressionKg = nextExercise.progressionKg
+                    progressionRegressionKg = nextExercise.progressionKg
                 )
             )
 
@@ -674,7 +674,7 @@ class MainViewModel @Inject constructor(
                 _workoutParameters.value.copy(
                     reps = prevExercise.reps,
                     weightPerCableKg = prevExercise.weightPerCableKg,
-                    progressionKg = prevExercise.progressionKg
+                    progressionRegressionKg = prevExercise.progressionKg
                 )
             )
 

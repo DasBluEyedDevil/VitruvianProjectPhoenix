@@ -2,6 +2,7 @@ package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,11 +13,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.data.local.ExerciseEntity
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
+import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
 import com.example.vitruvianredux.ui.theme.*
+import kotlin.math.abs
 
 @Composable
 fun WorkoutTab(
@@ -27,6 +35,7 @@ fun WorkoutTab(
     repCount: RepCount,
     autoStopState: AutoStopUiState,
     weightUnit: WeightUnit,
+    exerciseRepository: ExerciseRepository,
     isWorkoutSetupDialogVisible: Boolean = false,
     hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
     kgToDisplay: (Float, WeightUnit) -> Float,
@@ -195,6 +204,7 @@ fun WorkoutTab(
         WorkoutSetupDialog(
             workoutParameters = workoutParameters,
             weightUnit = weightUnit,
+            exerciseRepository = exerciseRepository,
             kgToDisplay = kgToDisplay,
             displayToKg = displayToKg,
             onUpdateParameters = onUpdateParameters,
@@ -212,12 +222,27 @@ fun WorkoutTab(
 fun WorkoutSetupDialog(
     workoutParameters: WorkoutParameters,
     weightUnit: WeightUnit,
+    exerciseRepository: ExerciseRepository,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     onUpdateParameters: (WorkoutParameters) -> Unit,
     onStartWorkout: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    // State for exercise selection
+    var selectedExercise by remember { mutableStateOf<ExerciseEntity?>(null) }
+    var showExercisePicker by remember { mutableStateOf(false) }
+
+    // State for mode selection
+    var showModeMenu by remember { mutableStateOf(false) }
+    var showModeSubSelector by remember { mutableStateOf(false) }
+    var modeSubSelectorType by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(workoutParameters.selectedExerciseId) {
+        workoutParameters.selectedExerciseId?.let { id ->
+            selectedExercise = exerciseRepository.getExerciseById(id)
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -237,8 +262,31 @@ fun WorkoutSetupDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                var showModeMenu by remember { mutableStateOf(false) }
-                var showEchoLevelDialog by remember { mutableStateOf(false) }
+                // Exercise Selection Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            "Exercise",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { showExercisePicker = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(selectedExercise?.name ?: "Select Exercise")
+                        }
+                    }
+                }
 
                 val modeLabel = if (workoutParameters.isJustLift) "Base Mode (resistance profile)" else "Workout Mode"
                 ExposedDropdownMenuBox(
@@ -277,20 +325,6 @@ fun WorkoutSetupDialog(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("TUT") },
-                            onClick = {
-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUT))
-                                showModeMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("TUT Beast") },
-                            onClick = {
-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUTBeast))
-                                showModeMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
                             text = { Text("Eccentric Only") },
                             onClick = {
                                 onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
@@ -309,83 +343,195 @@ fun WorkoutSetupDialog(
                             },
                             onClick = {
                                 showModeMenu = false
-                                showEchoLevelDialog = true
+                                modeSubSelectorType = "Echo"
+                                showModeSubSelector = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("TUT")
+                                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+                                }
+                            },
+                            onClick = {
+                                showModeMenu = false
+                                modeSubSelectorType = "TUT"
+                                showModeSubSelector = true
                             }
                         )
                     }
                 }
 
-                if (showEchoLevelDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showEchoLevelDialog = false },
-                        title = { Text("Select Echo Level") },
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp),
-                        text = {
-                            Column {
-                                Text(
-                                    "Echo adapts to your output. Select a level:",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Spacer(modifier = Modifier.height(Spacing.medium))
-                                listOf(
-                                    EchoLevel.LEVEL_1 to "Level 1 - Beginner (75% eccentric)",
-                                    EchoLevel.LEVEL_2 to "Level 2 - Intermediate",
-                                    EchoLevel.LEVEL_3 to "Level 3 - Advanced",
-                                    EchoLevel.LEVEL_4 to "Level 4 - Expert"
-                                ).forEach { (level, label) ->
-                                    OutlinedButton(
-                                        onClick = {
-                                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
-                                            showEchoLevelDialog = false
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(label)
-                                    }
-                                    Spacer(modifier = Modifier.height(Spacing.small))
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showEchoLevelDialog = false }) {
-                                Text("Cancel")
-                            }
-                        }
-                    )
-                }
-
-                var weightText by remember(workoutParameters.weightPerCableKg, weightUnit) {
-                    mutableStateOf(kgToDisplay(workoutParameters.weightPerCableKg, weightUnit).toString())
-                }
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = {
-                        weightText = it
-                        it.toFloatOrNull()?.let { displayWeight ->
-                            val kg = displayToKg(displayWeight, weightUnit)
-                            onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
-                        }
-                    },
-                    label = { Text("Weight per cable (${weightUnit.name.lowercase()})") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                var repsText by remember(workoutParameters) {
-                    mutableStateOf(workoutParameters.reps.toString())
-                }
-                OutlinedTextField(
-                    value = repsText,
-                    onValueChange = {
-                        repsText = it
-                        it.toIntOrNull()?.let { reps ->
-                            onUpdateParameters(workoutParameters.copy(reps = reps))
-                        }
-                    },
-                    label = { Text("Target reps") },
+                // Weight Picker - Show "Adaptive" for Echo mode, otherwise CompactNumberPicker
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !workoutParameters.isJustLift
-                )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        if (workoutParameters.mode is WorkoutMode.Echo) {
+                            Text(
+                                "Weight per cable",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Adaptive",
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Echo mode adapts weight to your output",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            val weightRange = if (weightUnit == WeightUnit.LB) 1..220 else 1..100
+                            CompactNumberPicker(
+                                value = kgToDisplay(workoutParameters.weightPerCableKg, weightUnit).toInt(),
+                                onValueChange = { displayValue ->
+                                    val kg = displayToKg(displayValue.toFloat(), weightUnit)
+                                    onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
+                                },
+                                range = weightRange,
+                                label = "Weight per cable (${weightUnit.name.lowercase()})"
+                            )
+                        }
+                    }
+                }
+
+                // Reps Picker
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        if (!workoutParameters.isJustLift) {
+                            CompactNumberPicker(
+                                value = workoutParameters.reps,
+                                onValueChange = { reps ->
+                                    onUpdateParameters(workoutParameters.copy(reps = reps))
+                                },
+                                range = 1..50,
+                                label = "Target reps"
+                            )
+                        } else {
+                            Text(
+                                "Target reps",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "N/A",
+                                style = MaterialTheme.typography.displaySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "Just Lift mode doesn't use target reps",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                // Progression/Regression UI (only for certain modes)
+                if (workoutParameters.mode is WorkoutMode.Pump ||
+                    workoutParameters.mode is WorkoutMode.OldSchool ||
+                    workoutParameters.mode is WorkoutMode.EccentricOnly ||
+                    workoutParameters.mode is WorkoutMode.TUT ||
+                    workoutParameters.mode is WorkoutMode.TUTBeast
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                "Progression/Regression",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // FilterChips for Progression/Regression
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilterChip(
+                                    selected = workoutParameters.progressionRegressionKg >= 0,
+                                    onClick = {
+                                        onUpdateParameters(
+                                            workoutParameters.copy(
+                                                progressionRegressionKg = abs(workoutParameters.progressionRegressionKg)
+                                            )
+                                        )
+                                    },
+                                    label = { Text("Prog") },
+                                    leadingIcon = if (workoutParameters.progressionRegressionKg >= 0) {
+                                        { Icon(Icons.Default.KeyboardArrowUp, null, Modifier.size(16.dp)) }
+                                    } else null
+                                )
+
+                                FilterChip(
+                                    selected = workoutParameters.progressionRegressionKg < 0,
+                                    onClick = {
+                                        onUpdateParameters(
+                                            workoutParameters.copy(
+                                                progressionRegressionKg = -abs(workoutParameters.progressionRegressionKg)
+                                            )
+                                        )
+                                    },
+                                    label = { Text("Regr") },
+                                    leadingIcon = if (workoutParameters.progressionRegressionKg < 0) {
+                                        { Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(16.dp)) }
+                                    } else null
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Amount picker
+                            val progRegressionRange = if (weightUnit == WeightUnit.LB) 0..6 else 0..3
+                            CompactNumberPicker(
+                                value = kgToDisplay(abs(workoutParameters.progressionRegressionKg), weightUnit).toInt(),
+                                onValueChange = { displayValue ->
+                                    val kg = displayToKg(displayValue.toFloat(), weightUnit)
+                                    val isProgression = workoutParameters.progressionRegressionKg >= 0
+                                    onUpdateParameters(
+                                        workoutParameters.copy(
+                                            progressionRegressionKg = if (isProgression) kg else -kg
+                                        )
+                                    )
+                                },
+                                range = progRegressionRange,
+                                label = "Amount (${weightUnit.name.lowercase()})"
+                            )
+                        }
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -419,7 +565,8 @@ fun WorkoutSetupDialog(
         },
         confirmButton = {
             Button(
-                onClick = onStartWorkout
+                onClick = onStartWorkout,
+                enabled = selectedExercise != null
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Start workout")
                 Spacer(modifier = Modifier.width(Spacing.small))
@@ -432,6 +579,328 @@ fun WorkoutSetupDialog(
             }
         }
     )
+
+    // Exercise Picker Dialog
+    ExercisePickerDialog(
+        showDialog = showExercisePicker,
+        onDismiss = { showExercisePicker = false },
+        onExerciseSelected = { exercise ->
+            selectedExercise = exercise
+            onUpdateParameters(workoutParameters.copy(selectedExerciseId = exercise.id))
+        },
+        exerciseRepository = exerciseRepository
+    )
+
+    // Mode Sub-Selector Dialog
+    if (showModeSubSelector && modeSubSelectorType != null) {
+        ModeSubSelectorDialog(
+            type = modeSubSelectorType!!,
+            workoutParameters = workoutParameters,
+            onDismiss = { showModeSubSelector = false },
+            onSelect = { mode, eccentricLoad ->
+                onUpdateParameters(workoutParameters.copy(mode = mode, eccentricLoad = eccentricLoad))
+                showModeSubSelector = false
+            }
+        )
+    }
+}
+
+/**
+ * Compact Number Picker with +/- buttons and drag support
+ * Height: 80dp for easy interaction
+ */
+@Composable
+fun CompactNumberPicker(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    range: IntRange,
+    label: String = "",
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    var accumulatedDrag by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (label.isNotEmpty()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Minus button
+            IconButton(
+                onClick = {
+                    if (value > range.first) {
+                        onValueChange(value - 1)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    }
+                },
+                enabled = value > range.first
+            ) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Decrease")
+            }
+
+            // Center draggable area with value
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = {
+                                isDragging = true
+                                accumulatedDrag = 0f
+                            },
+                            onDragEnd = {
+                                isDragging = false
+                                accumulatedDrag = 0f
+                            },
+                            onDragCancel = {
+                                isDragging = false
+                                accumulatedDrag = 0f
+                            },
+                            onDrag = { _, dragAmount ->
+                                accumulatedDrag -= dragAmount.y
+                                if (kotlin.math.abs(accumulatedDrag) >= 3f) {
+                                    val steps = (accumulatedDrag / 3f).toInt()
+                                    val newValue = (value + steps).coerceIn(range)
+                                    if (newValue != value) {
+                                        onValueChange(newValue)
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                    accumulatedDrag = 0f
+                                }
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Show adjacent numbers only while dragging
+                    if (isDragging && value < range.last) {
+                        Text(
+                            text = (value + 1).toString(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+                    
+                    // Current value
+                    Text(
+                        text = value.toString(),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    // Show adjacent numbers only while dragging
+                    if (isDragging && value > range.first) {
+                        Text(
+                            text = (value - 1).toString(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+            }
+
+            // Plus button
+            IconButton(
+                onClick = {
+                    if (value < range.last) {
+                        onValueChange(value + 1)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    }
+                },
+                enabled = value < range.last
+            ) {
+                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Increase")
+            }
+        }
+    }
+}
+
+/**
+ * Mode Sub-Selector Dialog for hierarchical workout modes (TUT and Echo)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModeSubSelectorDialog(
+    type: String,
+    workoutParameters: WorkoutParameters,
+    onDismiss: () -> Unit,
+    onSelect: (WorkoutMode, EccentricLoad?) -> Unit
+) {
+    when (type) {
+        "TUT" -> {
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("Select TUT Variant") },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(16.dp),
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onSelect(WorkoutMode.TUT, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("TUT")
+                        }
+                        OutlinedButton(
+                            onClick = { onSelect(WorkoutMode.TUTBeast, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("TUT Beast")
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+        "Echo" -> {
+            var selectedEchoLevel by remember { 
+                mutableStateOf(
+                    if (workoutParameters.mode is WorkoutMode.Echo) {
+                        (workoutParameters.mode as WorkoutMode.Echo).level
+                    } else {
+                        EchoLevel.HARD
+                    }
+                )
+            }
+            var selectedEccentricLoad by remember { 
+                mutableStateOf(workoutParameters.eccentricLoad ?: EccentricLoad.LOAD_100) 
+            }
+            var showEchoLevelMenu by remember { mutableStateOf(false) }
+            var showEccentricMenu by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("Echo Mode Configuration") },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(16.dp),
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                    ) {
+                        Text(
+                            "Echo adapts resistance to your output",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.small))
+
+                        // Echo Level Dropdown
+                        ExposedDropdownMenuBox(
+                            expanded = showEchoLevelMenu,
+                            onExpandedChange = { showEchoLevelMenu = !showEchoLevelMenu }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedEchoLevel.displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Echo Level") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = showEchoLevelMenu)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = showEchoLevelMenu,
+                                onDismissRequest = { showEchoLevelMenu = false }
+                            ) {
+                                listOf(EchoLevel.HARD, EchoLevel.HARDER, EchoLevel.HARDEST, EchoLevel.EPIC).forEach { level ->
+                                    DropdownMenuItem(
+                                        text = { Text(level.displayName) },
+                                        onClick = {
+                                            selectedEchoLevel = level
+                                            showEchoLevelMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Eccentric Load Dropdown
+                        ExposedDropdownMenuBox(
+                            expanded = showEccentricMenu,
+                            onExpandedChange = { showEccentricMenu = !showEccentricMenu }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedEccentricLoad.displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Eccentric Load") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = showEccentricMenu)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = showEccentricMenu,
+                                onDismissRequest = { showEccentricMenu = false }
+                            ) {
+                                listOf(
+                                    EccentricLoad.LOAD_0,
+                                    EccentricLoad.LOAD_50,
+                                    EccentricLoad.LOAD_75,
+                                    EccentricLoad.LOAD_100,
+                                    EccentricLoad.LOAD_125,
+                                    EccentricLoad.LOAD_150
+                                ).forEach { load ->
+                                    DropdownMenuItem(
+                                        text = { Text(load.displayName) },
+                                        onClick = {
+                                            selectedEccentricLoad = load
+                                            showEccentricMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // Update both mode and eccentric load
+                            onSelect(WorkoutMode.Echo(selectedEchoLevel), selectedEccentricLoad)
+                        }
+                    ) {
+                        Text("Select")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -665,10 +1134,10 @@ fun WorkoutParametersCard(
                             )
                             Spacer(modifier = Modifier.height(Spacing.medium))
                             listOf(
-                                EchoLevel.LEVEL_1 to "Level 1 - Beginner (75% eccentric)",
-                                EchoLevel.LEVEL_2 to "Level 2 - Intermediate",
-                                EchoLevel.LEVEL_3 to "Level 3 - Advanced",
-                                EchoLevel.LEVEL_4 to "Level 4 - Expert"
+                                EchoLevel.HARD to "Hard",
+                                EchoLevel.HARDER to "Harder",
+                                EchoLevel.HARDEST to "Hardest",
+                                EchoLevel.EPIC to "Epic"
                             ).forEach { (level, label) ->
                                 OutlinedButton(
                                     onClick = {
