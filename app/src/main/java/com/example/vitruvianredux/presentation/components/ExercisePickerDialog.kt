@@ -97,8 +97,6 @@ fun ExercisePickerDialog(
     exerciseRepository: ExerciseRepository,
     modifier: Modifier = Modifier
 ) {
-    // Cache for exercise videos
-    val videoCache = remember { mutableStateMapOf<String, List<ExerciseVideoEntity>>() }
     if (!showDialog) return
 
     // Local state for search and filter
@@ -258,13 +256,12 @@ fun ExercisePickerDialog(
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(exercises) { exercise ->
-                        ExerciseItem(
+                        ExerciseListItem(
                             exercise = exercise,
                             exerciseRepository = exerciseRepository,
-                            videoCache = videoCache,
                             onClick = {
                                 onExerciseSelected(exercise)
                                 onDismiss()
@@ -278,41 +275,34 @@ fun ExercisePickerDialog(
 }
 
 /**
- * Individual exercise item with video thumbnail
+ * Exercise list item - Single exercise in picker list
  */
 @Composable
-private fun ExerciseItem(
+private fun ExerciseListItem(
     exercise: ExerciseEntity,
     exerciseRepository: ExerciseRepository,
-    videoCache: MutableMap<String, List<ExerciseVideoEntity>>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Video dialog state
+    // Load video thumbnail
+    var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
+    var isLoadingVideo by remember { mutableStateOf(true) }
     var showVideoDialog by remember { mutableStateOf(false) }
     
-    // Get videos for this exercise from cache or repository
-    var videos by remember(exercise.id) { mutableStateOf(videoCache[exercise.id] ?: emptyList()) }
-    
-    // Load videos if not in cache
     LaunchedEffect(exercise.id) {
-        if (!videoCache.containsKey(exercise.id)) {
-            val loadedVideos = exerciseRepository.getVideos(exercise.id)
-            videoCache[exercise.id] = loadedVideos
-            videos = loadedVideos
+        try {
+            videos = exerciseRepository.getVideos(exercise.id)
+            isLoadingVideo = false
+        } catch (e: Exception) {
+            isLoadingVideo = false
         }
     }
     
-    // Get first video thumbnail
-    val thumbnailUrl = remember(videos) {
-        videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
-            ?: videos.firstOrNull()?.thumbnailUrl
-    }
+    // Get preferred thumbnail (FRONT angle preferred, or first available)
+    val thumbnailUrl = videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
+        ?: videos.firstOrNull()?.thumbnailUrl
     
-    // Loading state for video
-    var isLoadingVideo by remember { mutableStateOf(false) }
-    
-    // Show video dialog if videos available
+    // Video dialog
     if (showVideoDialog && videos.isNotEmpty()) {
         ExerciseVideoDialog(
             exerciseName = exercise.name,
@@ -322,20 +312,13 @@ private fun ExerciseItem(
     }
     
     ListItem(
-        headlineContent = {
-            Text(
-                text = exercise.name,
-                style = MaterialTheme.typography.bodyLarge
-            )
-        },
+        headlineContent = { Text(exercise.name) },
         supportingContent = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 // Muscle groups - always on first line
-                if (exercise.muscleGroups.isNotBlank() && exercise.muscleGroups.lowercase() != "null") {
+                if (exercise.muscleGroups.isNotBlank()) {
                     Text(
-                        text = exercise.muscleGroups,
+                        text = "Muscle Group: ${exercise.muscleGroups.split(",").joinToString(", ") { it.trim().lowercase().replaceFirstChar { c -> c.uppercase() } }}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
