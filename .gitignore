@@ -17,3 +17,7 @@ docs/LAST_SESSION.md
 /docs
 /scripts
 /CLAUDE.md
+
+# Session memory files (root directory)
+LAST_SESSION.md
+CHANGELOG.md

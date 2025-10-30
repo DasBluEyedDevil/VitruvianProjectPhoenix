@@ -1,6 +1,18 @@
 package com.example.vitruvianredux.domain.model
 
 /**
+ * Personal record for an exercise
+ */
+data class PersonalRecord(
+    val id: Long = 0,
+    val exerciseId: String,
+    val weightPerCableKg: Float,
+    val reps: Int,
+    val timestamp: Long,
+    val workoutMode: String
+)
+
+/**
  * Connection state sealed class representing BLE connection states
  */
 sealed class ConnectionState {
@@ -39,11 +51,23 @@ sealed class WorkoutMode(val modeValue: Int, val displayName: String) {
 /**
  * Echo mode difficulty levels
  */
-enum class EchoLevel(val levelValue: Int) {
-    LEVEL_1(0),
-    LEVEL_2(1),
-    LEVEL_3(2),
-    LEVEL_4(3)
+enum class EchoLevel(val levelValue: Int, val displayName: String) {
+    HARD(0, "Hard"),
+    HARDER(1, "Harder"),
+    HARDEST(2, "Hardest"),
+    EPIC(3, "Epic")
+}
+
+/**
+ * Eccentric load percentage for Echo mode
+ */
+enum class EccentricLoad(val percentage: Int, val displayName: String) {
+    LOAD_0(0, "0%"),
+    LOAD_50(50, "50%"),
+    LOAD_75(75, "75%"),
+    LOAD_100(100, "100%"),
+    LOAD_125(125, "125%"),
+    LOAD_150(150, "150%")
 }
 
 /**
@@ -60,10 +84,12 @@ data class WorkoutParameters(
     val mode: WorkoutMode,
     val reps: Int,
     val weightPerCableKg: Float,
-    val progressionKg: Float = 0f,
+    val progressionRegressionKg: Float = 0f,  // Positive = progression, negative = regression
     val isJustLift: Boolean = false,
     val stopAtTop: Boolean = false,
-    val warmupReps: Int = 3
+    val warmupReps: Int = 3,
+    val selectedExerciseId: String? = null,
+    val eccentricLoad: EccentricLoad? = EccentricLoad.LOAD_100
 )
 
 /**

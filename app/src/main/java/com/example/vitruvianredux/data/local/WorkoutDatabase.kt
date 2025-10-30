@@ -19,13 +19,15 @@ import androidx.room.TypeConverters
         RoutineEntity::class,
         RoutineExerciseEntity::class,
         ExerciseEntity::class,
-        ExerciseVideoEntity::class
+        ExerciseVideoEntity::class,
+        PersonalRecordEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
     abstract fun exerciseDao(): ExerciseDao
+    abstract fun personalRecordDao(): PersonalRecordDao
 }

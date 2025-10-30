@@ -2,9 +2,11 @@
 <resources>
 
     <style name="Theme.VitruvianRedux" parent="android:Theme.Material.Light.NoActionBar">
-        <!-- Show a simple splash background while the app draws its first frame (pre-Android 12) -->
-        <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">false</item>
+    </style>
+
+    <style name="Theme.App.Starting" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
     </style>
 </resources>
