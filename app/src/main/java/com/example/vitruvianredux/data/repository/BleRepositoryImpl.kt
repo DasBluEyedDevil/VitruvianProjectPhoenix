@@ -351,10 +351,10 @@ class BleRepositoryImpl @Inject constructor(
             }
 
             Timber.d("Workout started with mode: ${params.mode.displayName}")
-            
-            // NOW start polling (matching web app behavior)
-            Timber.d("Starting polling...")
-            bleManager?.startPropertyPolling()
+
+            // Start monitor polling for workout data (100ms interval)
+            // Property polling already running as keep-alive from connection time
+            Timber.d("Starting monitor polling for workout...")
             bleManager?.startMonitorPolling()
             
             Result.success(Unit)

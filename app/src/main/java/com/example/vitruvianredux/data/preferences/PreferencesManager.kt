@@ -24,6 +24,7 @@ class PreferencesManager @Inject constructor(
     private val context: Context
 ) {
     private val WEIGHT_UNIT_KEY = stringPreferencesKey("weight_unit")
+    private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
 
     /**
      * Flow of user preferences
@@ -37,8 +38,9 @@ class PreferencesManager @Inject constructor(
                 Timber.w(e, "Invalid weight unit in preferences: $weightUnitString, defaulting to KG")
                 WeightUnit.KG
             }
+            val autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true
             
-            UserPreferences(weightUnit = weightUnit)
+            UserPreferences(weightUnit = weightUnit, autoplayEnabled = autoplayEnabled)
         }
 
     /**
@@ -49,5 +51,15 @@ class PreferencesManager @Inject constructor(
             preferences[WEIGHT_UNIT_KEY] = unit.name
         }
         Timber.d("Weight unit preference set to: ${unit.name}")
+    }
+
+    /**
+     * Set the autoplay enabled preference
+     */
+    suspend fun setAutoplayEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[AUTOPLAY_ENABLED_KEY] = enabled
+        }
+        Timber.d("Autoplay enabled preference set to: $enabled")
     }
 }

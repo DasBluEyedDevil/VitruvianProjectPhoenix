@@ -27,6 +27,7 @@ import com.example.vitruvianredux.domain.model.CableConfiguration
 import com.example.vitruvianredux.domain.model.Exercise
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.RoutineExercise
+import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.resolveDefaultCableConfig
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.ui.theme.*
@@ -37,7 +38,10 @@ fun RoutineBuilderDialog(
     routine: Routine? = null,
     onSave: (Routine) -> Unit,
     onDismiss: () -> Unit,
-    exerciseRepository: ExerciseRepository
+    exerciseRepository: ExerciseRepository,
+    weightUnit: WeightUnit,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float
 ) {
     var name by remember { mutableStateOf(routine?.name ?: "") }
     var description by remember { mutableStateOf(routine?.description ?: "") }
@@ -316,10 +320,13 @@ fun RoutineBuilderDialog(
         exerciseRepository = exerciseRepository
     )
 
-    // Exercise edit dialog
+    // Exercise edit bottom sheet
     exerciseToEdit?.let { (index, exercise) ->
-        ExerciseEditDialog(
+        ExerciseEditBottomSheet(
             exercise = exercise,
+            weightUnit = weightUnit,
+            kgToDisplay = kgToDisplay,
+            displayToKg = displayToKg,
             onSave = { updatedExercise ->
                 exercises = if (index < exercises.size) {
                     exercises.mapIndexed { i, ex -> if (i == index) updatedExercise else ex }
