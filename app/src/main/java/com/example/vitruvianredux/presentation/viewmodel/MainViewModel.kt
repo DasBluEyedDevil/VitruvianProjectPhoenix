@@ -14,6 +14,7 @@ import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import com.example.vitruvianredux.service.WorkoutForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,10 +22,16 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlin.math.ceil
 
@@ -95,9 +102,112 @@ class MainViewModel @Inject constructor(
     private val _currentSetIndex = MutableStateFlow(0)
     val currentSetIndex: StateFlow<Int> = _currentSetIndex.asStateFlow()
 
+    // Weekly Programs
+    val weeklyPrograms: StateFlow<List<com.example.vitruvianredux.data.local.WeeklyProgramWithDays>> =
+        workoutRepository.getAllPrograms()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+
+    val activeProgram: StateFlow<com.example.vitruvianredux.data.local.WeeklyProgramWithDays?> =
+        workoutRepository.getActiveProgram()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = null
+            )
+
+    // Personal Records
+    val personalBests: StateFlow<List<com.example.vitruvianredux.data.local.PersonalRecordEntity>> =
+        workoutRepository.getAllPersonalRecords()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+
+    // ========== Stats for HomeScreen ==========
+
+    // All workout sessions for stats calculation
+    val allWorkoutSessions: StateFlow<List<WorkoutSession>> =
+        workoutRepository.getAllSessions()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+
+    // Total completed workouts
+    val completedWorkouts: StateFlow<Int?> = allWorkoutSessions.map { sessions ->
+        sessions.size.takeIf { it > 0 }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Current workout streak (consecutive days)
+    val workoutStreak: StateFlow<Int?> = allWorkoutSessions.map { sessions ->
+        if (sessions.isEmpty()) {
+            return@map null
+        }
+
+        val workoutDates = sessions
+            .map { Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() }
+            .distinct()
+            .sortedDescending()
+
+        // Check if streak is current (workout today or yesterday)
+        val today = LocalDate.now()
+        val lastWorkoutDate = workoutDates.first()
+        if (lastWorkoutDate.isBefore(today.minusDays(1))) {
+            return@map null // Streak broken
+        }
+
+        var streak = 1
+        for (i in 1 until workoutDates.size) {
+            if (workoutDates[i] == workoutDates[i-1].minusDays(1)) {
+                streak++
+            } else {
+                break // Found a gap
+            }
+        }
+        streak
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Progress percentage (volume change between last two workouts)
+    val progressPercentage: StateFlow<Int?> = allWorkoutSessions.map { sessions ->
+        if (sessions.size < 2) {
+            return@map null
+        }
+
+        // Sessions are already sorted by timestamp DESC from repository
+        val latestSession = sessions[0]
+        val previousSession = sessions[1]
+
+        // Volume = (Total Weight) * (Total Reps). Weight is per cable, so multiply by 2.
+        val latestVolume = (latestSession.weightPerCableKg * 2) * latestSession.totalReps
+        val previousVolume = (previousSession.weightPerCableKg * 2) * previousSession.totalReps
+
+        if (previousVolume <= 0f) {
+            return@map null
+        }
+
+        val percentageChange = ((latestVolume - previousVolume) / previousVolume) * 100
+        percentageChange.toInt()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     // Feature 1: Dialog state for workout setup
     private val _isWorkoutSetupDialogVisible = MutableStateFlow(false)
     val isWorkoutSetupDialogVisible: StateFlow<Boolean> = _isWorkoutSetupDialogVisible.asStateFlow()
+
+    // Auto-connect UI state
+    private val _isAutoConnecting = MutableStateFlow(false)
+    val isAutoConnecting: StateFlow<Boolean> = _isAutoConnecting.asStateFlow()
+
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
+
+    // Pending callback for after connection completes
+    private var _pendingConnectionCallback: (() -> Unit)? = null
 
     // Haptic feedback events
     private val _hapticEvents = MutableSharedFlow<HapticEvent>(
@@ -333,9 +443,88 @@ class MainViewModel @Inject constructor(
             val result = bleRepository.connectToDevice(deviceAddress)
             if (result.isFailure) {
                 Timber.e("Failed to connect: ${result.exceptionOrNull()?.message}")
+            } else {
+                // Wait for connection to be established
+                connectionState
+                    .filter { it is ConnectionState.Connected }
+                    .take(1)
+                    .collect {
+                        // Call pending callback if any
+                        _pendingConnectionCallback?.invoke()
+                        _pendingConnectionCallback = null
+                    }
             }
         }
     }
+
+    /**
+     * Ensures BLE connection before proceeding with callback.
+     * If already connected, immediately calls onConnected.
+     * If not connected, starts scan and shows device selection dialog.
+     */
+    fun ensureConnection(onConnected: () -> Unit, onFailed: () -> Unit = {}) {
+        viewModelScope.launch {
+            when (connectionState.value) {
+                is ConnectionState.Connected -> {
+                    onConnected()
+                }
+                else -> {
+                    _isAutoConnecting.value = true
+                    _connectionError.value = null
+
+                    // Start scanning
+                    startScanning()
+
+                    // Wait for first discovered device (with timeout)
+                    val found = withTimeoutOrNull(30000) {
+                        scannedDevices
+                            .filter { it.isNotEmpty() }
+                            .take(1)
+                            .collect { devices ->
+                                stopScanning()
+                                val device = devices.firstOrNull()
+                                if (device != null) {
+                                    _pendingConnectionCallback = onConnected
+                                    connectToDevice(device.address)
+
+                                    // Wait for connection to resolve from Connecting -> (Connected|Disconnected|Error)
+                                    connectionState
+                                        .filter { it !is ConnectionState.Connecting }
+                                        .take(1)
+                                        .collect { state ->
+                                            _isAutoConnecting.value = false
+                                            if (state is ConnectionState.Connected) {
+                                                onConnected()
+                                            } else {
+                                                _connectionError.value = "Connection failed"
+                                                onFailed()
+                                            }
+                                        }
+                                } else {
+                                    _isAutoConnecting.value = false
+                                    _connectionError.value = "No device found"
+                                    onFailed()
+                                }
+                            }
+                    }
+
+                    if (found == null) {
+                        // Timeout
+                        stopScanning()
+                        _isAutoConnecting.value = false
+                        _connectionError.value = "Scan timeout - no device found"
+                        onFailed()
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearConnectionError() {
+        _connectionError.value = null
+    }
+
+    // Device selection dialog removed in favor of auto-connect flow
 
     fun disconnect() {
         viewModelScope.launch {
@@ -609,6 +798,23 @@ class MainViewModel @Inject constructor(
             workoutRepository.saveMetrics(sessionId, collectedMetrics)
         }
 
+        // Track personal record if exercise is selected
+        params.selectedExerciseId?.let { exerciseId ->
+            // Only track PRs for completed working sets (not warmups, not just lift)
+            if (working > 0 && !params.isJustLift) {
+                val isNewPR = workoutRepository.updatePersonalRecordIfNeeded(
+                    exerciseId = exerciseId,
+                    weightPerCableKg = actualPerCableWeightKg,
+                    reps = working,
+                    workoutMode = params.mode.displayName
+                )
+                if (isNewPR) {
+                    Timber.d("NEW PERSONAL RECORD! Exercise: $exerciseId, Weight: ${actualPerCableWeightKg}kg, Reps: $working")
+                    // TODO: Show PR celebration UI notification
+                }
+            }
+        }
+
         Timber.d("Saved workout session: $sessionId with ${collectedMetrics.size} metrics")
     }
 
@@ -850,6 +1056,62 @@ class MainViewModel @Inject constructor(
         val routine = _loadedRoutine.value ?: return null
         val index = _currentExerciseIndex.value
         return routine.exercises.getOrNull(index)
+    }
+
+    // ========== Weekly Programs ==========
+
+    /**
+     * Save a weekly program
+     */
+    fun saveProgram(program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays) {
+        viewModelScope.launch {
+            val result = workoutRepository.saveProgram(program)
+            if (result.isSuccess) {
+                Timber.d("Saved weekly program: ${program.program.title}")
+            } else {
+                Timber.e("Failed to save weekly program: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    /**
+     * Delete a weekly program
+     */
+    fun deleteProgram(programId: String) {
+        viewModelScope.launch {
+            val result = workoutRepository.deleteProgram(programId)
+            if (result.isSuccess) {
+                Timber.d("Deleted weekly program: $programId")
+            } else {
+                Timber.e("Failed to delete weekly program: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    /**
+     * Activate a weekly program
+     */
+    fun activateProgram(programId: String) {
+        viewModelScope.launch {
+            val result = workoutRepository.activateProgram(programId)
+            if (result.isSuccess) {
+                Timber.d("Activated weekly program: $programId")
+            } else {
+                Timber.e("Failed to activate weekly program: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    /**
+     * Load a routine by ID (for weekly program day selection)
+     */
+    fun loadRoutineById(routineId: String) {
+        viewModelScope.launch {
+            workoutRepository.getRoutineById(routineId)
+                .firstOrNull()?.let { routine ->
+                    loadRoutine(routine)
+                }
+        }
     }
 
     companion object {

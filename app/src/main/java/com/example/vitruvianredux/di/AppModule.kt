@@ -205,7 +205,7 @@ object AppModule {
      */
     private val MIGRATION_8_9 = object : Migration(8, 9) {
         override fun migrate(database: SupportSQLiteDatabase) {
-            // 1. Fix workout_sessions table: rename progressionKg → progressionRegressionKg
+            // 1. Fix workout_sessions table: rename progressionKg ? progressionRegressionKg
             // Create new table with correct schema
             database.execSQL("""
                 CREATE TABLE `workout_sessions_new` (
@@ -225,7 +225,7 @@ object AppModule {
                 )
             """.trimIndent())
 
-            // 2. Copy data from old table (progressionKg → progressionRegressionKg)
+            // 2. Copy data from old table (progressionKg ? progressionRegressionKg)
             database.execSQL("""
                 INSERT INTO `workout_sessions_new` (
                     id, timestamp, mode, reps, weightPerCableKg, progressionRegressionKg,
@@ -274,6 +274,112 @@ object AppModule {
                 ALTER TABLE routine_exercises
                 ADD COLUMN exerciseId TEXT DEFAULT NULL
             """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 10 to 11: Add weekly programs and program days tables
+     * Supports weekly program scheduling with routines assigned to specific days
+     */
+    private val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Create weekly_programs table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS weekly_programs (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    title TEXT NOT NULL,
+                    notes TEXT,
+                    isActive INTEGER NOT NULL DEFAULT 0,
+                    lastUsed INTEGER,
+                    createdAt INTEGER NOT NULL
+                )
+            """.trimIndent())
+
+            // Create program_days table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS program_days (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    programId TEXT NOT NULL,
+                    dayOfWeek INTEGER NOT NULL,
+                    routineId TEXT NOT NULL,
+                    FOREIGN KEY(programId) REFERENCES weekly_programs(id) ON DELETE CASCADE,
+                    FOREIGN KEY(routineId) REFERENCES routines(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create indices
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_program_days_programId ON program_days(programId)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_program_days_routineId ON program_days(routineId)")
+        }
+    }
+
+    /**
+     * Migration from version 11 to 12: Add per-set weights, mode, eccentricLoad, echoLevel, duration
+     * to routine_exercises
+     */
+    private val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add setWeights column to store comma-separated per-set weights
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN setWeights TEXT NOT NULL DEFAULT ''
+                """.trimIndent()
+            )
+
+            // Add mode column for selected workout mode per exercise
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN mode TEXT NOT NULL DEFAULT 'OldSchool'
+                """.trimIndent()
+            )
+
+            // Add eccentricLoad (percentage) and echoLevel (difficulty level) columns
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN eccentricLoad INTEGER NOT NULL DEFAULT 100
+                """.trimIndent()
+            )
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN echoLevel INTEGER NOT NULL DEFAULT 2
+                """.trimIndent()
+            )
+
+            // Add duration column for duration-based sets (in seconds)
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN duration INTEGER DEFAULT NULL
+                """.trimIndent()
+            )
+        }
+    }
+
+    /**
+     * Migration from version 12 to 13: Add Echo mode fields to workout_sessions
+     * Adds eccentricLoad and echoLevel to persist Echo mode configuration in workout history
+     */
+    private val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add eccentricLoad column (percentage: 0, 50, 75, 100, 125, 150)
+            database.execSQL(
+                """
+                ALTER TABLE workout_sessions
+                ADD COLUMN eccentricLoad INTEGER NOT NULL DEFAULT 100
+                """.trimIndent()
+            )
+
+            // Add echoLevel column (difficulty: 1=Hard, 2=Harder, 3=Hardest, 4=Epic)
+            database.execSQL(
+                """
+                ALTER TABLE workout_sessions
+                ADD COLUMN echoLevel INTEGER NOT NULL DEFAULT 2
+                """.trimIndent()
+            )
         }
     }
 
@@ -356,7 +462,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
         .build()
     }
 
@@ -368,8 +474,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideWorkoutRepository(workoutDao: WorkoutDao): WorkoutRepository {
-        return WorkoutRepository(workoutDao)
+    fun provideWorkoutRepository(
+        workoutDao: WorkoutDao,
+        personalRecordDao: PersonalRecordDao
+    ): WorkoutRepository {
+        return WorkoutRepository(workoutDao, personalRecordDao)
     }
 
     @Provides

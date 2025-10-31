@@ -307,10 +307,10 @@ object ProtocolBuilder {
         )
 
         return when (level) {
-            EchoLevel.HARD -> params.copy(gain = 1.0f, cap = 50.0f)
-            EchoLevel.HARDER -> params.copy(gain = 1.25f, cap = 40.0f)
-            EchoLevel.HARDEST -> params.copy(gain = 1.667f, cap = 30.0f)
-            EchoLevel.EPIC -> params.copy(gain = 3.333f, cap = 15.0f)
+            EchoLevel.HARD -> params.copy(gain = 0.75f, cap = 55.0f)
+            EchoLevel.HARDER -> params.copy(gain = 1.0f, cap = 50.0f)
+            EchoLevel.HARDEST -> params.copy(gain = 1.25f, cap = 40.0f)
+            EchoLevel.EPIC -> params.copy(gain = 1.667f, cap = 30.0f)
         }
     }
 

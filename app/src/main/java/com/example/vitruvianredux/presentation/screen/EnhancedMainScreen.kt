@@ -20,13 +20,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.compose.rememberNavController
 import com.example.vitruvianredux.domain.model.ConnectionState
+import com.example.vitruvianredux.presentation.navigation.BottomNavItem
+import com.example.vitruvianredux.presentation.navigation.NavGraph
+import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ScannedDevice
 import com.example.vitruvianredux.ui.theme.*
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -35,22 +40,19 @@ fun EnhancedMainScreen(
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository = hiltViewModel<MainViewModel>().exerciseRepository
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
-    val workoutState by viewModel.workoutState.collectAsState()
-    val currentMetric by viewModel.currentMetric.collectAsState()
-    val workoutParameters by viewModel.workoutParameters.collectAsState()
-    val repCount by viewModel.repCount.collectAsState()
-    val autoStopState by viewModel.autoStopState.collectAsState()
-    val scannedDevices by viewModel.scannedDevices.collectAsState()
-    val workoutHistory by viewModel.workoutHistory.collectAsState()
-    val weightUnit by viewModel.weightUnit.collectAsState()
-    val userPreferences by viewModel.userPreferences.collectAsState()
-    val isWorkoutSetupDialogVisible by viewModel.isWorkoutSetupDialogVisible.collectAsState()
-    val routines by viewModel.routines.collectAsState()
-    val loadedRoutine by viewModel.loadedRoutine.collectAsState()
-    val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(0) }
-    var showDeviceSelector by remember { mutableStateOf(false) }
+    val themeViewModel: ThemeViewModel = hiltViewModel()
+    val themeMode by themeViewModel.themeMode.collectAsState()
+
+    val navController = rememberNavController()
+    var currentRoute by remember { mutableStateOf(NavigationRoutes.Home.route) }
+
+    // Track navigation changes
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { backStackEntry ->
+            currentRoute = backStackEntry.destination.route ?: NavigationRoutes.Home.route
+        }
+    }
 
     // Request BLE permissions
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -82,83 +84,184 @@ fun EnhancedMainScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
-                    when (connectionState) {
-                        is ConnectionState.Connected -> {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Connected",
-                                tint = MaterialTheme.colorScheme.onPrimary
+                    IconButton(onClick = {
+                        if (connectionState is ConnectionState.Connected) {
+                            viewModel.disconnect()
+                        }
+                    }) {
+                        when (connectionState) {
+                            is ConnectionState.Connected -> Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = "Connected - Tap to disconnect",
+                                tint = Color(0xFF4CAF50)
+                            )
+                            is ConnectionState.Connecting,
+                            is ConnectionState.Scanning -> CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                            else -> Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Disconnected",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
                         }
-                        is ConnectionState.Scanning -> {
-                            CircularProgressIndicator(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .padding(end = 8.dp),
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                        else -> {}
                     }
                 }
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface
+            BottomAppBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.height(80.dp)
             ) {
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Workout tab") },
-                    label = { Text("Workout") },
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.outline,
-                        unselectedTextColor = MaterialTheme.colorScheme.outline,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "History tab") },
-                    label = { Text("History") },
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.outline,
-                        unselectedTextColor = MaterialTheme.colorScheme.outline,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.FavoriteBorder, contentDescription = "Routines tab") },
-                    label = { Text("Routines") },
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.outline,
-                        unselectedTextColor = MaterialTheme.colorScheme.outline,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                )
-                NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings tab") },
-                    label = { Text("Settings") },
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        unselectedIconColor = MaterialTheme.colorScheme.outline,
-                        unselectedTextColor = MaterialTheme.colorScheme.outline,
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // LEFT: Analytics (small)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        IconButton(
+                            onClick = {
+                                navController.navigate(NavigationRoutes.Analytics.route) {
+                                    popUpTo(NavigationRoutes.Home.route)
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.BarChart,
+                                    "Analytics",
+                                    tint = if (currentRoute == NavigationRoutes.Analytics.route)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    "Analytics",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (currentRoute == NavigationRoutes.Analytics.route)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                        // Active indicator
+                        if (currentRoute == NavigationRoutes.Analytics.route) {
+                            androidx.compose.foundation.Canvas(
+                                modifier = Modifier
+                                    .width(64.dp)
+                                    .height(4.dp)
+                            ) {
+                                drawRoundRect(
+                                    color = androidx.compose.ui.graphics.Color(0xFF9333EA),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+
+                    // CENTER: Workouts (LARGER - FloatingActionButton)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        FloatingActionButton(
+                            onClick = {
+                                navController.navigate(NavigationRoutes.Home.route) {
+                                    popUpTo(NavigationRoutes.Home.route)
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            modifier = Modifier.size(64.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Home,
+                                    "Workouts",
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Text(
+                                    "Workouts",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        // Active indicator
+                        if (currentRoute == NavigationRoutes.Home.route) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            androidx.compose.foundation.Canvas(
+                                modifier = Modifier
+                                    .width(48.dp)
+                                    .height(4.dp)
+                            ) {
+                                drawRoundRect(
+                                    color = androidx.compose.ui.graphics.Color(0xFF9333EA),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+
+                    // RIGHT: Settings (small)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        IconButton(
+                            onClick = {
+                                navController.navigate(NavigationRoutes.Settings.route) {
+                                    popUpTo(NavigationRoutes.Home.route)
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    "Settings",
+                                    tint = if (currentRoute == NavigationRoutes.Settings.route)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    "Settings",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (currentRoute == NavigationRoutes.Settings.route)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                        // Active indicator
+                        if (currentRoute == NavigationRoutes.Settings.route) {
+                            androidx.compose.foundation.Canvas(
+                                modifier = Modifier
+                                    .width(64.dp)
+                                    .height(4.dp)
+                            ) {
+                                drawRoundRect(
+                                    color = androidx.compose.ui.graphics.Color(0xFF9333EA),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     ) { padding ->
@@ -168,91 +271,15 @@ fun EnhancedMainScreen(
                 modifier = Modifier.padding(padding)
             )
         } else {
-            when (selectedTab) {
-                0 -> WorkoutTab(
-                    connectionState = connectionState,
-                    workoutState = workoutState,
-                    currentMetric = currentMetric,
-                    workoutParameters = workoutParameters,
-                    repCount = repCount,
-                    autoStopState = autoStopState,
-                    weightUnit = weightUnit,
-                    isWorkoutSetupDialogVisible = isWorkoutSetupDialogVisible,
-                    hapticEvents = viewModel.hapticEvents,
-                    loadedRoutine = loadedRoutine,
-                    currentExerciseIndex = currentExerciseIndex,
-                    kgToDisplay = viewModel::kgToDisplay,
-                    displayToKg = viewModel::displayToKg,
-                    formatWeight = viewModel::formatWeight,
-                    onScan = {
-                        viewModel.startScanning()
-                        showDeviceSelector = true
-                    },
-                    onDisconnect = { viewModel.disconnect() },
-                    onStartWorkout = { viewModel.startWorkout() },
-                    onStopWorkout = { viewModel.stopWorkout() },
-                    onCancelRoutine = { viewModel.cancelRoutine() },
-                    onSkipRest = { viewModel.skipRest() },
-                    onResetForNewWorkout = { viewModel.resetForNewWorkout() },
-                    onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
-                    onShowWorkoutSetupDialog = { viewModel.showWorkoutSetupDialog() },
-                    onHideWorkoutSetupDialog = { viewModel.hideWorkoutSetupDialog() },
-                    exerciseRepository = exerciseRepository,
-                    modifier = Modifier.padding(padding)
-                )
-                1 -> HistoryTab(
-                    workoutHistory = workoutHistory,
-                    weightUnit = weightUnit,
-                    formatWeight = viewModel::formatWeight,
-                    onDeleteWorkout = { viewModel.deleteWorkout(it) },
-                    modifier = Modifier.padding(padding)
-                )
-                2 -> RoutinesTab(
-                    routines = routines,
-                    exerciseRepository = viewModel.exerciseRepository,
-                    weightUnit = weightUnit,
-                    kgToDisplay = viewModel::kgToDisplay,
-                    displayToKg = viewModel::displayToKg,
-                    onStartWorkout = { routine ->
-                        // Load routine and switch to workout tab
-                        viewModel.loadRoutine(routine)
-                        selectedTab = 0  // Switch to Workout tab
-                        viewModel.startWorkout()  // Start countdown immediately
-                    },
-                    onDeleteRoutine = { routineId -> viewModel.deleteRoutine(routineId) },
-                    onCreateRoutine = { /* Handled in RoutinesTab */ },
-                    onSaveRoutine = { routine -> viewModel.saveRoutine(routine) },
-                    onUpdateRoutine = { routine -> viewModel.updateRoutine(routine) },
-                    modifier = Modifier.padding(padding)
-                )
-                3 -> SettingsTab(
-                    weightUnit = weightUnit,
-                    autoplayEnabled = userPreferences.autoplayEnabled,
-                    onWeightUnitChange = { viewModel.setWeightUnit(it) },
-                    onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
-                    onColorSchemeChange = { viewModel.setColorScheme(it) },
-                    onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
-                    modifier = Modifier.padding(padding)
-                )
-            }
+            NavGraph(
+                navController = navController,
+                viewModel = viewModel,
+                exerciseRepository = exerciseRepository,
+                themeMode = themeMode,
+                onThemeModeChange = { mode -> themeViewModel.setThemeMode(mode) },
+                modifier = Modifier.padding(padding)
+            )
         }
-    }
-
-    if (showDeviceSelector) {
-        DeviceSelectorDialog(
-            devices = scannedDevices,
-            isScanning = connectionState is ConnectionState.Scanning,
-            onDeviceSelected = { device ->
-                viewModel.connectToDevice(device.address)
-                viewModel.stopScanning()
-                showDeviceSelector = false
-            },
-            onRescan = { viewModel.startScanning() },
-            onDismiss = {
-                viewModel.stopScanning()
-                showDeviceSelector = false
-            }
-        )
     }
 }
 

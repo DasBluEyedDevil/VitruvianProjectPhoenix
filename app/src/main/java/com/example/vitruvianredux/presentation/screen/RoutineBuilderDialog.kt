@@ -1,5 +1,9 @@
 package com.example.vitruvianredux.presentation.screen
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,6 +12,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
@@ -15,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -45,7 +53,8 @@ fun RoutineBuilderDialog(
     exerciseRepository: ExerciseRepository,
     weightUnit: WeightUnit,
     kgToDisplay: (Float, WeightUnit) -> Float,
-    displayToKg: (Float, WeightUnit) -> Float
+    displayToKg: (Float, WeightUnit) -> Float,
+    themeMode: ThemeMode
 ) {
     var name by remember { mutableStateOf(routine?.name ?: "") }
     var description by remember { mutableStateOf(routine?.description ?: "") }
@@ -55,19 +64,42 @@ fun RoutineBuilderDialog(
     var showExercisePicker by remember { mutableStateOf(false) }
     var exerciseToEdit by remember { mutableStateOf<Pair<Int, RoutineExercise>?>(null) }
 
+    val backgroundGradient = if (themeMode == ThemeMode.DARK) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0F172A), // slate-900
+                Color(0xFF1E1B4B), // indigo-950
+                Color(0xFF172554)  // blue-950
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFE0E7FF), // indigo-200 - soft lavender
+                Color(0xFFFCE7F3), // pink-100 - soft pink
+                Color(0xFFDDD6FE)  // violet-200 - soft violet
+            )
+        )
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.9f),
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface
+            color = Color.Transparent
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(Spacing.medium)
+                    .background(backgroundGradient)
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(Spacing.medium)
+                ) {
                 // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -172,8 +204,10 @@ fun RoutineBuilderDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = Spacing.small),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            shape = RoundedCornerShape(12.dp)
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                            border = BorderStroke(1.dp, Color(0xFFF5F3FF))
                         ) {
                             Box(
                                 modifier = Modifier
@@ -183,51 +217,60 @@ fun RoutineBuilderDialog(
                             ) {
                                 Text(
                                     "No exercises added yet",
-                                    color = MaterialTheme.colorScheme.outline,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }
                     } else {
-                        exercises.forEachIndexed { index, exercise ->
-                            ExerciseListItem(
-                                exercise = exercise,
-                                index = index,
-                                isFirst = index == 0,
-                                isLast = index == exercises.lastIndex,
-                                exerciseRepository = exerciseRepository,
-                                weightUnit = weightUnit,
-                                kgToDisplay = kgToDisplay,
-                                onEdit = { exerciseToEdit = Pair(index, exercise) },
-                                onDelete = {
-                                    exercises = exercises.filterIndexed { i, _ -> i != index }
-                                        .mapIndexed { i, ex -> ex.copy(orderIndex = i) }
-                                    showError = false
-                                },
-                                onMoveUp = {
-                                    if (index > 0) {
-                                        exercises = exercises.mapIndexed { i, ex ->
-                                            when (i) {
-                                                index -> exercises[index - 1].copy(orderIndex = index)
-                                                index - 1 -> exercises[index].copy(orderIndex = index - 1)
-                                                else -> ex
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.small),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)  // Take remaining space, prevents infinity constraints
+                        ) {
+                            itemsIndexed(
+                                items = exercises,
+                                key = { _, item -> item.id }
+                            ) { index, exercise ->
+                                ExerciseListItem(
+                                        exercise = exercise,
+                                        index = index,
+                                        isFirst = index == 0,
+                                        isLast = index == exercises.lastIndex,
+                                        exerciseRepository = exerciseRepository,
+                                        weightUnit = weightUnit,
+                                        kgToDisplay = kgToDisplay,
+                                        onEdit = { exerciseToEdit = Pair(index, exercise) },
+                                        onDelete = {
+                                            exercises = exercises.filterIndexed { i, _ -> i != index }
+                                                .mapIndexed { i, ex -> ex.copy(orderIndex = i) }
+                                            showError = false
+                                        },
+                                        onMoveUp = {
+                                            if (index > 0) {
+                                                exercises = exercises.mapIndexed { i, ex ->
+                                                    when (i) {
+                                                        index -> exercises[index - 1].copy(orderIndex = index)
+                                                        index - 1 -> exercises[index].copy(orderIndex = index - 1)
+                                                        else -> ex
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onMoveDown = {
+                                            if (index < exercises.lastIndex) {
+                                                exercises = exercises.mapIndexed { i, ex ->
+                                                    when (i) {
+                                                        index -> exercises[index + 1].copy(orderIndex = index)
+                                                        index + 1 -> exercises[index].copy(orderIndex = index + 1)
+                                                        else -> ex
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
-                                },
-                                onMoveDown = {
-                                    if (index < exercises.lastIndex) {
-                                        exercises = exercises.mapIndexed { i, ex ->
-                                            when (i) {
-                                                index -> exercises[index + 1].copy(orderIndex = index)
-                                                index + 1 -> exercises[index].copy(orderIndex = index + 1)
-                                                else -> ex
-                                            }
-                                        }
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.small))
+                                    )
+                            }
                         }
                     }
 
@@ -284,14 +327,22 @@ fun RoutineBuilderDialog(
                                 onSave(newRoutine)
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
-                        )
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("Save")
+                        Text(
+                            "Save",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
+            }
             }
         }
     }
@@ -314,7 +365,7 @@ fun RoutineBuilderDialog(
             val newRoutineExercise = RoutineExercise(
                 id = UUID.randomUUID().toString(),
                 exercise = exercise,
-                cableConfig = exercise.resolveDefaultCableConfig(), // Use helper to resolve EITHER → DOUBLE
+                cableConfig = exercise.resolveDefaultCableConfig(), // Use helper to resolve EITHER ? DOUBLE
                 orderIndex = exercises.size,
                 setReps = listOf(10, 10, 10),
                 weightPerCableKg = 20f,
@@ -335,6 +386,7 @@ fun RoutineBuilderDialog(
             weightUnit = weightUnit,
             kgToDisplay = kgToDisplay,
             displayToKg = displayToKg,
+            exerciseRepository = exerciseRepository,
             onSave = { updatedExercise ->
                 exercises = if (index < exercises.size) {
                     exercises.mapIndexed { i, ex -> if (i == index) updatedExercise else ex }
@@ -402,10 +454,24 @@ fun ExerciseListItem(
         }
     }
 
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.99f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = 400f
+        ),
+        label = "scale"
+    )
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
     ) {
         Row(
             modifier = Modifier
@@ -445,20 +511,13 @@ fun ExerciseListItem(
                 }
             }
 
-            // Left-center: Exercise thumbnail (larger)
-            ExerciseThumbnail(
-                thumbnailUrl = thumbnailUrl,
-                exerciseName = exercise.exercise.displayName,
-                isLoading = isLoadingVideo
-            )
-
             // Middle: Exercise details
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
                 // Calculate display values once
-                val weightSuffix = if (weightUnit == WeightUnit.LB) "lb" else "kg"
+                val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                 val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
 
                 // Exercise name
@@ -573,7 +632,10 @@ fun ExerciseListItem(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 IconButton(
-                    onClick = onEdit,
+                    onClick = {
+                        isPressed = true
+                        onEdit()
+                    },
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
@@ -595,6 +657,13 @@ fun ExerciseListItem(
                     )
                 }
             }
+        }
+    }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
         }
     }
 }
@@ -666,16 +735,16 @@ private fun ExerciseThumbnail(
 /**
  * Format the setReps list for display in the exercise list
  * Examples:
- * - [10, 10, 10] -> "3 × 10 reps"
+ * - [10, 10, 10] -> "3 x 10 reps"
  * - [10, 8, 6, 4] -> "4 sets: 10/8/6/4"
- * - [12] -> "1 × 12 reps"
+ * - [12] -> "1 x 12 reps"
  */
 private fun formatReps(setReps: List<Int>): String {
     if (setReps.isEmpty()) return "0 sets"
-    
+
     val allSame = setReps.all { it == setReps.first() }
     return if (allSame) {
-        "${setReps.size} × ${setReps.first()} reps"
+        "${setReps.size} x ${setReps.first()} reps"
     } else {
         "${setReps.size} sets: ${setReps.joinToString("/")}"
     }

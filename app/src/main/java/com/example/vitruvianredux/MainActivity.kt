@@ -8,9 +8,12 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import com.example.vitruvianredux.presentation.screen.EnhancedMainScreen
+import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
 import com.example.vitruvianredux.ui.theme.VitruvianReduxTheme
+import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -26,7 +29,9 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
         setContent {
-            VitruvianReduxTheme {
+            val themeViewModel: ThemeViewModel = hiltViewModel()
+            val themeMode = themeViewModel.themeMode.collectAsState().value
+            VitruvianReduxTheme(themeMode = themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

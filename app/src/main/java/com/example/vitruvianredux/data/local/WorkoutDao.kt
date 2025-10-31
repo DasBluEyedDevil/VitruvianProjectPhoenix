@@ -138,4 +138,58 @@ interface WorkoutDao {
         deleteExercisesForRoutine(routineId)
         deleteRoutineById(routineId)
     }
+
+    // ========== Weekly Programs ==========
+
+    @Query("SELECT * FROM weekly_programs ORDER BY lastUsed DESC")
+    fun getAllPrograms(): Flow<List<WeeklyProgramEntity>>
+
+    @Transaction
+    @Query("SELECT * FROM weekly_programs ORDER BY lastUsed DESC")
+    fun getAllProgramsWithDays(): Flow<List<WeeklyProgramWithDays>>
+
+    @Query("SELECT * FROM weekly_programs WHERE isActive = 1 LIMIT 1")
+    fun getActiveProgram(): Flow<WeeklyProgramEntity?>
+
+    @Transaction
+    @Query("SELECT * FROM weekly_programs WHERE isActive = 1 LIMIT 1")
+    fun getActiveProgramWithDays(): Flow<WeeklyProgramWithDays?>
+
+    @Query("SELECT * FROM weekly_programs WHERE id = :programId")
+    fun getProgramById(programId: String): Flow<WeeklyProgramEntity?>
+
+    @Transaction
+    @Query("SELECT * FROM weekly_programs WHERE id = :programId")
+    fun getProgramWithDaysById(programId: String): Flow<WeeklyProgramWithDays?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProgram(program: WeeklyProgramEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProgramDays(days: List<ProgramDayEntity>)
+
+    @Query("DELETE FROM program_days WHERE programId = :programId")
+    suspend fun deleteProgramDays(programId: String)
+
+    @Transaction
+    suspend fun insertProgramWithDays(program: WeeklyProgramEntity, days: List<ProgramDayEntity>) {
+        insertProgram(program)
+        deleteProgramDays(program.id)
+        insertProgramDays(days)
+    }
+
+    @Query("DELETE FROM weekly_programs WHERE id = :programId")
+    suspend fun deleteProgram(programId: String)
+
+    @Query("UPDATE weekly_programs SET isActive = 0")
+    suspend fun setAllProgramsInactive()
+
+    @Query("UPDATE weekly_programs SET isActive = 1, lastUsed = :timestamp WHERE id = :programId")
+    suspend fun setProgramActive(programId: String, timestamp: Long = System.currentTimeMillis())
+
+    @Transaction
+    suspend fun activateProgram(programId: String) {
+        setAllProgramsInactive()
+        setProgramActive(programId)
+    }
 }

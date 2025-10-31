@@ -360,7 +360,7 @@ private fun ExerciseListItem(
             )
         },
         trailingContent = {
-            // PR badge or NEW badge
+            // Show performance count only if exercise has been performed
             if (exercise.timesPerformed > 0) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -373,19 +373,8 @@ private fun ExerciseListItem(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-            } else {
-                Surface(
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "NEW",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
             }
+            // No badge for exercises never performed (removed "NEW" tag)
         },
         modifier = modifier.clickable(onClick = onClick)
     )
