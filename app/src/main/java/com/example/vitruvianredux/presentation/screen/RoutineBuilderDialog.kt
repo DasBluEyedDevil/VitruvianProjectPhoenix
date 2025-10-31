@@ -7,6 +7,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -31,6 +34,7 @@ import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.resolveDefaultCableConfig
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.ui.theme.*
+import timber.log.Timber
 import java.util.*
 
 @Composable
@@ -191,6 +195,9 @@ fun RoutineBuilderDialog(
                                 index = index,
                                 isFirst = index == 0,
                                 isLast = index == exercises.lastIndex,
+                                exerciseRepository = exerciseRepository,
+                                weightUnit = weightUnit,
+                                kgToDisplay = kgToDisplay,
                                 onEdit = { exerciseToEdit = Pair(index, exercise) },
                                 onDelete = {
                                     exercises = exercises.filterIndexed { i, _ -> i != index }
@@ -299,7 +306,8 @@ fun RoutineBuilderDialog(
                 name = selectedExercise.name,
                 muscleGroup = selectedExercise.muscleGroups.split(",").firstOrNull()?.trim() ?: "Full Body",
                 equipment = selectedExercise.equipment.split(",").firstOrNull()?.trim() ?: "",
-                defaultCableConfig = CableConfiguration.DOUBLE // Default to DOUBLE, user can override
+                defaultCableConfig = CableConfiguration.DOUBLE, // Default to DOUBLE, user can override
+                id = selectedExercise.id  // Store exercise library ID for loading videos/thumbnails
             )
 
             // Open exercise edit dialog with default values
@@ -350,94 +358,305 @@ fun ExerciseListItem(
     index: Int,
     isFirst: Boolean,
     isLast: Boolean,
+    exerciseRepository: ExerciseRepository,
+    weightUnit: WeightUnit,
+    kgToDisplay: (Float, WeightUnit) -> Float,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit
 ) {
+    // Load video thumbnail for exercise
+    var thumbnailUrl by remember { mutableStateOf<String?>(null) }
+    var isLoadingVideo by remember { mutableStateOf(true) }
+
+    LaunchedEffect(exercise.exercise.id) {
+        try {
+            // Load videos using exercise library ID
+            val exerciseId = exercise.exercise.id
+            if (exerciseId != null) {
+                Timber.d("Loading thumbnail for ${exercise.exercise.name} (ID: $exerciseId)")
+                val videos = exerciseRepository.getVideos(exerciseId)
+                Timber.d("Found ${videos.size} videos for ${exercise.exercise.name}")
+                val baseThumbnailUrl = videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
+                    ?: videos.firstOrNull()?.thumbnailUrl
+
+                // Apply Mux thumbnail parameters if not already present
+                thumbnailUrl = baseThumbnailUrl?.let { url ->
+                    if (url.contains("image.mux.com") && !url.contains("?")) {
+                        // Add thumbnail parameters only if URL doesn't already have them
+                        "$url?width=400&height=400&fit_mode=crop&crop=center&time=2"
+                    } else {
+                        // Use URL as-is (already has HD parameters from assets)
+                        url
+                    }
+                }
+                Timber.d("Thumbnail URL: $thumbnailUrl")
+            } else {
+                Timber.w("No exercise ID for ${exercise.exercise.name}, cannot load thumbnail")
+            }
+            isLoadingVideo = false
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to load thumbnail for ${exercise.exercise.name}")
+            isLoadingVideo = false
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.medium)
+                .padding(Spacing.medium),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+            // Left: Move controls (vertical stack)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onMoveUp,
+                    enabled = !isFirst,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Move Up",
+                        tint = if (isFirst) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onMoveDown,
+                    enabled = !isLast,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Move Down",
+                        tint = if (isLast) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Left-center: Exercise thumbnail (larger)
+            ExerciseThumbnail(
+                thumbnailUrl = thumbnailUrl,
+                exerciseName = exercise.exercise.displayName,
+                isLoading = isLoadingVideo
+            )
+
+            // Middle: Exercise details
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                // Calculate display values once
+                val weightSuffix = if (weightUnit == WeightUnit.LB) "lb" else "kg"
+                val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
+
+                // Exercise name
+                Text(
+                    exercise.exercise.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // First row of stats: Sets/Reps and Weight
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Sets/Reps badge
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    ) {
                         Text(
-                            "${index + 1}.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.width(24.dp)
-                        )
-                        Text(
-                            exercise.exercise.displayName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            formatReps(exercise.setReps),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                    Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                    Text(
-                        "${formatReps(exercise.setReps)} @ ${exercise.weightPerCableKg}kg/cable",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (exercise.notes.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
+
+                    // Weight badge
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                    ) {
                         Text(
-                            exercise.notes,
+                            "${displayWeight.toInt()}$weightSuffix",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
 
-                // Action buttons
-                Row {
-                    IconButton(
-                        onClick = onMoveUp,
-                        enabled = !isFirst
-                    ) {
-                        Icon(
-                            Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Move Up",
-                            tint = if (isFirst) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                // Second row of stats: Progression and Rest time
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Progression/Regression badge (only if non-zero)
+                    if (exercise.progressionKg != 0f) {
+                        val displayProgression = kgToDisplay(exercise.progressionKg, weightUnit)
+                        val progressionText = if (displayProgression > 0) {
+                            "+${displayProgression.toInt()}$weightSuffix per rep"
+                        } else {
+                            "${displayProgression.toInt()}$weightSuffix per rep"
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (exercise.progressionKg > 0)
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                            else
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                progressionText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (exercise.progressionKg > 0)
+                                    MaterialTheme.colorScheme.tertiary
+                                else
+                                    MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
-                    IconButton(
-                        onClick = onMoveDown,
-                        enabled = !isLast
-                    ) {
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Move Down",
-                            tint = if (isLast) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                    // Rest time badge
+                    if (exercise.restSeconds > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "${exercise.restSeconds}s rest",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
-                    IconButton(onClick = onEdit) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                }
+
+                // Notes if present
+                if (exercise.notes.isNotEmpty()) {
+                    Text(
+                        exercise.notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        maxLines = 2
+                    )
+                }
+            }
+
+            // Right side: Action buttons
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Exercise thumbnail - Shows video thumbnail or fallback initial
+ * (Extracted from ExercisePickerDialog for reuse)
+ * Large size (150dp) for better visibility - compensates for small people in Mux videos
+ */
+@Composable
+private fun ExerciseThumbnail(
+    thumbnailUrl: String?,
+    exerciseName: String,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(150.dp)
+            .clip(RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            isLoading -> {
+                // Loading state - show shimmer effect
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+            }
+            !thumbnailUrl.isNullOrBlank() -> {
+                // Show thumbnail image - Crop maintains aspect ratio while filling frame
+                AsyncImage(
+                    model = thumbnailUrl,
+                    contentDescription = "Exercise demonstration",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop,
+                    onError = { error ->
+                        Timber.e("Failed to load thumbnail: ${thumbnailUrl}, error: ${error.result.throwable}")
+                    },
+                    onSuccess = {
+                        Timber.d("Successfully loaded thumbnail: $thumbnailUrl")
                     }
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
+                )
+            }
+            else -> {
+                // No thumbnail - show exercise name initial
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = exerciseName.firstOrNull()?.uppercase() ?: "?",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

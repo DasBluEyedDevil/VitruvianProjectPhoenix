@@ -264,6 +264,20 @@ object AppModule {
     }
 
     /**
+     * Migration from version 9 to 10: Add exerciseId column to routine_exercises
+     * Stores exercise library ID for loading videos/thumbnails
+     */
+    private val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add exerciseId column with NULL default (for existing rows)
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseId TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
      * Migration from version 7 to 8: Fix routine_exercises schema
      * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
      */
@@ -342,7 +356,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
         .build()
     }
 

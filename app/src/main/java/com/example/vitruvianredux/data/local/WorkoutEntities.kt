@@ -80,6 +80,7 @@ data class RoutineExerciseEntity(
     val exerciseMuscleGroup: String,
     val exerciseEquipment: String = "",
     val exerciseDefaultCableConfig: String, // "SINGLE", "DOUBLE", or "EITHER"
+    val exerciseId: String? = null, // Exercise library ID for loading videos/thumbnails
     // Routine-specific configuration
     val cableConfig: String, // "SINGLE" or "DOUBLE" (never "EITHER" in storage)
     val orderIndex: Int,

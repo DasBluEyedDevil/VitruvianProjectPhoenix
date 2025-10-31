@@ -299,8 +299,18 @@ private fun ExerciseListItem(
     }
     
     // Get preferred thumbnail (FRONT angle preferred, or first available)
-    val thumbnailUrl = videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
+    // Apply Mux crop parameters
+    val baseThumbnailUrl = videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
         ?: videos.firstOrNull()?.thumbnailUrl
+    val thumbnailUrl = baseThumbnailUrl?.let { url ->
+        if (url.contains("image.mux.com") && !url.contains("?")) {
+            // Add thumbnail parameters only if URL doesn't already have them
+            "$url?width=300&height=300&fit_mode=crop&crop=center&time=2"
+        } else {
+            // Use URL as-is (already has HD parameters from assets)
+            url
+        }
+    }
     
     // Video dialog
     if (showVideoDialog && videos.isNotEmpty()) {

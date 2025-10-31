@@ -272,6 +272,7 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     exerciseMuscleGroup = exercise.muscleGroup,
     exerciseEquipment = exercise.equipment,
     exerciseDefaultCableConfig = exercise.defaultCableConfig.name, // Convert enum to String
+    exerciseId = exercise.id, // Store exercise library ID
     // Routine-specific configuration
     cableConfig = cableConfig.name, // Convert enum to String
     orderIndex = orderIndex,
@@ -299,7 +300,8 @@ private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
         name = exerciseName,
         muscleGroup = exerciseMuscleGroup,
         equipment = exerciseEquipment,
-        defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig)
+        defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig),
+        id = exerciseId  // Pass through exercise library ID
     ),
     cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
     orderIndex = orderIndex,
