@@ -97,13 +97,15 @@ class RepCounterFromMachine {
 
         if (lastCompleteCounter == null) {
             lastCompleteCounter = completeCounter
-            return
+            return  // Skip first signal to establish baseline
         }
 
         val delta = calculateDelta(lastCompleteCounter!!, completeCounter)
         if (delta <= 0) {
             return
         }
+
+        lastCompleteCounter = completeCounter
 
         recordBottomPosition(posA, posB)
 
@@ -147,8 +149,6 @@ class RepCounterFromMachine {
                 )
             }
         }
-
-        lastCompleteCounter = completeCounter
     }
 
     private fun calculateDelta(last: Int, current: Int): Int {

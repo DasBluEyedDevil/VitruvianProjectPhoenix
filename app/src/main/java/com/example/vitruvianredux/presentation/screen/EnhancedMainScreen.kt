@@ -43,8 +43,11 @@ fun EnhancedMainScreen(
     val scannedDevices by viewModel.scannedDevices.collectAsState()
     val workoutHistory by viewModel.workoutHistory.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val userPreferences by viewModel.userPreferences.collectAsState()
     val isWorkoutSetupDialogVisible by viewModel.isWorkoutSetupDialogVisible.collectAsState()
     val routines by viewModel.routines.collectAsState()
+    val loadedRoutine by viewModel.loadedRoutine.collectAsState()
+    val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
     var showDeviceSelector by remember { mutableStateOf(false) }
@@ -176,6 +179,8 @@ fun EnhancedMainScreen(
                     weightUnit = weightUnit,
                     isWorkoutSetupDialogVisible = isWorkoutSetupDialogVisible,
                     hapticEvents = viewModel.hapticEvents,
+                    loadedRoutine = loadedRoutine,
+                    currentExerciseIndex = currentExerciseIndex,
                     kgToDisplay = viewModel::kgToDisplay,
                     displayToKg = viewModel::displayToKg,
                     formatWeight = viewModel::formatWeight,
@@ -186,6 +191,8 @@ fun EnhancedMainScreen(
                     onDisconnect = { viewModel.disconnect() },
                     onStartWorkout = { viewModel.startWorkout() },
                     onStopWorkout = { viewModel.stopWorkout() },
+                    onCancelRoutine = { viewModel.cancelRoutine() },
+                    onSkipRest = { viewModel.skipRest() },
                     onResetForNewWorkout = { viewModel.resetForNewWorkout() },
                     onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
                     onShowWorkoutSetupDialog = { viewModel.showWorkoutSetupDialog() },
@@ -203,15 +210,26 @@ fun EnhancedMainScreen(
                 2 -> RoutinesTab(
                     routines = routines,
                     exerciseRepository = viewModel.exerciseRepository,
-                    onLoadRoutine = { routine -> viewModel.loadRoutine(routine) },
+                    weightUnit = weightUnit,
+                    kgToDisplay = viewModel::kgToDisplay,
+                    displayToKg = viewModel::displayToKg,
+                    onStartWorkout = { routine ->
+                        // Load routine and switch to workout tab
+                        viewModel.loadRoutine(routine)
+                        selectedTab = 0  // Switch to Workout tab
+                        viewModel.startWorkout()  // Start countdown immediately
+                    },
                     onDeleteRoutine = { routineId -> viewModel.deleteRoutine(routineId) },
                     onCreateRoutine = { /* Handled in RoutinesTab */ },
                     onSaveRoutine = { routine -> viewModel.saveRoutine(routine) },
+                    onUpdateRoutine = { routine -> viewModel.updateRoutine(routine) },
                     modifier = Modifier.padding(padding)
                 )
                 3 -> SettingsTab(
                     weightUnit = weightUnit,
+                    autoplayEnabled = userPreferences.autoplayEnabled,
                     onWeightUnitChange = { viewModel.setWeightUnit(it) },
+                    onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                     onColorSchemeChange = { viewModel.setColorScheme(it) },
                     onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                     modifier = Modifier.padding(padding)
