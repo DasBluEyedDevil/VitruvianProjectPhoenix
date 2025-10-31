@@ -14,10 +14,14 @@ local.properties
 .skills
 docs/LAST_SESSION.md
 .claude
-/docs
-/scripts
+/docs/
 /CLAUDE.md
 
 # Session memory files (root directory)
 LAST_SESSION.md
 CHANGELOG.md
+/vitruvian-decompiled/
+/scripts/
+/apktool.jar
+/nul
+/vitruvian-official.apk

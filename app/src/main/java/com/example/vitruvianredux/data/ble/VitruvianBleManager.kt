@@ -212,8 +212,12 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
 
             _connectionState.value = ConnectionStatus.Ready
             Timber.d("Core notifications enabled! Device ready.")
-            
-            // DO NOT start polling here - only start when workout begins
+
+            // Start property polling immediately to keep machine alive (keep-alive mechanism)
+            // The official app/web app does this - property polling at 500ms intervals
+            // Monitor polling (100ms) only starts when workout begins
+            Timber.d("Starting keep-alive property polling (500ms)...")
+            startPropertyPolling()
         }
     }
     
@@ -349,9 +353,20 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
             val loadA = f4 / 100.0f
             val loadB = f7 / 100.0f
 
+            // ENHANCED LOGGING FOR FORCE DISPLAY DEBUGGING
             // Always log first few, then reduce spam
             if (ticks < 1000 || ticks % 100 == 0) {
-                Timber.d("Monitor: pos=($positionA,$positionB) load=($loadA,$loadB) ticks=$ticks")
+                Timber.d("=== MONITOR DATA DEBUG ===")
+                Timber.d("Raw bytes[8-9]: ${bytes[8].toUByte()}, ${bytes[9].toUByte()}")
+                Timber.d("Raw bytes[14-15]: ${bytes[14].toUByte()}, ${bytes[15].toUByte()}")
+                Timber.d("Parsed f4 (loadA*100): $f4")
+                Timber.d("Parsed f7 (loadB*100): $f7")
+                Timber.d("LoadA (kg): $loadA")
+                Timber.d("LoadB (kg): $loadB")
+                Timber.d("Total Load: ${loadA + loadB} kg")
+                Timber.d("PositionA: $positionA, PositionB: $positionB")
+                Timber.d("Ticks: $ticks")
+                Timber.d("==========================")
             }
 
             val metric = WorkoutMetric(

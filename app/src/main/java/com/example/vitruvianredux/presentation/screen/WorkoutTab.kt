@@ -38,6 +38,8 @@ fun WorkoutTab(
     exerciseRepository: ExerciseRepository,
     isWorkoutSetupDialogVisible: Boolean = false,
     hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
+    loadedRoutine: Routine? = null,
+    currentExerciseIndex: Int = 0,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     formatWeight: (Float, WeightUnit) -> String,
@@ -45,6 +47,8 @@ fun WorkoutTab(
     onDisconnect: () -> Unit,
     onStartWorkout: () -> Unit,
     onStopWorkout: () -> Unit,
+    onCancelRoutine: () -> Unit,
+    onSkipRest: () -> Unit,
     onResetForNewWorkout: () -> Unit,
     onUpdateParameters: (WorkoutParameters) -> Unit,
     onShowWorkoutSetupDialog: () -> Unit = {},
@@ -181,15 +185,38 @@ fun WorkoutTab(
                 else -> {}
             }
 
-            if (workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) {
-                if (workoutState is WorkoutState.Countdown) {
+            // Display state-specific cards
+            when (workoutState) {
+                is WorkoutState.Countdown -> {
                     CountdownCard(secondsRemaining = workoutState.secondsRemaining)
-                } else {
+                }
+                is WorkoutState.Resting -> {
+                    RestTimerCard(
+                        restSecondsRemaining = workoutState.restSecondsRemaining,
+                        nextExerciseName = workoutState.nextExerciseName,
+                        isLastExercise = workoutState.isLastExercise,
+                        currentSet = workoutState.currentSet,
+                        totalSets = workoutState.totalSets,
+                        nextExerciseWeight = workoutParameters.weightPerCableKg,
+                        nextExerciseReps = workoutParameters.reps,
+                        nextExerciseMode = workoutParameters.mode.displayName,
+                        currentExerciseIndex = if (loadedRoutine != null) currentExerciseIndex else null,
+                        totalExercises = loadedRoutine?.exercises?.size,
+                        formatWeight = { weight -> formatWeight(weight, weightUnit) },
+                        onSkipRest = onSkipRest,
+                        onEndWorkout = onCancelRoutine
+                    )
+                }
+                is WorkoutState.Active -> {
                     RepCounterCard(repCount = repCount)
                 }
+                else -> {}
             }
 
-            if ((workoutState is WorkoutState.Active || workoutState is WorkoutState.Countdown) && currentMetric != null) {
+            // Only show live metrics after warmup is complete (matches official app behavior)
+            if (workoutState is WorkoutState.Active
+                && currentMetric != null
+                && repCount.isWarmupComplete) {
                 LiveMetricsCard(
                     metric = currentMetric,
                     weightUnit = weightUnit,
@@ -1406,8 +1433,9 @@ fun RepCounterCard(repCount: RepCount) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // Show working reps only (matches official app - warmup doesn't count)
                     Text(
-                        repCount.totalReps.toString(),
+                        repCount.workingReps.toString(),
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Bold
                     )

@@ -34,6 +34,13 @@ sealed class WorkoutState {
     object Paused : WorkoutState()
     object Completed : WorkoutState()
     data class Error(val message: String) : WorkoutState()
+    data class Resting(
+        val restSecondsRemaining: Int,
+        val nextExerciseName: String,
+        val isLastExercise: Boolean,
+        val currentSet: Int,
+        val totalSets: Int
+    ) : WorkoutState()
 }
 
 /**

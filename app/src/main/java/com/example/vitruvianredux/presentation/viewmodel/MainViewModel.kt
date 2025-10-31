@@ -74,8 +74,11 @@ class MainViewModel @Inject constructor(
     private val _workoutHistory = MutableStateFlow<List<WorkoutSession>>(emptyList())
     val workoutHistory: StateFlow<List<WorkoutSession>> = _workoutHistory.asStateFlow()
 
-    // User preferences - Weight unit
-    val weightUnit: StateFlow<WeightUnit> = preferencesManager.preferencesFlow
+    // User preferences
+    val userPreferences: StateFlow<UserPreferences> = preferencesManager.preferencesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UserPreferences())
+    
+    val weightUnit: StateFlow<WeightUnit> = userPreferences
         .map { it.weightUnit }
         .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
 
@@ -88,6 +91,9 @@ class MainViewModel @Inject constructor(
 
     private val _currentExerciseIndex = MutableStateFlow(0)
     val currentExerciseIndex: StateFlow<Int> = _currentExerciseIndex.asStateFlow()
+
+    private val _currentSetIndex = MutableStateFlow(0)
+    val currentSetIndex: StateFlow<Int> = _currentSetIndex.asStateFlow()
 
     // Feature 1: Dialog state for workout setup
     private val _isWorkoutSetupDialogVisible = MutableStateFlow(false)
@@ -252,7 +258,7 @@ class MainViewModel @Inject constructor(
         } else {
             _autoStopState.value = AutoStopUiState()
         }
-        stopWorkout()
+        handleSetCompletion()
     }
 
     private fun checkAutoStop(metric: WorkoutMetric) {
@@ -345,8 +351,8 @@ class MainViewModel @Inject constructor(
         _workoutParameters.value = params
     }
 
-    fun startWorkout() {
-        Timber.d("??? startWorkout() CALLED! ???")
+    fun startWorkout(skipCountdown: Boolean = false) {
+        Timber.d("??? startWorkout() CALLED! skipCountdown=$skipCountdown ???")
 
         // CRITICAL: Re-set rep event callback to ensure it's active for this workout
         // This fixes the issue where callback set in init block may not persist
@@ -372,19 +378,21 @@ class MainViewModel @Inject constructor(
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
 
-            Timber.d("")
-            Timber.d(" STARTING COUNTDOWN")
-            Timber.d(" Mode: ${params.mode.displayName}")
-            Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
-            Timber.d("")
+            // Countdown (optional)
+            if (!skipCountdown) {
+                Timber.d("")
+                Timber.d(" STARTING COUNTDOWN")
+                Timber.d(" Mode: ${params.mode.displayName}")
+                Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
+                Timber.d("")
 
-            // Countdown
-            for (i in 5 downTo 1) {
-                _workoutState.value = WorkoutState.Countdown(i)
-                delay(1000)
+                for (i in 5 downTo 1) {
+                    _workoutState.value = WorkoutState.Countdown(i)
+                    delay(1000)
+                }
+            } else {
+                Timber.d(" SKIPPING COUNTDOWN - Auto-advancing")
             }
-
-            _workoutState.value = WorkoutState.Active
 
             Timber.d("")
             Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
@@ -392,46 +400,169 @@ class MainViewModel @Inject constructor(
 
             val result = bleRepository.startWorkout(params)
 
-            if (result.isSuccess) {
-                WorkoutForegroundService.startWorkoutService(
-                    getContext(),
-                    params.mode.displayName,
-                    params.reps
-                )
-
-                Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
-
-                // Emit haptic feedback for workout start
-                _hapticEvents.emit(HapticEvent.WORKOUT_START)
-            } else {
+            if (result.isFailure) {
                 _workoutState.value = WorkoutState.Error(
                     result.exceptionOrNull()?.message ?: "Unknown error"
                 )
                 Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
+                return@launch
             }
+
+            _workoutState.value = WorkoutState.Active
+
+            WorkoutForegroundService.startWorkoutService(
+                getContext(),
+                params.mode.displayName,
+                params.reps
+            )
+
+            Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+
+            // Emit haptic feedback for workout start
+            _hapticEvents.emit(HapticEvent.WORKOUT_START)
         }
     }
 
     fun stopWorkout() {
         viewModelScope.launch {
-            val result = bleRepository.stopWorkout()
+            // Stop hardware immediately
+            bleRepository.stopWorkout()
+            WorkoutForegroundService.stopWorkoutService(getApplication())
+            _hapticEvents.emit(HapticEvent.WORKOUT_END)
+            
+            // Mark as completed - NO AUTOPLAY
+            _workoutState.value = WorkoutState.Completed
+            
+            // Save current progress
+            saveWorkoutSession()
+            
+            // Reset state
+            repCounter.reset()
+            resetAutoStopState()
+            
+            Timber.d("Workout stopped by user")
+        }
+    }
 
-            if (result.isSuccess) {
+    /**
+     * Handle automatic set completion (when rep target is reached via auto-stop)
+     * This is DIFFERENT from user manually stopping
+     */
+    private fun handleSetCompletion() {
+        viewModelScope.launch {
+            // Stop hardware
+            bleRepository.stopWorkout()
+            WorkoutForegroundService.stopWorkoutService(getApplication())
+            _hapticEvents.emit(HapticEvent.WORKOUT_END)
+            
+            // Save progress
+            saveWorkoutSession()
+
+            val routine = _loadedRoutine.value
+            val autoplay = userPreferences.value.autoplayEnabled
+            val isJustLift = workoutParameters.value.isJustLift
+
+            // Autoplay logic ONLY for automatic completion
+            if (routine != null && autoplay && !isJustLift) {
+                startRestTimer()
+            } else {
                 _workoutState.value = WorkoutState.Completed
-
-                WorkoutForegroundService.stopWorkoutService(getContext())
-
-                Timber.d("Workout stopped successfully")
-
-                // Emit haptic feedback for workout end
-                _hapticEvents.emit(HapticEvent.WORKOUT_END)
-
-                saveWorkoutSession()
                 repCounter.reset()
                 resetAutoStopState()
-            } else {
-                Timber.e("Failed to stop workout: ${result.exceptionOrNull()?.message}")
             }
+        }
+    }
+
+    /**
+     * Cancel routine - stops everything with no autoplay
+     * Use this when user explicitly wants to end the routine during rest
+     */
+    fun cancelRoutine() {
+        viewModelScope.launch {
+            // Stop everything, no autoplay
+            bleRepository.stopWorkout()
+            WorkoutForegroundService.stopWorkoutService(getApplication())
+            _hapticEvents.emit(HapticEvent.WORKOUT_END)
+            
+            _workoutState.value = WorkoutState.Completed
+            _loadedRoutine.value = null  // Clear routine
+            
+            // Save if there was any progress
+            saveWorkoutSession()
+            
+            repCounter.reset()
+            resetAutoStopState()
+            Timber.d("Routine cancelled by user")
+        }
+    }
+
+    private fun startRestTimer() {
+        viewModelScope.launch {
+            val routine = _loadedRoutine.value ?: return@launch
+            val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return@launch
+            val restDuration = currentExercise.restSeconds
+
+            for (i in restDuration downTo 1) {
+                val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
+                val nextExercise = routine.exercises.getOrNull(_currentExerciseIndex.value + 1)
+                val nextName = if (isLastSet) {
+                    nextExercise?.exercise?.name ?: "Workout Complete"
+                } else {
+                    "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
+                }
+                
+                _workoutState.value = WorkoutState.Resting(
+                    restSecondsRemaining = i,
+                    nextExerciseName = nextName,
+                    isLastExercise = isLastSet && nextExercise == null,
+                    currentSet = _currentSetIndex.value + 1,
+                    totalSets = currentExercise.setReps.size
+                )
+                delay(1000)
+            }
+            
+            startNextSetOrExercise()
+        }
+    }
+
+    private fun startNextSetOrExercise() {
+        val routine = _loadedRoutine.value ?: return
+        val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return
+
+        if (_currentSetIndex.value < currentExercise.setReps.size - 1) {
+            // More sets in current exercise
+            _currentSetIndex.value++
+            val targetReps = currentExercise.setReps[_currentSetIndex.value]
+            _workoutParameters.value = workoutParameters.value.copy(
+                reps = targetReps
+            )
+            startWorkout(skipCountdown = true)
+        } else {
+            // Move to next exercise
+            if (_currentExerciseIndex.value < routine.exercises.size - 1) {
+                _currentExerciseIndex.value++
+                _currentSetIndex.value = 0
+                // Update workout parameters for new exercise
+                val nextExercise = routine.exercises[_currentExerciseIndex.value]
+                _workoutParameters.value = workoutParameters.value.copy(
+                    weightPerCableKg = nextExercise.weightPerCableKg,
+                    reps = nextExercise.setReps[0]
+                )
+                startWorkout(skipCountdown = true)
+            } else {
+                // Routine complete
+                _workoutState.value = WorkoutState.Completed
+                _currentSetIndex.value = 0
+                _currentExerciseIndex.value = 0
+                repCounter.reset()
+                resetAutoStopState()
+            }
+        }
+    }
+
+    fun skipRest() {
+        if (_workoutState.value is WorkoutState.Resting) {
+            startNextSetOrExercise()
         }
     }
 
@@ -506,6 +637,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun setAutoplayEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setAutoplayEnabled(enabled)
+        }
+    }
+
     /**
      * Convert weight from KG to display unit
      */
@@ -534,6 +671,7 @@ class MainViewModel @Inject constructor(
     fun resetForNewWorkout() {
         _workoutState.value = WorkoutState.Idle
         _repCount.value = RepCount()
+        _currentSetIndex.value = 0
         resetAutoStopState()
         Timber.d("Reset for new workout - state returned to Idle")
     }
@@ -608,17 +746,20 @@ class MainViewModel @Inject constructor(
 
         _loadedRoutine.value = routine
         _currentExerciseIndex.value = 0
+        _currentSetIndex.value = 0
 
         // Load parameters from first exercise
         val firstExercise = routine.exercises[0]
+        val firstSetReps = firstExercise.setReps.firstOrNull() ?: 10
+        
         updateWorkoutParameters(
             WorkoutParameters(
                 mode = _workoutParameters.value.mode, // Keep current mode
-                reps = firstExercise.reps,
+                reps = firstSetReps,
                 weightPerCableKg = firstExercise.weightPerCableKg,
                 progressionRegressionKg = firstExercise.progressionKg,
-                isJustLift = _workoutParameters.value.isJustLift,
-                stopAtTop = _workoutParameters.value.stopAtTop,
+                isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
+                stopAtTop = false,   // Default to false for routines (can be changed in settings)
                 warmupReps = _workoutParameters.value.warmupReps
             )
         )
@@ -629,6 +770,16 @@ class MainViewModel @Inject constructor(
         }
 
         Timber.d("Loaded routine: ${routine.name}, exercise 1/${routine.exercises.size}: ${firstExercise.exercise.displayName}")
+        Timber.d("First set parameters - weight: ${firstExercise.weightPerCableKg}kg, reps: $firstSetReps, isJustLift: false")
+    }
+
+    /**
+     * Load a routine and immediately start the workout
+     * Convenience method for one-click routine start from UI
+     */
+    fun startRoutineWorkout(routine: Routine) {
+        loadRoutine(routine)
+        startWorkout()
     }
 
     /**
@@ -688,6 +839,7 @@ class MainViewModel @Inject constructor(
     fun clearLoadedRoutine() {
         _loadedRoutine.value = null
         _currentExerciseIndex.value = 0
+        _currentSetIndex.value = 0
         Timber.d("Cleared loaded routine")
     }
 
