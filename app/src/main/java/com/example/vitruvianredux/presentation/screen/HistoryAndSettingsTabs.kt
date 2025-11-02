@@ -1,16 +1,26 @@
 package com.example.vitruvianredux.presentation.screen
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.WeightUnit
@@ -86,12 +96,26 @@ fun WorkoutHistoryCard(
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = 400f
+        ),
+        label = "scale"
+    )
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        onClick = { isPressed = true },
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
     ) {
         Column(
             modifier = Modifier
@@ -104,21 +128,43 @@ fun WorkoutHistoryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    // Exercise/Mode name - larger and bolder
-                    Text(
-                        session.mode,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                    // Formatted date/time
-                    Text(
-                        formatRelativeTimestamp(session.timestamp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    // Gradient Icon Box
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .shadow(4.dp, RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
+                                ),
+                                RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.FitnessCenter,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(Spacing.medium))
+                    Column(modifier = Modifier.weight(1f)) {
+                        // Exercise/Mode name - larger and bolder
+                        Text(
+                            session.mode,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
+                        // Formatted date/time
+                        Text(
+                            formatRelativeTimestamp(session.timestamp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 
                 // Duration badge
@@ -163,7 +209,7 @@ fun WorkoutHistoryCard(
                     modifier = Modifier.weight(1f)
                 )
                 EnhancedMetricItem(
-                    icon = Icons.Default.List,
+                    icon = Icons.AutoMirrored.Filled.List,
                     label = "Sets",
                     value = if (session.totalReps > 0) ((session.totalReps / session.reps.coerceAtLeast(1)) + 1).toString() else "0",
                     modifier = Modifier.weight(1f)
@@ -248,6 +294,13 @@ fun WorkoutHistoryCard(
             }
         )
     }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
 }
 
 @Composable
@@ -278,6 +331,8 @@ fun SettingsTab(
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
+    // Optimistic UI state for immediate visual feedback
+    var localWeightUnit by remember(weightUnit) { mutableStateOf(weightUnit) }
 
     Column(
         modifier = modifier
@@ -292,24 +347,44 @@ fun SettingsTab(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        // Weight Unit Section
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
+    // Weight Unit Section
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(Spacing.medium)
             ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA))
+                            ),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Scale, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Weight Unit",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
                 Spacer(modifier = Modifier.height(Spacing.small))
 
                 Row(
@@ -317,8 +392,11 @@ fun SettingsTab(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.small)
                 ) {
                     FilterChip(
-                        selected = weightUnit == WeightUnit.KG,
-                        onClick = { onWeightUnitChange(WeightUnit.KG) },
+                        selected = localWeightUnit == WeightUnit.KG,
+                        onClick = { 
+                            localWeightUnit = WeightUnit.KG
+                            onWeightUnitChange(WeightUnit.KG) 
+                        },
                         label = { Text("kg") },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
@@ -329,9 +407,12 @@ fun SettingsTab(
                         )
                     )
                     FilterChip(
-                        selected = weightUnit == WeightUnit.LB,
-                        onClick = { onWeightUnitChange(WeightUnit.LB) },
-                        label = { Text("lb") },
+                        selected = localWeightUnit == WeightUnit.LB,
+                        onClick = { 
+                            localWeightUnit = WeightUnit.LB
+                            onWeightUnitChange(WeightUnit.LB) 
+                        },
+                        label = { Text("lbs") },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -344,24 +425,42 @@ fun SettingsTab(
             }
         }
 
-        // Workout Preferences Section
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
+    // Workout Preferences Section
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(Spacing.medium)
             ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+                            ),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Workout Preferences",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
                 Spacer(modifier = Modifier.height(Spacing.small))
 
                 // Autoplay toggle
@@ -394,24 +493,42 @@ fun SettingsTab(
             }
         }
 
-        // Color Scheme Section
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
+    // Color Scheme Section
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(Spacing.medium)
             ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1))
+                            ),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.ColorLens, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "LED Color Scheme",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
                 Spacer(modifier = Modifier.height(Spacing.small))
 
                 val colorSchemes = listOf(
@@ -439,24 +556,42 @@ fun SettingsTab(
             }
         }
 
-        // Data Management Section
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
+    // Data Management Section
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(Spacing.medium)
             ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFF97316), Color(0xFFEF4444))
+                            ),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Data Management",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
                 Spacer(modifier = Modifier.height(Spacing.small))
 
                 Button(
@@ -471,24 +606,42 @@ fun SettingsTab(
             }
         }
 
-        // App Info Section
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
+    // App Info Section
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(Spacing.medium)
             ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF22C55E), Color(0xFF3B82F6))
+                            ),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "App Info",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
                 Spacer(modifier = Modifier.height(Spacing.small))
                 Text("Version: 0.1.0-beta", color = MaterialTheme.colorScheme.onSurface)
                 Text("Build: Beta 1", color = MaterialTheme.colorScheme.onSurface)

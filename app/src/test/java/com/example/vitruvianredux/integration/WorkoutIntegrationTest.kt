@@ -35,7 +35,8 @@ class WorkoutIntegrationTest {
     fun setup() {
         bleRepository = mockk(relaxed = true)
         workoutDao = mockk(relaxed = true)
-        workoutRepository = WorkoutRepository(workoutDao)
+        val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
+        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao)
         repCounter = RepCounterFromMachine()
     }
 
@@ -78,7 +79,7 @@ class WorkoutIntegrationTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 15.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -150,10 +151,10 @@ class WorkoutIntegrationTest {
             WorkoutMode.TUT,
             WorkoutMode.TUTBeast,
             WorkoutMode.EccentricOnly,
-            WorkoutMode.Echo(EchoLevel.LEVEL_1),
-            WorkoutMode.Echo(EchoLevel.LEVEL_2),
-            WorkoutMode.Echo(EchoLevel.LEVEL_3),
-            WorkoutMode.Echo(EchoLevel.LEVEL_4)
+            WorkoutMode.Echo(EchoLevel.HARD),
+            WorkoutMode.Echo(EchoLevel.HARDER),
+            WorkoutMode.Echo(EchoLevel.HARDEST),
+            WorkoutMode.Echo(EchoLevel.EPIC)
         )
 
         coEvery { bleRepository.startWorkout(any()) } returns Result.success(Unit)
@@ -165,7 +166,7 @@ class WorkoutIntegrationTest {
                 mode = mode,
                 reps = 10,
                 weightPerCableKg = 15.0f,
-                progressionKg = 0f,
+                progressionRegressionKg = 0f,
                 isJustLift = false,
                 stopAtTop = false,
                 warmupReps = 3
@@ -244,7 +245,7 @@ class WorkoutIntegrationTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 15.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = true,
             stopAtTop = false,
             warmupReps = 3
@@ -320,9 +321,9 @@ class WorkoutIntegrationTest {
 
         // Then: History is loaded from local database
         assertNotNull(loadedHistory, "History should load from local DB")
-        assertEquals(5, loadedHistory?.size, "Should load all 5 sessions")
-        assertEquals("Old School", loadedHistory?.get(0)?.mode)
-        assertEquals("TUT Beast", loadedHistory?.get(4)?.mode)
+        assertEquals(5, loadedHistory.size, "Should load all 5 sessions")
+        assertEquals("Old School", loadedHistory[0].mode)
+        assertEquals("TUT Beast", loadedHistory[4].mode)
 
         verify { workoutDao.getRecentSessions(any()) }
     }
@@ -404,7 +405,8 @@ class WorkoutIntegrationTest {
         }
 
         // Then: All sessions stored and retrieved locally
-        assertEquals(3, allSessions?.size, "All 3 workouts tracked locally")
+        assertNotNull(allSessions)
+        assertEquals(3, allSessions.size, "All 3 workouts tracked locally")
         coVerify(exactly = 3) { workoutDao.insertSession(any()) }
     }
 
@@ -449,9 +451,9 @@ class WorkoutIntegrationTest {
 
         // Then: Old data is still accessible (proves local persistence)
         assertNotNull(retrievedSession, "Old data should persist")
-        assertEquals(oldSessionId, retrievedSession?.id)
-        assertEquals("Pump", retrievedSession?.mode)
-        assertEquals(15, retrievedSession?.reps)
+        assertEquals(oldSessionId, retrievedSession.id)
+        assertEquals("Pump", retrievedSession.mode)
+        assertEquals(15, retrievedSession.reps)
 
         coVerify { workoutDao.getSession(oldSessionId) }
     }

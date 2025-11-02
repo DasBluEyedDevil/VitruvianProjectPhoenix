@@ -1,14 +1,12 @@
 package com.example.vitruvianredux.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryPurple,
@@ -41,13 +39,50 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = TextDisabled
 )
 
+private val LightColorScheme = lightColorScheme(
+    primary = TertiaryPurple,               // Light purple for buttons
+    onPrimary = ColorOnLightBackground,     // Dark text on light buttons
+    primaryContainer = TertiaryPurple,      // Light purple container
+    onPrimaryContainer = ColorOnLightBackground,
+
+    secondary = TertiaryPurple,             // Light purple for secondary elements
+    onSecondary = ColorOnLightBackground,   // Dark text
+    secondaryContainer = TertiaryPurple,
+    onSecondaryContainer = ColorOnLightBackground,
+
+    tertiary = InfoBlue.copy(alpha = 0.3f), // Light blue
+    onTertiary = ColorOnLightBackground,
+    tertiaryContainer = InfoBlue.copy(alpha = 0.15f),
+    onTertiaryContainer = ColorOnLightBackground,
+
+    background = ColorLightBackground,
+    onBackground = ColorOnLightBackground,
+
+    surface = ColorLightSurface,
+    onSurface = ColorOnLightSurface,
+    surfaceVariant = ColorLightSurfaceVariant,
+    onSurfaceVariant = ColorOnLightSurfaceVariant,
+
+    error = ErrorRed,
+    onError = ColorLightSurface,            // White text on red error
+
+    outline = ColorOnLightSurfaceVariant.copy(alpha = 0.6f),
+    outlineVariant = ColorOnLightSurfaceVariant.copy(alpha = 0.4f)
+)
+
 @Composable
 fun VitruvianReduxTheme(
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit
 ) {
-    // Always use dark theme with custom colors (no dynamic color, no light mode)
+    val useDarkColors = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
     MaterialTheme(
-        colorScheme = DarkColorScheme,
+        colorScheme = if (useDarkColors) DarkColorScheme else LightColorScheme,
         typography = Typography,
         content = content
     )

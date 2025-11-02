@@ -31,7 +31,8 @@ class WorkoutRepositoryTest {
     @Before
     fun setup() {
         workoutDao = mockk(relaxed = true)
-        repository = WorkoutRepository(workoutDao)
+        val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
+        repository = WorkoutRepository(workoutDao, personalRecordDao)
     }
 
     @After
@@ -121,8 +122,8 @@ class WorkoutRepositoryTest {
 
         // Then: Sessions are retrieved from local database
         assertNotNull(retrievedSessions, "Should retrieve sessions from local DB")
-        assertEquals(3, retrievedSessions?.size, "Should retrieve all 3 sessions")
-        assertEquals("Old School", retrievedSessions?.get(0)?.mode)
+        assertEquals(3, retrievedSessions.size, "Should retrieve all 3 sessions")
+        assertEquals("Old School", retrievedSessions[0].mode)
         verify(exactly = 1) { workoutDao.getAllSessions() }
     }
 
@@ -143,7 +144,7 @@ class WorkoutRepositoryTest {
 
         // Then: Only limited sessions are retrieved (efficient for large datasets)
         assertNotNull(retrievedSessions)
-        assertEquals(10, retrievedSessions?.size, "Should limit to 10 most recent")
+        assertEquals(10, retrievedSessions.size, "Should limit to 10 most recent")
         verify(exactly = 1) { workoutDao.getRecentSessions(10) }
     }
 
@@ -160,8 +161,8 @@ class WorkoutRepositoryTest {
 
         // Then: Session is retrieved from local database
         assertNotNull(session, "Should retrieve session from local DB")
-        assertEquals(sessionId, session?.id)
-        assertEquals("Echo", session?.mode)
+        assertEquals(sessionId, session.id)
+        assertEquals("Echo", session.mode)
         coVerify(exactly = 1) { workoutDao.getSession(sessionId) }
     }
 
@@ -179,8 +180,8 @@ class WorkoutRepositoryTest {
 
         // Then: Session is still available (proves offline persistence)
         assertNotNull(retrievedSession, "Session should persist across app restarts")
-        assertEquals(sessionId, retrievedSession?.id)
-        assertEquals("TUT Beast", retrievedSession?.mode)
+        assertEquals(sessionId, retrievedSession.id)
+        assertEquals("TUT Beast", retrievedSession.mode)
     }
 
     @Test

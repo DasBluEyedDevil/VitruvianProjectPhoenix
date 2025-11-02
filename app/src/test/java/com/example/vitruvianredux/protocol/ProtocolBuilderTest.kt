@@ -56,7 +56,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 15.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -81,7 +81,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 20.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = true,
             stopAtTop = false,
             warmupReps = 3
@@ -101,7 +101,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.Pump,
             reps = 15,
             weightPerCableKg = 12.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -123,7 +123,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.TUT,
             reps = 8,
             weightPerCableKg = 18.0f,
-            progressionKg = 2.5f,
+            progressionRegressionKg = 2.5f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -142,10 +142,10 @@ class ProtocolBuilderTest {
     fun `test echo mode program generation`() {
         // Given: Echo mode parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.Echo(EchoLevel.LEVEL_2),
+            mode = WorkoutMode.Echo(EchoLevel.HARDER),
             reps = 12,
             weightPerCableKg = 16.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -166,7 +166,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 15.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = true,
             warmupReps = 3
@@ -187,7 +187,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 25.0f,
-            progressionKg = 5.0f,
+            progressionRegressionKg = 5.0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -202,8 +202,7 @@ class ProtocolBuilderTest {
 
         // Verify weight encoding (specific byte offsets depend on protocol)
         // The important point is it's calculated locally, not from server
-        val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
-        // Weight values should be present in the frame
+        // Weight values are present in the frame
     }
 
     @Test
@@ -259,7 +258,7 @@ class ProtocolBuilderTest {
             WorkoutParameters(WorkoutMode.TUT, 8, 18f, 2.5f, false, false, 3),
             WorkoutParameters(WorkoutMode.TUTBeast, 6, 20f, 0f, false, false, 3),
             WorkoutParameters(WorkoutMode.EccentricOnly, 5, 22f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.Echo(EchoLevel.LEVEL_1), 12, 16f, 0f, false, false, 3),
+            WorkoutParameters(WorkoutMode.Echo(EchoLevel.HARD), 12, 16f, 0f, false, false, 3),
             WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, true, false, 3), // Just Lift
             WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, false, true, 3)  // Stop at top
         )
@@ -294,7 +293,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.Pump,
             reps = 10,
             weightPerCableKg = 15.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -323,7 +322,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = perCableKg,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -356,7 +355,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = perCableKg,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -389,7 +388,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = perCableKg,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -423,7 +422,7 @@ class ProtocolBuilderTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = perCableKg,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3

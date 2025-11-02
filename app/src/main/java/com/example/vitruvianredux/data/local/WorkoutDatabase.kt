@@ -8,6 +8,12 @@ import androidx.room.TypeConverters
  * Room database for workout history
  *
  * Version history:
+ * - v13: Added eccentricLoad and echoLevel to workout_sessions for Echo mode persistence
+ * - v12: Added setWeights, mode, eccentricLoad, echoLevel to routine_exercises
+ * - v11: Added WeeklyProgramEntity and ProgramDayEntity for weekly program scheduling
+ * - v10: Added exerciseId to routine_exercises for exercise library integration
+ * - v9: Renamed progressionKg to progressionRegressionKg in workout_sessions, added personal_records
+ * - v8: Schema cleanup for routine_exercises
  * - v7: Added exercise detail fields to RoutineExerciseEntity (muscleGroup, equipment, defaultCableConfig)
  *       to support Exercise data class instead of enum
  * - v6: Added ExerciseEntity and ExerciseVideoEntity for exercise library
@@ -20,9 +26,11 @@ import androidx.room.TypeConverters
         RoutineExerciseEntity::class,
         ExerciseEntity::class,
         ExerciseVideoEntity::class,
-        PersonalRecordEntity::class
+        PersonalRecordEntity::class,
+        WeeklyProgramEntity::class,
+        ProgramDayEntity::class
     ],
-    version = 9,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

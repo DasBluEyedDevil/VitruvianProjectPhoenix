@@ -29,7 +29,8 @@ data class Exercise(
     val name: String,
     val muscleGroup: String,
     val equipment: String = "",
-    val defaultCableConfig: CableConfiguration = CableConfiguration.DOUBLE
+    val defaultCableConfig: CableConfiguration = CableConfiguration.DOUBLE,
+    val id: String? = null  // Optional exercise library ID for loading videos/thumbnails
 ) {
     /**
      * Display name for UI (same as name for now)

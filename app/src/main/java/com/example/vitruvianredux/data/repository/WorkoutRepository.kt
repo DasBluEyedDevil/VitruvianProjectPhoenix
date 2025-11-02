@@ -5,13 +5,20 @@ import com.example.vitruvianredux.data.local.WorkoutMetricEntity
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
 import com.example.vitruvianredux.data.local.RoutineEntity
 import com.example.vitruvianredux.data.local.RoutineExerciseEntity
+import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
+import com.example.vitruvianredux.data.local.PersonalRecordDao
+import com.example.vitruvianredux.data.local.PersonalRecordEntity
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.domain.model.WorkoutSession
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.RoutineExercise
 import com.example.vitruvianredux.domain.model.Exercise
 import com.example.vitruvianredux.domain.model.CableConfiguration
+import com.example.vitruvianredux.domain.model.WorkoutMode
+import com.example.vitruvianredux.domain.model.EchoLevel
+import com.example.vitruvianredux.domain.model.EccentricLoad
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
@@ -22,7 +29,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class WorkoutRepository @Inject constructor(
-    private val workoutDao: WorkoutDao
+    private val workoutDao: WorkoutDao,
+    private val personalRecordDao: PersonalRecordDao
 ) {
     
     /**
@@ -42,7 +50,9 @@ class WorkoutRepository @Inject constructor(
                 warmupReps = session.warmupReps,
                 workingReps = session.workingReps,
                 isJustLift = session.isJustLift,
-                stopAtTop = session.stopAtTop
+                stopAtTop = session.stopAtTop,
+                eccentricLoad = session.eccentricLoad,
+                echoLevel = session.echoLevel
             )
             workoutDao.insertSession(entity)
             Timber.d("Saved workout session: ${session.id}")
@@ -227,6 +237,118 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    /**
+     * Get routine by ID as a Flow
+     */
+    fun getRoutineById(routineId: String): Flow<Routine?> {
+        return workoutDao.observeRoutineById(routineId).map { entity ->
+            entity?.let {
+                val exercises = workoutDao.getExercisesForRoutineSync(routineId)
+                it.toRoutine(exercises)
+            }
+        }
+    }
+
+    // ========== Weekly Programs ==========
+
+    /**
+     * Get all weekly programs with their assigned days
+     */
+    fun getAllPrograms(): Flow<List<WeeklyProgramWithDays>> =
+        workoutDao.getAllProgramsWithDays()
+
+    /**
+     * Get the currently active program with its days
+     */
+    fun getActiveProgram(): Flow<WeeklyProgramWithDays?> =
+        workoutDao.getActiveProgramWithDays()
+
+    /**
+     * Get a specific program by ID with its days
+     */
+    fun getProgramById(programId: String): Flow<WeeklyProgramWithDays?> =
+        workoutDao.getProgramWithDaysById(programId)
+
+    /**
+     * Save a new weekly program or update existing one
+     */
+    suspend fun saveProgram(programWithDays: WeeklyProgramWithDays): Result<Unit> {
+        return try {
+            workoutDao.insertProgramWithDays(
+                program = programWithDays.program,
+                days = programWithDays.days
+            )
+            Timber.d("Saved weekly program: ${programWithDays.program.title}")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to save weekly program")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Delete a weekly program
+     */
+    suspend fun deleteProgram(programId: String): Result<Unit> {
+        return try {
+            workoutDao.deleteProgram(programId)
+            Timber.d("Deleted weekly program: $programId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to delete weekly program")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Activate a weekly program (deactivates all others)
+     */
+    suspend fun activateProgram(programId: String): Result<Unit> {
+        return try {
+            workoutDao.activateProgram(programId)
+            Timber.d("Activated weekly program: $programId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to activate weekly program")
+            Result.failure(e)
+        }
+    }
+
+    // ========== Personal Records ==========
+
+    /**
+     * Get all personal records
+     */
+    fun getAllPersonalRecords(): Flow<List<PersonalRecordEntity>> =
+        personalRecordDao.getAllPRs()
+
+    /**
+     * Update personal record if the new performance is better
+     */
+    suspend fun updatePersonalRecordIfNeeded(
+        exerciseId: String,
+        weightPerCableKg: Float,
+        reps: Int,
+        workoutMode: String
+    ): Boolean {
+        return try {
+            val isNewPR = personalRecordDao.updatePRIfBetter(
+                exerciseId = exerciseId,
+                weightPerCableKg = weightPerCableKg,
+                reps = reps,
+                workoutMode = workoutMode,
+                timestamp = System.currentTimeMillis()
+            )
+            if (isNewPR) {
+                Timber.d("New PR set for exercise $exerciseId: ${weightPerCableKg}kg x $reps reps ($workoutMode)")
+            }
+            isNewPR
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update personal record")
+            false
+        }
+    }
 }
 
 // Extension functions for mapping between entities and domain models
@@ -242,7 +364,9 @@ private fun WorkoutSessionEntity.toWorkoutSession() = WorkoutSession(
     warmupReps = warmupReps,
     workingReps = workingReps,
     isJustLift = isJustLift,
-    stopAtTop = stopAtTop
+    stopAtTop = stopAtTop,
+    eccentricLoad = eccentricLoad,
+    echoLevel = echoLevel
 )
 
 private fun WorkoutMetricEntity.toWorkoutMetric() = WorkoutMetric(
@@ -272,14 +396,30 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     exerciseMuscleGroup = exercise.muscleGroup,
     exerciseEquipment = exercise.equipment,
     exerciseDefaultCableConfig = exercise.defaultCableConfig.name, // Convert enum to String
+    exerciseId = exercise.id, // Store exercise library ID
     // Routine-specific configuration
     cableConfig = cableConfig.name, // Convert enum to String
     orderIndex = orderIndex,
     setReps = setReps.joinToString(","), // Convert List<Int> to comma-separated String
     weightPerCableKg = weightPerCableKg,
+    setWeights = setWeightsPerCableKg.joinToString(",") { it.toString() },
+    mode = when (mode) {
+        is WorkoutMode.OldSchool -> "OldSchool"
+        is WorkoutMode.Pump -> "Pump"
+        is WorkoutMode.TUT -> "TUT"
+        is WorkoutMode.TUTBeast -> "TUTBeast"
+        is WorkoutMode.EccentricOnly -> "EccentricOnly"
+        is WorkoutMode.Echo -> "Echo"
+    },
+    eccentricLoad = eccentricLoad.percentage,
+    echoLevel = when (mode) {
+        is WorkoutMode.Echo -> (mode as WorkoutMode.Echo).level.levelValue
+        else -> echoLevel.levelValue
+    },
     progressionKg = progressionKg,
     restSeconds = restSeconds,
-    notes = notes
+    notes = notes,
+    duration = duration
 )
 
 private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity>) = Routine(
@@ -299,13 +439,27 @@ private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
         name = exerciseName,
         muscleGroup = exerciseMuscleGroup,
         equipment = exerciseEquipment,
-        defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig)
+        defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig),
+        id = exerciseId  // Pass through exercise library ID
     ),
     cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
     orderIndex = orderIndex,
     setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
     weightPerCableKg = weightPerCableKg,
+    setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
+    mode = when (mode) {
+        "OldSchool" -> WorkoutMode.OldSchool
+        "Pump" -> WorkoutMode.Pump
+        "TUT" -> WorkoutMode.TUT
+        "TUTBeast" -> WorkoutMode.TUTBeast
+        "EccentricOnly" -> WorkoutMode.EccentricOnly
+        "Echo" -> WorkoutMode.Echo(level = EchoLevel.values().getOrNull(echoLevel)?.let { it } ?: EchoLevel.HARDER)
+        else -> WorkoutMode.OldSchool
+    },
+    eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
+    echoLevel = EchoLevel.values().getOrNull(echoLevel) ?: EchoLevel.HARDER,
     progressionKg = progressionKg,
     restSeconds = restSeconds,
-    notes = notes
+    notes = notes,
+    duration = duration
 )

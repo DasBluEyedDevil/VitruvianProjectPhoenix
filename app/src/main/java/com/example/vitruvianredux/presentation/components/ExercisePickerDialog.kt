@@ -23,6 +23,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
@@ -95,7 +97,8 @@ fun ExercisePickerDialog(
     onDismiss: () -> Unit,
     onExerciseSelected: (ExerciseEntity) -> Unit,
     exerciseRepository: ExerciseRepository,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fullScreen: Boolean = false
 ) {
     if (!showDialog) return
 
@@ -139,14 +142,13 @@ fun ExercisePickerDialog(
         exerciseRepository.importExercises()
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = modifier
-    ) {
+    // Content composable to be reused in both ModalBottomSheet and Dialog
+    @Composable
+    fun PickerContent() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
                 .padding(horizontal = 16.dp)
         ) {
             // Title
@@ -272,6 +274,32 @@ fun ExercisePickerDialog(
             }
         }
     }
+
+    // Use Dialog for fullscreen, ModalBottomSheet otherwise
+    if (fullScreen) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                PickerContent()
+            }
+        }
+    } else {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            modifier = modifier
+        ) {
+            PickerContent()
+        }
+    }
 }
 
 /**
@@ -299,8 +327,18 @@ private fun ExerciseListItem(
     }
     
     // Get preferred thumbnail (FRONT angle preferred, or first available)
-    val thumbnailUrl = videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
+    // Apply Mux crop parameters
+    val baseThumbnailUrl = videos.firstOrNull { it.angle == "FRONT" }?.thumbnailUrl
         ?: videos.firstOrNull()?.thumbnailUrl
+    val thumbnailUrl = baseThumbnailUrl?.let { url ->
+        if (url.contains("image.mux.com") && !url.contains("?")) {
+            // Add thumbnail parameters only if URL doesn't already have them
+            "$url?width=300&height=300&fit_mode=crop&crop=center&time=2"
+        } else {
+            // Use URL as-is (already has HD parameters from assets)
+            url
+        }
+    }
     
     // Video dialog
     if (showVideoDialog && videos.isNotEmpty()) {
@@ -350,7 +388,7 @@ private fun ExerciseListItem(
             )
         },
         trailingContent = {
-            // PR badge or NEW badge
+            // Show performance count only if exercise has been performed
             if (exercise.timesPerformed > 0) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -363,19 +401,8 @@ private fun ExerciseListItem(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-            } else {
-                Surface(
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "NEW",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
             }
+            // No badge for exercises never performed (removed "NEW" tag)
         },
         modifier = modifier.clickable(onClick = onClick)
     )

@@ -1,16 +1,25 @@
 package com.example.vitruvianredux.presentation.screen
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.data.repository.ExerciseRepository
@@ -32,19 +41,39 @@ fun RoutinesTab(
     onCreateRoutine: () -> Unit,
     onSaveRoutine: (Routine) -> Unit,
     onUpdateRoutine: (Routine) -> Unit = onSaveRoutine,
+    themeMode: ThemeMode,
     modifier: Modifier = Modifier
 ) {
     var showRoutineBuilder by remember { mutableStateOf(false) }
     var routineToEdit by remember { mutableStateOf<Routine?>(null) }
 
+    val backgroundGradient = if (themeMode == ThemeMode.DARK) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0F172A), // slate-900
+                Color(0xFF1E1B4B), // indigo-950
+                Color(0xFF172554)  // blue-950
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFE0E7FF), // indigo-200 - soft lavender
+                Color(0xFFFCE7F3), // pink-100 - soft pink
+                Color(0xFFDDD6FE)  // violet-200 - soft violet
+            )
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
+            .background(backgroundGradient)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(Spacing.medium)
+                .padding(20.dp)
         ) {
             Text(
                 "My Routines",
@@ -147,7 +176,8 @@ fun RoutinesTab(
             exerciseRepository = exerciseRepository,
             weightUnit = weightUnit,
             kgToDisplay = kgToDisplay,
-            displayToKg = displayToKg
+            displayToKg = displayToKg,
+            themeMode = themeMode
         )
     }
 }
@@ -160,272 +190,139 @@ fun RoutineCard(
     onDelete: () -> Unit,
     onDuplicate: () -> Unit
 ) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var isExpanded by remember { mutableStateOf(false) }
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.99f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = 400f
+        ),
+        label = "scale"
+    )
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        onClick = onStartWorkout,
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isPressed) 2.dp else 4.dp
+        ),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.medium)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Header row with name and badges
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        routine.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (routine.description.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        Text(
-                            routine.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                // Exercise count badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Text(
-                        "${routine.exercises.size} exercises",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Stats row with estimated duration
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem(
-                    label = "Total Sets",
-                    value = routine.exercises.sumOf { it.setReps.size }.toString()
-                )
-                StatItem(
-                    label = "Est. Duration",
-                    value = formatEstimatedDuration(routine)
-                )
-                if (routine.useCount > 0) {
-                    StatItem(
-                        label = "Completed",
-                        value = "${routine.useCount}x"
-                    )
-                } else {
-                    StatItem(
-                        label = "Created",
-                        value = formatDate(routine.createdAt)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Exercise Preview (Collapsible)
-            if (routine.exercises.isNotEmpty()) {
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                
-                Spacer(modifier = Modifier.height(Spacing.small))
-                
-                // Preview header with expand/collapse
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Exercises",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    IconButton(onClick = { isExpanded = !isExpanded }) {
-                        Icon(
-                            if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                
-                // Show first 2-3 exercises or all if expanded
-                val exercisesToShow = if (isExpanded) routine.exercises else routine.exercises.take(3)
-                exercisesToShow.forEachIndexed { index, exercise ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "${index + 1}.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(24.dp)
-                            )
-                            Text(
-                                exercise.exercise.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Text(
-                            "${exercise.setReps.size} x ${exercise.setReps.firstOrNull() ?: 0}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                if (!isExpanded && routine.exercises.size > 3) {
-                    Text(
-                        "+ ${routine.exercises.size - 3} more",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 24.dp, top = 4.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(Spacing.small))
-                
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Action buttons row
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                // Primary action: Start Workout (prominent button)
-                Button(
-                    onClick = onStartWorkout,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryPurple
-                    )
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(Modifier.width(Spacing.small))
-                    Text("Start Workout", fontWeight = FontWeight.Bold)
-                }
-                
-                // Secondary actions: Edit, Duplicate, Delete
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-                ) {
-                    // Edit button
-                    OutlinedButton(
-                        onClick = onEdit,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Edit", style = MaterialTheme.typography.labelMedium)
-                    }
-                    
-                    // Duplicate button
-                    OutlinedButton(
-                        onClick = onDuplicate,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Copy", style = MaterialTheme.typography.labelMedium)
-                    }
-                    
-                    // Delete button
-                    OutlinedButton(
-                        onClick = { showDeleteDialog = true },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
+            // 64dp Gradient Icon (purple gradient)
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .shadow(4.dp, RoundedCornerShape(12.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
                         ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Delete", style = MaterialTheme.typography.labelMedium)
-                    }
+                        RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FitnessCenter,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            // Content Column
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = routine.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = routine.description.ifEmpty { "${routine.exercises.size} exercises" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${routine.exercises.size} exercises ? ${formatEstimatedDuration(routine)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Arrow Icon
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Color(0xFFF5F3FF),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Navigate",
+                        tint = Color(0xFF9333EA),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
+            }
+        }
+
+        // Overflow menu (top-right) for edit/duplicate/delete
+        var showMenu by remember { mutableStateOf(false) }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            IconButton(
+                onClick = { showMenu = !showMenu },
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Edit") },
+                    onClick = { showMenu = false; onEdit() },
+                    leadingIcon = { Icon(Icons.Default.Edit, null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Duplicate") },
+                    onClick = { showMenu = false; onDuplicate() },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    onClick = { showMenu = false; onDelete() },
+                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                )
             }
         }
     }
 
-    // Delete confirmation dialog
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Routine?") },
-            text = { Text("Are you sure you want to delete \"${routine.name}\"? This action cannot be undone.") },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(16.dp),
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDelete()
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        )
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
     }
 }
 
