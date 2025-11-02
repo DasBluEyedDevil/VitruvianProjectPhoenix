@@ -1,14 +1,25 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.foundation.border
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,21 +48,40 @@ fun RestTimerCard(
     onEndWorkout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    // Background gradient (light theme shown here; relies on theme colors for dark mode)
+    Box(
         modifier = modifier
-            .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF8FAFC), // slate-50
+                        Color(0xFFF5F3FF), // purple-50
+                        Color(0xFFEFF6FF)  // blue-50
+                    )
+                )
+            )
+            .padding(20.dp)
     ) {
+        // Subtle pulsing overlay to create an immersive feel
+        val infinite = rememberInfiniteTransition(label = "rest-pulse")
+        val pulse by infinite.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse"
+        )
+
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.extraLarge),
+                .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
+            Spacer(modifier = Modifier.height(8.dp))
             // REST TIME Header
             Text(
                 text = "REST TIME",
@@ -60,28 +90,51 @@ fun RestTimerCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.5.sp
             )
-            
-            // Large countdown timer
-            Text(
-                text = formatRestTime(restSecondsRemaining),
-                style = MaterialTheme.typography.displayLarge.copy(fontSize = 48.sp),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.small))
-            
-            // Divider
-            HorizontalDivider(
+
+            // Immersive circular timer with subtle pulsing
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .padding(vertical = Spacing.small),
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.small))
-            
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                // Outer gradient halo
+                Box(
+                    modifier = Modifier
+                        .size(260.dp)
+                        .scale(pulse)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF8B5CF6).copy(alpha = 0.25f), // violet-500
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = RoundedCornerShape(200.dp)
+                        )
+                )
+
+                // Timer content stack
+                Surface(
+                    modifier = Modifier.size(220.dp),
+                    shape = RoundedCornerShape(200.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        // Time remaining
+                        Text(
+                            text = formatRestTime(restSecondsRemaining),
+                            style = MaterialTheme.typography.displayLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
             // UP NEXT section
             Text(
                 text = "UP NEXT",
@@ -90,7 +143,7 @@ fun RestTimerCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.2.sp
             )
-            
+
             // Next exercise name or completion message
             Text(
                 text = if (isLastExercise) "Workout Complete" else nextExerciseName,
@@ -101,7 +154,7 @@ fun RestTimerCard(
                 else 
                     MaterialTheme.colorScheme.onSurface
             )
-            
+
             // Set progress indicator
             if (!isLastExercise) {
                 Text(
@@ -110,11 +163,11 @@ fun RestTimerCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
+
             // Workout parameters preview (if available)
             if (!isLastExercise && (nextExerciseWeight != null || nextExerciseReps != null)) {
                 Spacer(modifier = Modifier.height(Spacing.small))
-                
+
                 // Parameters card
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -134,28 +187,28 @@ fun RestTimerCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.sp
                         )
-                        
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             if (nextExerciseWeight != null && formatWeight != null) {
                                 WorkoutParamItem(
-                                    icon = Icons.Default.Delete,
+                                    icon = Icons.Default.Settings,
                                     label = "Weight",
                                     value = formatWeight(nextExerciseWeight)
                                 )
                             }
                             if (nextExerciseReps != null) {
                                 WorkoutParamItem(
-                                    icon = Icons.Default.Delete,
+                                    icon = Icons.Default.Refresh,
                                     label = "Target Reps",
                                     value = nextExerciseReps.toString()
                                 )
                             }
                             if (nextExerciseMode != null) {
                                 WorkoutParamItem(
-                                    icon = Icons.Default.Delete,
+                                    icon = Icons.Default.Settings,
                                     label = "Mode",
                                     value = nextExerciseMode.take(8)
                                 )
@@ -164,11 +217,11 @@ fun RestTimerCard(
                     }
                 }
             }
-            
+
             // Progress through routine (if multi-exercise)
             if (currentExerciseIndex != null && totalExercises != null && totalExercises > 1) {
                 Spacer(modifier = Modifier.height(Spacing.small))
-                
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -189,12 +242,13 @@ fun RestTimerCard(
                     )
                 }
             }
-            
             Spacer(modifier = Modifier.height(Spacing.medium))
-            
+
             // Action buttons
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
                 // Skip Rest button (primary action)
@@ -204,7 +258,8 @@ fun RestTimerCard(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
                         Icons.Default.PlayArrow,
@@ -218,11 +273,12 @@ fun RestTimerCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
-                
+
                 // End Workout button (secondary/destructive action)
                 TextButton(
                     onClick = onEndWorkout,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
                         Icons.Default.Close,

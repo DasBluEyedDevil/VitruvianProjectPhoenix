@@ -65,13 +65,6 @@ class ExerciseLibraryViewModel @Inject constructor(
     private val showFavoritesOnly = MutableStateFlow(false)
     
     init {
-        // Import exercises on first launch
-        viewModelScope.launch {
-            if (exerciseRepository.isExerciseLibraryEmpty()) {
-                importExercises()
-            }
-        }
-        
         // Combine all filters and load exercises
         combine(
             searchQuery,

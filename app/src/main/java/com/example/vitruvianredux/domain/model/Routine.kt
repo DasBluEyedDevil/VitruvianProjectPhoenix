@@ -30,9 +30,18 @@ data class RoutineExercise(
     val orderIndex: Int,
     val setReps: List<Int> = listOf(10, 10, 10),
     val weightPerCableKg: Float,
+    // Optional per-set weights in kg per cable; when empty, fall back to weightPerCableKg
+    val setWeightsPerCableKg: List<Float> = emptyList(),
+    // Selected workout mode for this exercise in routines
+    val mode: WorkoutMode = WorkoutMode.OldSchool,
+    // Echo-specific configuration
+    val eccentricLoad: EccentricLoad = EccentricLoad.LOAD_100,
+    val echoLevel: EchoLevel = EchoLevel.HARDER,
     val progressionKg: Float = 0f,
     val restSeconds: Int = 60,
-    val notes: String = ""
+    val notes: String = "",
+    // Optional duration in seconds for duration-based sets
+    val duration: Int? = null
 ) {
     // Computed property for backwards compatibility
     val sets: Int get() = setReps.size

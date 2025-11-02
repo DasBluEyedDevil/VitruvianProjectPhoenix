@@ -41,7 +41,8 @@ class OfflineFunctionalityTest {
     fun setup() {
         bleRepository = mockk(relaxed = true)
         workoutDao = mockk(relaxed = true)
-        workoutRepository = WorkoutRepository(workoutDao)
+        val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
+        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao)
     }
 
     @After
@@ -57,7 +58,7 @@ class OfflineFunctionalityTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 15.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -198,7 +199,7 @@ class OfflineFunctionalityTest {
 
         // Then: All data is persisted locally, no cloud operations
         assertNotNull(retrievedSessions)
-        assertEquals(5, retrievedSessions?.size, "All 5 sessions should be stored locally")
+        assertEquals(5, retrievedSessions.size, "All 5 sessions should be stored locally")
 
         // Verify only local database operations
         coVerify(exactly = 5) { workoutDao.insertSession(any()) }
@@ -215,7 +216,7 @@ class OfflineFunctionalityTest {
             mode = WorkoutMode.Pump,
             reps = 15,
             weightPerCableKg = 20.0f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -350,7 +351,7 @@ class OfflineFunctionalityTest {
         val totalWorkouts = sessions?.size ?: 0
         val averageWeight = sessions?.map { it.weightPerCableKg }?.average()?.toFloat() ?: 0f
         val progressionTrend = sessions?.mapIndexed { index, session ->
-            session.weightPerCableKg - (sessions?.getOrNull(index + 1)?.weightPerCableKg ?: session.weightPerCableKg)
+            session.weightPerCableKg - (sessions.getOrNull(index + 1)?.weightPerCableKg ?: session.weightPerCableKg)
         }
 
         // Then: All analysis is performed locally
@@ -371,7 +372,7 @@ class OfflineFunctionalityTest {
             mode = WorkoutMode.TUT,
             reps = 12,
             weightPerCableKg = 18.0f,
-            progressionKg = 2.5f,
+            progressionRegressionKg = 2.5f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -510,7 +511,7 @@ class OfflineFunctionalityTest {
         // Then: Data export is completely local
         assertNotNull(retrievedSession, "Session retrieved locally")
         assertNotNull(retrievedMetrics, "Metrics retrieved locally")
-        assertEquals(100, retrievedMetrics?.size, "All metrics available for export")
+        assertEquals(100, retrievedMetrics.size, "All metrics available for export")
         assertTrue(csvData.contains("Timestamp,LoadA,LoadB"), "CSV generated locally")
         assertTrue(csvData.lines().size > 100, "CSV contains all data")
 

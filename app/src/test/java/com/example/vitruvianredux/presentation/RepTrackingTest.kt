@@ -27,7 +27,7 @@ class RepTrackingTest {
             mode = WorkoutMode.OldSchool,
             reps = 5,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             warmupReps = 3
         )
         
@@ -56,7 +56,7 @@ class RepTrackingTest {
             mode = WorkoutMode.Pump,
             reps = 10,
             weightPerCableKg = 5f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             warmupReps = 3
         )
         
@@ -81,7 +81,7 @@ class RepTrackingTest {
             mode = WorkoutMode.TUT,
             reps = 6,
             weightPerCableKg = 8f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             warmupReps = 3
         )
         
@@ -105,7 +105,7 @@ class RepTrackingTest {
             mode = WorkoutMode.TUTBeast,
             reps = 4,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             warmupReps = 3
         )
         
@@ -129,7 +129,7 @@ class RepTrackingTest {
             mode = WorkoutMode.EccentricOnly,
             reps = 8,
             weightPerCableKg = 12f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             warmupReps = 3
         )
         
@@ -154,7 +154,7 @@ class RepTrackingTest {
             mode = WorkoutMode.OldSchool,
             reps = 0,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = true,
             warmupReps = 3
         )
@@ -181,7 +181,7 @@ class RepTrackingTest {
             mode = WorkoutMode.OldSchool,
             reps = 5,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             warmupReps = 3
         )
         
@@ -230,7 +230,7 @@ class RepTrackingTest {
             mode = WorkoutMode.OldSchool,
             reps = 5,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             stopAtTop = true,
             warmupReps = 3
         )
@@ -258,7 +258,7 @@ class RepTrackingTest {
             mode = WorkoutMode.OldSchool,
             reps = 5,
             weightPerCableKg = 10f,
-            progressionKg = 2f, // 2kg increase per rep
+            progressionRegressionKg = 2f, // 2kg increase per rep
             warmupReps = 3
         )
         
@@ -357,7 +357,7 @@ class RepCounterTracker {
                 
                 // Update weight for next rep with progression
                 params?.let { p ->
-                    currentRepWeight = p.weightPerCableKg + (newWorking * p.progressionKg)
+                    currentRepWeight = p.weightPerCableKg + (newWorking * p.progressionRegressionKg)
                 }
             }
         }

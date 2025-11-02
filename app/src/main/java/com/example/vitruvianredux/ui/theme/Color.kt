@@ -8,6 +8,14 @@ val BackgroundDarkGrey = Color(0xFF121212)       // Dark grey surface
 val SurfaceDarkGrey = Color(0xFF1E1E1E)         // Elevated surfaces
 val CardBackground = Color(0xFF252525)           // Card backgrounds
 
+// Light Theme Colors
+val ColorLightBackground = Color(0xFFF8F9FB)     // Soft light background
+val ColorOnLightBackground = Color(0xFF0F172A)   // Slate-900 like text
+val ColorLightSurface = Color(0xFFFFFFFF)        // White surface
+val ColorOnLightSurface = Color(0xFF111827)      // Dark text on surface
+val ColorLightSurfaceVariant = Color(0xFFF3F4F6) // Light gray surface variant
+val ColorOnLightSurfaceVariant = Color(0xFF6B7280) // Gray-500 text
+
 // Purple Accent Colors
 val PrimaryPurple = Color(0xFFBB86FC)           // Primary purple (Material 3 style)
 val SecondaryPurple = Color(0xFF9965F4)         // Deeper purple

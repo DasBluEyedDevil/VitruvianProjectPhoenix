@@ -52,17 +52,17 @@ sealed class WorkoutMode(val modeValue: Int, val displayName: String) {
     object TUT : WorkoutMode(3, "TUT")
     object TUTBeast : WorkoutMode(4, "TUT Beast")
     object EccentricOnly : WorkoutMode(6, "Eccentric Only")
-    data class Echo(val level: EchoLevel) : WorkoutMode(10, "Echo ${level.name}")
+    data class Echo(val level: EchoLevel) : WorkoutMode(10, "Echo")
 }
 
 /**
  * Echo mode difficulty levels
  */
 enum class EchoLevel(val levelValue: Int, val displayName: String) {
-    HARD(0, "Hard"),
-    HARDER(1, "Harder"),
-    HARDEST(2, "Hardest"),
-    EPIC(3, "Epic")
+    HARD(1, "Hard"),
+    HARDER(2, "Harder"),
+    HARDEST(3, "Hardest"),
+    EPIC(4, "Epic")
 }
 
 /**
@@ -74,7 +74,9 @@ enum class EccentricLoad(val percentage: Int, val displayName: String) {
     LOAD_75(75, "75%"),
     LOAD_100(100, "100%"),
     LOAD_125(125, "125%"),
-    LOAD_150(150, "150%")
+    LOAD_150(150, "150%"),
+    LOAD_175(175, "175%"),
+    LOAD_200(200, "200%")
 }
 
 /**
@@ -169,7 +171,10 @@ data class WorkoutSession(
     val warmupReps: Int = 0,
     val workingReps: Int = 0,
     val isJustLift: Boolean = false,
-    val stopAtTop: Boolean = false
+    val stopAtTop: Boolean = false,
+    // Echo mode configuration
+    val eccentricLoad: Int = 100,  // Percentage (0, 50, 75, 100, 125, 150)
+    val echoLevel: Int = 2  // 1=Hard, 2=Harder, 3=Hardest, 4=Epic
 )
 
 /**
