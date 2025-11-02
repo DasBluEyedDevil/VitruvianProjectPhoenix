@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -208,7 +209,7 @@ fun WorkoutHistoryCard(
                     modifier = Modifier.weight(1f)
                 )
                 EnhancedMetricItem(
-                    icon = Icons.Default.List,
+                    icon = Icons.AutoMirrored.Filled.List,
                     label = "Sets",
                     value = if (session.totalReps > 0) ((session.totalReps / session.reps.coerceAtLeast(1)) + 1).toString() else "0",
                     modifier = Modifier.weight(1f)
@@ -330,6 +331,8 @@ fun SettingsTab(
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
+    // Optimistic UI state for immediate visual feedback
+    var localWeightUnit by remember(weightUnit) { mutableStateOf(weightUnit) }
 
     Column(
         modifier = modifier
@@ -389,8 +392,11 @@ fun SettingsTab(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.small)
                 ) {
                     FilterChip(
-                        selected = weightUnit == WeightUnit.KG,
-                        onClick = { onWeightUnitChange(WeightUnit.KG) },
+                        selected = localWeightUnit == WeightUnit.KG,
+                        onClick = { 
+                            localWeightUnit = WeightUnit.KG
+                            onWeightUnitChange(WeightUnit.KG) 
+                        },
                         label = { Text("kg") },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
@@ -401,8 +407,11 @@ fun SettingsTab(
                         )
                     )
                     FilterChip(
-                        selected = weightUnit == WeightUnit.LB,
-                        onClick = { onWeightUnitChange(WeightUnit.LB) },
+                        selected = localWeightUnit == WeightUnit.LB,
+                        onClick = { 
+                            localWeightUnit = WeightUnit.LB
+                            onWeightUnitChange(WeightUnit.LB) 
+                        },
                         label = { Text("lbs") },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(

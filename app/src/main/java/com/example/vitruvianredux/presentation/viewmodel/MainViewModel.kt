@@ -487,19 +487,22 @@ class MainViewModel @Inject constructor(
                                     _pendingConnectionCallback = onConnected
                                     connectToDevice(device.address)
 
-                                    // Wait for connection to resolve from Connecting -> (Connected|Disconnected|Error)
-                                    connectionState
-                                        .filter { it !is ConnectionState.Connecting }
-                                        .take(1)
-                                        .collect { state ->
-                                            _isAutoConnecting.value = false
-                                            if (state is ConnectionState.Connected) {
-                                                onConnected()
-                                            } else {
-                                                _connectionError.value = "Connection failed"
-                                                onFailed()
-                                            }
-                                        }
+                                    // Wait for Connected state with timeout (15 seconds)
+                                    val connected = withTimeoutOrNull(15000) {
+                                        connectionState
+                                            .filter { it is ConnectionState.Connected }
+                                            .take(1)
+                                            .collect { }
+                                        true // Return true if we got Connected
+                                    }
+
+                                    _isAutoConnecting.value = false
+                                    if (connected == true) {
+                                        onConnected()
+                                    } else {
+                                        _connectionError.value = "Connection failed"
+                                        onFailed()
+                                    }
                                 } else {
                                     _isAutoConnecting.value = false
                                     _connectionError.value = "No device found"

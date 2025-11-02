@@ -61,7 +61,8 @@ fun ExerciseEditBottomSheet(
     displayToKg: (Float, WeightUnit) -> Float,
     exerciseRepository: ExerciseRepository,
     onSave: (RoutineExercise) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    buttonText: String = "Save"
 ) {
     // Load demonstration videos
     var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
@@ -368,7 +369,7 @@ fun ExerciseEditBottomSheet(
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
-                        "Save",
+                        buttonText,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -639,7 +640,7 @@ fun ModeSelector(
                     readOnly = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
+                        .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },
@@ -690,41 +691,63 @@ fun EccentricLoadSelector(
             shadowElevation = 4.dp
         ) {
             Column(modifier = Modifier.padding(Spacing.medium)) {
+                // Display current percentage value
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    listOf(
-                        EccentricLoad.LOAD_50,
-                        EccentricLoad.LOAD_75,
-                        EccentricLoad.LOAD_100
-                    ).forEach { load ->
-                        FilterChip(
-                            selected = eccentricLoad == load,
-                            onClick = { onLoadChange(load) },
-                            label = { Text(load.displayName) },
-                            modifier = Modifier.weight(1f)
+                    Text(
+                        "Eccentric Load: ${eccentricLoad.percentage}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150%, 175%, 200%
+                val eccentricLoadValues = listOf(
+                    EccentricLoad.LOAD_0,
+                    EccentricLoad.LOAD_50,
+                    EccentricLoad.LOAD_75,
+                    EccentricLoad.LOAD_100,
+                    EccentricLoad.LOAD_125,
+                    EccentricLoad.LOAD_150,
+                    EccentricLoad.LOAD_175,
+                    EccentricLoad.LOAD_200
+                )
+                val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let { 
+                    if (it < 0) 3 else it // Default to 100% if not found
+                }
+
+                Slider(
+                    value = currentIndex.toFloat(),
+                    onValueChange = { value ->
+                        val index = value.toInt().coerceIn(0, eccentricLoadValues.size - 1)
+                        onLoadChange(eccentricLoadValues[index])
+                    },
+                    valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
+                    steps = eccentricLoadValues.size - 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Value labels below slider
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    eccentricLoadValues.forEach { load ->
+                        Text(
+                            load.displayName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(
-                        EccentricLoad.LOAD_125,
-                        EccentricLoad.LOAD_150
-                    ).forEach { load ->
-                        FilterChip(
-                            selected = eccentricLoad == load,
-                            onClick = { onLoadChange(load) },
-                            label = { Text(load.displayName) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                }
 
                 Text(
                     "Percentage of concentric load applied during eccentric phase",
@@ -765,7 +788,7 @@ fun EchoLevelSelector(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    EchoLevel.values().forEach { echoLevel ->
+                    EchoLevel.entries.forEach { echoLevel ->
                         FilterChip(
                             selected = level == echoLevel,
                             onClick = { onLevelChange(echoLevel) },

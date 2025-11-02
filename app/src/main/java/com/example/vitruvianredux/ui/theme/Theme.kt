@@ -40,20 +40,20 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = PurpleAccent,
-    onPrimary = TextPrimary,
-    primaryContainer = TertiaryPurple,
-    onPrimaryContainer = BackgroundBlack,
+    primary = TertiaryPurple,               // Light purple for buttons
+    onPrimary = ColorOnLightBackground,     // Dark text on light buttons
+    primaryContainer = TertiaryPurple,      // Light purple container
+    onPrimaryContainer = ColorOnLightBackground,
 
-    secondary = SecondaryPurple,
-    onSecondary = TextPrimary,
+    secondary = TertiaryPurple,             // Light purple for secondary elements
+    onSecondary = ColorOnLightBackground,   // Dark text
     secondaryContainer = TertiaryPurple,
-    onSecondaryContainer = BackgroundBlack,
+    onSecondaryContainer = ColorOnLightBackground,
 
-    tertiary = InfoBlue,
-    onTertiary = TextPrimary,
+    tertiary = InfoBlue.copy(alpha = 0.3f), // Light blue
+    onTertiary = ColorOnLightBackground,
     tertiaryContainer = InfoBlue.copy(alpha = 0.15f),
-    onTertiaryContainer = BackgroundBlack,
+    onTertiaryContainer = ColorOnLightBackground,
 
     background = ColorLightBackground,
     onBackground = ColorOnLightBackground,
@@ -64,7 +64,7 @@ private val LightColorScheme = lightColorScheme(
     onSurfaceVariant = ColorOnLightSurfaceVariant,
 
     error = ErrorRed,
-    onError = TextPrimary,
+    onError = ColorLightSurface,            // White text on red error
 
     outline = ColorOnLightSurfaceVariant.copy(alpha = 0.6f),
     outlineVariant = ColorOnLightSurfaceVariant.copy(alpha = 0.4f)

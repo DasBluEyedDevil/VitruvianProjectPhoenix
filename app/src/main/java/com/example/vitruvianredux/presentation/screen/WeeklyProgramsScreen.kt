@@ -2,6 +2,7 @@ package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,9 +39,9 @@ fun WeeklyProgramsScreen(
     viewModel: MainViewModel,
     themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
-    // For now, using mock data until database schema is created
-    var programs by remember { mutableStateOf(listOf<WeeklyProgram>()) }
-    var activeProgram by remember { mutableStateOf<WeeklyProgram?>(null) }
+    // Get programs from ViewModel's database StateFlows
+    val programs by viewModel.weeklyPrograms.collectAsState()
+    val activeProgram by viewModel.activeProgram.collectAsState()
 
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
@@ -54,13 +55,6 @@ fun WeeklyProgramsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    IconButton(onClick = {
-                        navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create program")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -70,7 +64,14 @@ fun WeeklyProgramsScreen(
             )
         }
     ) { padding ->
-        val backgroundGradient = if (themeMode == com.example.vitruvianredux.ui.theme.ThemeMode.DARK) {
+        // Determine actual theme (matching Theme.kt logic)
+        val useDarkColors = when (themeMode) {
+            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
+            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
+        }
+
+        val backgroundGradient = if (useDarkColors) {
             Brush.verticalGradient(
                 colors = listOf(
                     Color(0xFF0F172A), // slate-900
@@ -103,15 +104,26 @@ fun WeeklyProgramsScreen(
             // Active Program Card
             if (activeProgram != null) {
                 item {
+                    val today = java.time.LocalDate.now().dayOfWeek
+                    val todayDayValue = today.value
+                    val todayRoutineId = activeProgram!!.days.find { it.dayOfWeek == todayDayValue }?.routineId
+
                     ActiveProgramCard(
                         program = activeProgram!!,
                         onStartTodayWorkout = {
-                            // TODO: Load today's routine and navigate to workout
-                            // For now, just show a snackbar
+                            todayRoutineId?.let { routineId ->
+                                viewModel.ensureConnection(
+                                    onConnected = {
+                                        viewModel.loadRoutineById(routineId)
+                                        viewModel.startWorkout()
+                                    },
+                                    onFailed = { /* Error shown via StateFlow */ }
+                                )
+                            }
                         },
                         onViewProgram = {
                             navController.navigate(
-                                NavigationRoutes.ProgramBuilder.createRoute(activeProgram!!.id)
+                                NavigationRoutes.ProgramBuilder.createRoute(activeProgram!!.program.id)
                             )
                         }
                     )
@@ -211,14 +223,17 @@ fun WeeklyProgramsScreen(
                 items(programs) { program ->
                     ProgramListItem(
                         program = program,
-                        isActive = program.id == activeProgram?.id,
+                        isActive = program.program.id == activeProgram?.program?.id,
                         onClick = {
                             navController.navigate(
-                                NavigationRoutes.ProgramBuilder.createRoute(program.id)
+                                NavigationRoutes.ProgramBuilder.createRoute(program.program.id)
                             )
                         },
                         onActivate = {
-                            activeProgram = program
+                            viewModel.activateProgram(program.program.id)
+                        },
+                        onDelete = {
+                            viewModel.deleteProgram(program.program.id)
                         }
                     )
                 }
@@ -245,12 +260,18 @@ fun WeeklyProgramsScreen(
  */
 @Composable
 fun ActiveProgramCard(
-    program: WeeklyProgram,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     onStartTodayWorkout: () -> Unit,
     onViewProgram: () -> Unit
 ) {
     val today = LocalDate.now().dayOfWeek
-    val todayRoutine = program.dailyRoutines[today]
+    // Use Java DayOfWeek.value directly (MONDAY=1, TUESDAY=2, ..., SUNDAY=7)
+    // This matches what ProgramBuilder saves: day.value
+    val todayDayValue = today.value
+
+    // Find today's routine ID from program days
+    val todayRoutineId = program.days.find { it.dayOfWeek == todayDayValue }?.routineId
+    val hasWorkoutToday = todayRoutineId != null
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -276,7 +297,7 @@ fun ActiveProgramCard(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                     Text(
-                        program.name,
+                        program.program.title,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -306,16 +327,11 @@ fun ActiveProgramCard(
 
             Spacer(modifier = Modifier.height(Spacing.small))
 
-            if (todayRoutine != null) {
+            if (hasWorkoutToday) {
                 Text(
-                    todayRoutine.name,
+                    "Workout scheduled",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "${todayRoutine.exercises.size} exercises",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.medium))
@@ -347,11 +363,14 @@ fun ActiveProgramCard(
  */
 @Composable
 fun ProgramListItem(
-    program: WeeklyProgram,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     isActive: Boolean,
     onClick: () -> Unit,
-    onActivate: () -> Unit
+    onActivate: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -372,41 +391,88 @@ fun ProgramListItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    program.name,
+                    program.program.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "${program.dailyRoutines.values.filterNotNull().size} workout days",
+                    "${program.days.size} workout days",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            if (!isActive) {
-                TextButton(onClick = onActivate) {
-                    Text("Activate")
-                }
-            } else {
-                Surface(
-                    color = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        "Active",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimary
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Delete button
+                IconButton(onClick = { showDeleteDialog = true }) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete program",
+                        tint = MaterialTheme.colorScheme.error
                     )
+                }
+
+                // Activate/Active status
+                if (!isActive) {
+                    TextButton(onClick = onActivate) {
+                        Text("Activate")
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            "Active",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }
     }
+
+    // Delete confirmation dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Program") },
+            text = { Text("Are you sure you want to delete \"${program.program.title}\"? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 /**
- * Data class for weekly program (placeholder until database schema is created).
+ * DEPRECATED: This mock data class is no longer used.
+ * Use WeeklyProgramWithDays from data.local instead.
  */
+@Deprecated(
+    message = "Use WeeklyProgramWithDays from data.local package",
+    replaceWith = ReplaceWith("com.example.vitruvianredux.data.local.WeeklyProgramWithDays")
+)
 data class WeeklyProgram(
     val id: String,
     val name: String,

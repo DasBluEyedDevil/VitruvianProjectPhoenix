@@ -23,6 +23,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
@@ -95,7 +97,8 @@ fun ExercisePickerDialog(
     onDismiss: () -> Unit,
     onExerciseSelected: (ExerciseEntity) -> Unit,
     exerciseRepository: ExerciseRepository,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fullScreen: Boolean = false
 ) {
     if (!showDialog) return
 
@@ -139,14 +142,13 @@ fun ExercisePickerDialog(
         exerciseRepository.importExercises()
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = modifier
-    ) {
+    // Content composable to be reused in both ModalBottomSheet and Dialog
+    @Composable
+    fun PickerContent() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
                 .padding(horizontal = 16.dp)
         ) {
             // Title
@@ -270,6 +272,32 @@ fun ExercisePickerDialog(
                     }
                 }
             }
+        }
+    }
+
+    // Use Dialog for fullscreen, ModalBottomSheet otherwise
+    if (fullScreen) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                PickerContent()
+            }
+        }
+    } else {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            modifier = modifier
+        ) {
+            PickerContent()
         }
     }
 }

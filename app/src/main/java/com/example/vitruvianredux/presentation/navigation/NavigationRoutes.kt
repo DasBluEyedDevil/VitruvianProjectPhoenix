@@ -9,6 +9,7 @@ sealed class NavigationRoutes(val route: String) {
     object JustLift : NavigationRoutes("just_lift")
     object SingleExercise : NavigationRoutes("single_exercise")
     object DailyRoutines : NavigationRoutes("daily_routines")
+    object ActiveWorkout : NavigationRoutes("active_workout")
     object WeeklyPrograms : NavigationRoutes("weekly_programs")
     object ProgramBuilder : NavigationRoutes("program_builder/{programId}") {
         fun createRoute(programId: String = "new") = "program_builder/$programId"

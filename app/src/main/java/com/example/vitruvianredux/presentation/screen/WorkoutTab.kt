@@ -9,21 +9,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import android.net.Uri
+import android.view.ViewGroup
+import android.widget.VideoView
 import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
@@ -60,6 +65,7 @@ fun WorkoutTab(
     onShowWorkoutSetupDialog: () -> Unit = {},
     onHideWorkoutSetupDialog: () -> Unit = {},
     showConnectionCard: Boolean = true,
+    showWorkoutSetupCard: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // Haptic feedback effect
@@ -109,32 +115,34 @@ fun WorkoutTab(
             // Show setup button when in Idle state, otherwise show workout controls
             when (workoutState) {
                 is WorkoutState.Idle -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.medium)
+                    if (showWorkoutSetupCard) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
                         ) {
-                            Text(
-                                "Workout Setup",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.small))
-                            Button(
-                                onClick = onShowWorkoutSetupDialog,
-                                modifier = Modifier.fillMaxWidth()
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.medium)
                             ) {
-                                Icon(Icons.Default.Settings, contentDescription = "Configure workout")
-                                Spacer(modifier = Modifier.width(Spacing.small))
-                                Text("Setup Workout")
+                                Text(
+                                    "Workout Setup",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(Spacing.small))
+                                Button(
+                                    onClick = onShowWorkoutSetupDialog,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Settings, contentDescription = "Configure workout")
+                                    Spacer(modifier = Modifier.width(Spacing.small))
+                                    Text("Setup Workout")
+                                }
                             }
                         }
                     }
@@ -242,6 +250,15 @@ fun WorkoutTab(
                     )
                 }
                 is WorkoutState.Active -> {
+                    // Show current exercise details
+                    CurrentExerciseCard(
+                        loadedRoutine = loadedRoutine,
+                        currentExerciseIndex = currentExerciseIndex,
+                        workoutParameters = workoutParameters,
+                        exerciseRepository = exerciseRepository,
+                        formatWeight = { weight -> formatWeight(weight, weightUnit) }
+                    )
+
                     RepCounterCard(repCount = repCount)
                 }
                 else -> {}
@@ -367,7 +384,7 @@ fun WorkoutSetupDialog(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(),
+                            .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
                         colors = OutlinedTextFieldDefaults.colors()
                     )
                     ExposedDropdownMenu(
@@ -402,7 +419,7 @@ fun WorkoutSetupDialog(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("Echo Mode")
-                                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                                 }
                             },
                             onClick = {
@@ -418,7 +435,7 @@ fun WorkoutSetupDialog(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("TUT")
-                                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                                 }
                             },
                             onClick = {
@@ -894,7 +911,7 @@ fun ModeSubSelectorDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .menuAnchor()
+                                    .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
                                 expanded = showEchoLevelMenu,
@@ -927,7 +944,7 @@ fun ModeSubSelectorDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .menuAnchor()
+                                    .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
                                 expanded = showEccentricMenu,
@@ -1131,7 +1148,7 @@ fun WorkoutParametersCard(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
+                        .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
                     enabled = workoutState is WorkoutState.Idle
                 )
                 ExposedDropdownMenu(
@@ -1180,7 +1197,7 @@ fun WorkoutParametersCard(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("Echo Mode")
-                                Icon(Icons.Default.KeyboardArrowRight, contentDescription = null)
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                             }
                         },
                         onClick = {
@@ -1422,6 +1439,172 @@ fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
     }
 }
 
+/**
+ * Video Player - AndroidView wrapper for VideoView
+ * Displays exercise demonstration videos in a loop
+ */
+@Composable
+fun VideoPlayer(
+    videoUrl: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var isLoading by remember { mutableStateOf(true) }
+    var hasError by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                VideoView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+
+                    // Set video URI (no controls - just loop like a GIF)
+                    try {
+                        setVideoURI(Uri.parse(videoUrl))
+
+                        // Set up listeners
+                        setOnPreparedListener { mp ->
+                            isLoading = false
+                            mp.isLooping = true
+                            start()
+                        }
+
+                        setOnErrorListener { _, _, _ ->
+                            isLoading = false
+                            hasError = true
+                            true
+                        }
+                    } catch (e: Exception) {
+                        isLoading = false
+                        hasError = true
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Loading indicator
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(32.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        // Error placeholder
+        if (hasError) {
+            Icon(
+                imageVector = Icons.Default.PlayCircle,
+                contentDescription = "Video unavailable",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(48.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Current Exercise Card - Shows exercise details during active workout
+ * Displays exercise name, reps, weight, mode, and video if available
+ */
+@Composable
+fun CurrentExerciseCard(
+    loadedRoutine: Routine?,
+    currentExerciseIndex: Int,
+    workoutParameters: WorkoutParameters,
+    exerciseRepository: ExerciseRepository,
+    formatWeight: (Float) -> String
+) {
+    // Get current exercise from routine if available
+    val currentExercise = loadedRoutine?.exercises?.getOrNull(currentExerciseIndex)
+
+    // Get exercise entity for video
+    var exerciseEntity by remember { mutableStateOf<com.example.vitruvianredux.data.local.ExerciseEntity?>(null) }
+    var videoEntity by remember { mutableStateOf<com.example.vitruvianredux.data.local.ExerciseVideoEntity?>(null) }
+
+    // Load exercise and video data
+    LaunchedEffect(currentExercise?.exercise?.id, workoutParameters.selectedExerciseId) {
+        val exerciseId = currentExercise?.exercise?.id ?: workoutParameters.selectedExerciseId
+        if (exerciseId != null) {
+            exerciseEntity = exerciseRepository.getExerciseById(exerciseId)
+            val videos = exerciseRepository.getVideos(exerciseId)
+            videoEntity = videos.firstOrNull()
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            // Exercise name
+            Text(
+                text = currentExercise?.exercise?.name ?: exerciseEntity?.name ?: "Exercise",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Exercise details (reps, weight, mode)
+            if (currentExercise != null) {
+                // Routine exercise - show full details
+                val repsText = if (currentExercise.setReps.all { it == currentExercise.setReps.first() }) {
+                    "${currentExercise.setReps.size}x${currentExercise.setReps.first()}"
+                } else {
+                    currentExercise.setReps.joinToString(", ")
+                }
+
+                val weightText = when (currentExercise.cableConfig) {
+                    CableConfiguration.SINGLE -> "${formatWeight(currentExercise.weightPerCableKg)} (Single)"
+                    CableConfiguration.DOUBLE -> "${formatWeight(currentExercise.weightPerCableKg)}/cable (Double)"
+                    else -> formatWeight(currentExercise.weightPerCableKg)
+                }
+
+                Text(
+                    text = "$repsText @ $weightText - ${currentExercise.mode.displayName}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                // Just Lift mode - show basic details
+                Text(
+                    text = "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.mode.displayName}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Video player (if video available)
+            videoEntity?.let { video ->
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                VideoPlayer(
+                    videoUrl = video.videoUrl,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun RepCounterCard(repCount: RepCount) {
     Card(
@@ -1434,7 +1617,8 @@ fun RepCounterCard(repCount: RepCount) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.large)
+                .padding(Spacing.large),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 "Reps",
@@ -1443,49 +1627,13 @@ fun RepCounterCard(repCount: RepCount) {
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "Warmup",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        repCount.warmupReps.toString(),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "Working",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        repCount.workingReps.toString(),
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "Total",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    // Show working reps only (matches trainer - warmup doesn't count)
-                    Text(
-                        repCount.workingReps.toString(),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
+            // Single rep counter showing total reps (warmup + working)
+            Text(
+                repCount.totalReps.toString(),
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

@@ -3,6 +3,7 @@ package com.example.vitruvianredux.presentation.screen
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,12 +22,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.vitruvianredux.domain.model.ConnectionState
+import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.presentation.components.StatsCard
-import com.example.vitruvianredux.presentation.components.ThemeToggle
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+import com.example.vitruvianredux.ui.theme.Spacing
 import com.example.vitruvianredux.ui.theme.ThemeMode
+import java.time.LocalDate
 
 /**
  * Home screen showing workout type selection with modern gradient card design.
@@ -36,8 +38,7 @@ import com.example.vitruvianredux.ui.theme.ThemeMode
 fun HomeScreen(
     navController: NavController,
     viewModel: MainViewModel,
-    themeMode: ThemeMode,
-    onThemeModeChange: (ThemeMode) -> Unit
+    themeMode: ThemeMode
 ) {
     // Collect stats from ViewModel
     val workoutStreak by viewModel.workoutStreak.collectAsState()
@@ -45,12 +46,25 @@ fun HomeScreen(
     val progressPercentage by viewModel.progressPercentage.collectAsState()
 
     // Collect connection state
-    val connectionState by viewModel.connectionState.collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+    val connectionError by viewModel.connectionError.collectAsState()
+
+    // Collect active program and routines for Active Program Widget
+    val activeProgram by viewModel.activeProgram.collectAsState()
+    val routines by viewModel.routines.collectAsState()
+    val weightUnit by viewModel.weightUnit.collectAsState()
 
     // Determine if we have any stats to show
     val hasStats = workoutStreak != null || completedWorkouts != null || progressPercentage != null
 
-    val backgroundGradient = if (themeMode == ThemeMode.DARK) {
+    // Determine actual theme (matching Theme.kt logic)
+    val useDarkColors = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    val backgroundGradient = if (useDarkColors) {
         Brush.verticalGradient(
             colors = listOf(
                 Color(0xFF0F172A), // slate-900
@@ -79,88 +93,36 @@ fun HomeScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Header with title and icon controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("Welcome back", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Vitruvian Control", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Connection status icon
-                    IconButton(
-                        onClick = {
-                            // TODO: Toggle connection when clicked
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Bluetooth,
-                            contentDescription = "Connection status",
-                            modifier = Modifier.size(24.dp),
-                            tint = when (connectionState) {
-                                is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
-                                is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
-                                is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
-                                is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
-                                is ConnectionState.Error -> Color(0xFFEF4444) // red-500
-                            }
+            // Simple header with just "Start a workout" title
+            Text(
+                "Start a workout",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Active Program Widget - shows today's routine from active program
+            activeProgram?.let { program ->
+                HomeActiveProgramCard(
+                    program = program,
+                    routines = routines,
+                    weightUnit = weightUnit,
+                    formatWeight = viewModel::formatWeight,
+                    onStartRoutine = { routineId ->
+                        viewModel.ensureConnection(
+                            onConnected = {
+                                viewModel.loadRoutineById(routineId)
+                                viewModel.startWorkout()
+                                navController.navigate(NavigationRoutes.DailyRoutines.route)
+                            },
+                            onFailed = { /* Error shown via StateFlow */ }
                         )
                     }
-
-                    // Theme toggle icon
-                    ThemeToggle(mode = themeMode, onModeChange = onThemeModeChange)
-                }
+                )
             }
 
-            // Stats overview - only show if there is data
-            if (hasStats) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Streak card - only show if data exists
-                    workoutStreak?.let { streak ->
-                        StatsCard(
-                            label = "Streak",
-                            value = "$streak ${if (streak == 1) "day" else "days"}",
-                            icon = Icons.Default.LocalFireDepartment,
-                            iconColor = Color(0xFFF97316), // orange-500
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Completed workouts card - only show if data exists
-                    completedWorkouts?.let { completed ->
-                        StatsCard(
-                            label = "Completed",
-                            value = completed.toString(),
-                            icon = Icons.Default.CheckCircle,
-                            iconColor = Color(0xFF22C55E), // green-500
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Progress card - only show if data exists
-                    progressPercentage?.let { progress ->
-                        StatsCard(
-                            label = "Progress",
-                            value = "${if (progress > 0) "+" else ""}$progress%",
-                            icon = Icons.AutoMirrored.Filled.TrendingUp,
-                            iconColor = Color(0xFF3B82F6), // blue-500
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            // Section title
-            Text("Start a workout", style = MaterialTheme.typography.titleMedium)
+            // Stats overview hidden (not needed per user request)
+            // Future: can be re-enabled by changing condition to: if (hasStats)
 
             WorkoutCard(
                 title = "Just Lift",
@@ -200,6 +162,18 @@ fun HomeScreen(
                     colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue-500 to indigo-600
                 ),
                 onClick = { navController.navigate(NavigationRoutes.WeeklyPrograms.route) }
+            )
+        }
+
+        // Auto-connect UI overlays (same as exercise start screens)
+        if (isAutoConnecting) {
+            com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+        }
+
+        connectionError?.let { error ->
+            com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+                message = error,
+                onDismiss = { viewModel.clearConnectionError() }
             )
         }
     }
@@ -312,6 +286,94 @@ fun WorkoutCard(
         if (isPressed) {
             kotlinx.coroutines.delay(100)
             isPressed = false
+        }
+    }
+}
+
+/**
+ * Compact Active Program Card for HomeScreen.
+ * Shows today's workout exercises with simple format.
+ */
+@Composable
+fun HomeActiveProgramCard(
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
+    routines: List<com.example.vitruvianredux.domain.model.Routine>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    onStartRoutine: (String) -> Unit
+) {
+    val today = LocalDate.now().dayOfWeek
+    // Use Java DayOfWeek.value directly (MONDAY=1, TUESDAY=2, ..., SUNDAY=7)
+    // This matches what ProgramBuilder saves: day.value
+    val todayDayValue = today.value
+
+    // Find today's routine ID from program days
+    val todayRoutineId = program.days.find { it.dayOfWeek == todayDayValue }?.routineId
+    val todayRoutine = todayRoutineId?.let { routineId ->
+        routines.find { it.id == routineId }
+    }
+    val hasWorkoutToday = todayRoutineId != null
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            if (hasWorkoutToday) {
+                // Show exercises if routine is loaded
+                todayRoutine?.let { routine ->
+                    // Show all exercises with simple format: "Exercise Name | X Reps | X lbs | Mode"
+                    routine.exercises.forEach { exercise ->
+                        // Get first set reps (for display)
+                        val repsText = "${exercise.setReps.firstOrNull() ?: 10} Reps"
+
+                        // Format weight in user's preferred unit
+                        val weightKg = exercise.weightPerCableKg
+                        val weightDisplay = formatWeight(weightKg, weightUnit)
+
+                        // Get mode display name
+                        val modeText = exercise.mode.displayName
+
+                        Text(
+                            text = "${exercise.exercise.name} | $repsText | $weightDisplay | $modeText",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Start Routine button - only enable if we have the full routine details
+                Button(
+                    onClick = { onStartRoutine(todayRoutineId) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = todayRoutine != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Text("Start Routine")
+                }
+            } else {
+                // Rest day
+                Text(
+                    text = "Rest day",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 
 /**
@@ -47,7 +49,14 @@ fun DailyRoutinesScreen(
             )
         }
     ) { padding ->
-        val backgroundGradient = if (themeMode == com.example.vitruvianredux.ui.theme.ThemeMode.DARK) {
+        // Determine actual theme (matching Theme.kt logic)
+        val useDarkColors = when (themeMode) {
+            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
+            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
+        }
+
+        val backgroundGradient = if (useDarkColors) {
             Brush.verticalGradient(
                 colors = listOf(
                     Color(0xFF0F172A), // slate-900
@@ -82,8 +91,8 @@ fun DailyRoutinesScreen(
                     viewModel.ensureConnection(
                         onConnected = {
                             viewModel.loadRoutine(routine)
-                            navController.navigateUp()
                             viewModel.startWorkout()
+                            navController.navigate(NavigationRoutes.ActiveWorkout.route)
                         },
                         onFailed = { /* Error shown via StateFlow */ }
                     )

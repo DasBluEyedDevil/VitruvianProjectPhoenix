@@ -51,7 +51,7 @@ class MainViewModelTest {
             mode = WorkoutMode.OldSchool,
             reps = 10,
             weightPerCableKg = 10f,
-            progressionKg = 0f,
+            progressionRegressionKg = 0f,
             isJustLift = false,
             stopAtTop = false,
             warmupReps = 3
@@ -115,7 +115,7 @@ class MainViewModelTest {
         }
 
         assertNotNull(history)
-        assertEquals(0, history?.size) // Empty by default in mock
+        assertEquals(0, history.size) // Empty by default in mock
         verify { workoutRepository.getRecentSessions(10) }
     }
 
@@ -145,7 +145,7 @@ class MainViewModelTest {
             WorkoutMode.TUT,
             WorkoutMode.TUTBeast,
             WorkoutMode.EccentricOnly,
-            WorkoutMode.Echo(EchoLevel.LEVEL_1)
+            WorkoutMode.Echo(EchoLevel.HARD)
         )
 
         assertEquals(6, modes.size)

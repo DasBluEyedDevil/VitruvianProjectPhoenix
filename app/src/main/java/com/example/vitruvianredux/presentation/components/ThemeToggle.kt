@@ -1,7 +1,5 @@
 package com.example.vitruvianredux.presentation.components
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -16,7 +14,7 @@ import com.example.vitruvianredux.ui.theme.ThemeMode
 
 /**
  * Compact icon-only theme toggle.
- * Cycles between Light -> Dark -> System modes.
+ * Toggles between Light and Dark modes only.
  */
 @Composable
 fun ThemeToggle(
@@ -26,11 +24,11 @@ fun ThemeToggle(
 ) {
     IconButton(
         onClick = {
-            // Cycle through: Light -> Dark -> System -> Light
+            // Toggle between Light and Dark only
             val nextMode = when (mode) {
                 ThemeMode.LIGHT -> ThemeMode.DARK
-                ThemeMode.DARK -> ThemeMode.SYSTEM
-                ThemeMode.SYSTEM -> ThemeMode.LIGHT
+                ThemeMode.DARK -> ThemeMode.LIGHT
+                ThemeMode.SYSTEM -> ThemeMode.LIGHT // If somehow in SYSTEM, go to LIGHT
             }
             onModeChange(nextMode)
         },
@@ -40,7 +38,7 @@ fun ThemeToggle(
             imageVector = when (mode) {
                 ThemeMode.LIGHT -> Icons.Default.LightMode
                 ThemeMode.DARK -> Icons.Default.DarkMode
-                ThemeMode.SYSTEM -> Icons.Default.LightMode // Use light icon for system
+                ThemeMode.SYSTEM -> Icons.Default.LightMode // Fallback
             },
             contentDescription = "Toggle theme (current: ${mode.name.lowercase()})",
             modifier = Modifier.size(24.dp),

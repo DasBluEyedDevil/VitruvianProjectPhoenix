@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.domain.model.*
+import com.example.vitruvianredux.presentation.components.CompactNumberPicker
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
 
@@ -48,10 +49,12 @@ fun JustLiftScreen(
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    var selectedMode by remember { mutableStateOf<WorkoutMode>(WorkoutMode.EccentricOnly) }
+    var selectedMode by remember { mutableStateOf<WorkoutMode>(WorkoutMode.OldSchool) }
+    var weightPerCable by remember { mutableStateOf(20f) } // Default weight in kg
+    var weightChangePerRep by remember { mutableStateOf(0) } // Progression/Regression value
+    var restTime by remember { mutableStateOf(60) } // Rest time in seconds
     var eccentricLoad by remember { mutableStateOf(EccentricLoad.LOAD_100) }
-    var useProgression by remember { mutableStateOf(false) }
-    var useRegression by remember { mutableStateOf(false) }
+    var echoLevel by remember { mutableStateOf(EchoLevel.HARDER) }
 
     Scaffold(
         topBar = {
@@ -134,16 +137,16 @@ fun JustLiftScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Mode chips
+                    // Mode chips: Old School, Pump, Echo
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
-                            selected = selectedMode is WorkoutMode.EccentricOnly,
-                            onClick = { selectedMode = WorkoutMode.EccentricOnly },
-                            label = { Text("Eccentric Only") },
-                            leadingIcon = if (selectedMode is WorkoutMode.EccentricOnly) {
+                            selected = selectedMode is WorkoutMode.OldSchool,
+                            onClick = { selectedMode = WorkoutMode.OldSchool },
+                            label = { Text("Old School") },
+                            leadingIcon = if (selectedMode is WorkoutMode.OldSchool) {
                                 { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             } else null
                         )
@@ -156,10 +159,10 @@ fun JustLiftScreen(
                             } else null
                         )
                         FilterChip(
-                            selected = selectedMode is WorkoutMode.OldSchool,
-                            onClick = { selectedMode = WorkoutMode.OldSchool },
-                            label = { Text("Old School") },
-                            leadingIcon = if (selectedMode is WorkoutMode.OldSchool) {
+                            selected = selectedMode is WorkoutMode.Echo,
+                            onClick = { selectedMode = WorkoutMode.Echo(echoLevel) },
+                            label = { Text("Echo") },
+                            leadingIcon = if (selectedMode is WorkoutMode.Echo) {
                                 { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
                             } else null
                         )
@@ -169,9 +172,9 @@ fun JustLiftScreen(
 
                     Text(
                         when (selectedMode) {
-                            is WorkoutMode.EccentricOnly -> "Resistance only on the eccentric (lowering) phase."
-                            is WorkoutMode.Pump -> "Resistance increases the faster you go."
                             is WorkoutMode.OldSchool -> "Constant resistance throughout the movement."
+                            is WorkoutMode.Pump -> "Resistance increases the faster you go."
+                            is WorkoutMode.Echo -> "Adaptive resistance with echo feedback."
                             else -> selectedMode.displayName
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -186,24 +189,209 @@ fun JustLiftScreen(
                 }
             }
 
-            // Eccentric Load Percentage Card
-            var isLoadPressed by remember { mutableStateOf(false) }
-            val loadScale by animateFloatAsState(
-                targetValue = if (isLoadPressed) 0.99f else 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = 400f
-                ),
-                label = "loadScale"
-            )
+            // Mode-specific options
+            
+            // OLD SCHOOL & PUMP: Weight per cable, Progression/Regression, Rest Time
+            val isOldSchoolOrPump = selectedMode is WorkoutMode.OldSchool || selectedMode is WorkoutMode.Pump
+            if (isOldSchoolOrPump) {
+                // Weight per Cable Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+                        val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
+                        val displayWeight = if (weightUnit == WeightUnit.LB) {
+                            (weightPerCable * 2.20462f).toInt() // Convert kg to lbs
+                        } else {
+                            weightPerCable.toInt()
+                        }
+                        val kgWeight = if (weightUnit == WeightUnit.LB) {
+                            displayWeight / 2.20462f // Convert back to kg for storage
+                        } else {
+                            displayWeight.toFloat()
+                        }
+
+                        CompactNumberPicker(
+                            value = displayWeight,
+                            onValueChange = { newValue ->
+                                weightPerCable = if (weightUnit == WeightUnit.LB) {
+                                    newValue / 2.20462f
+                                } else {
+                                    newValue.toFloat()
+                                }
+                            },
+                            range = 1..maxWeight,
+                            label = "Weight per Cable",
+                            suffix = weightSuffix,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // Weight Change Per Rep Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+                        val maxWeightChange = 10
+
+                        CompactNumberPicker(
+                            value = weightChangePerRep,
+                            onValueChange = { weightChangePerRep = it },
+                            range = -maxWeightChange..maxWeightChange,
+                            label = "Weight Change Per Rep",
+                            suffix = weightSuffix,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            "Negative = Regression, Positive = Progression",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            // ECHO MODE: Eccentric Load, Echo Level, Rest Time
+            val isEchoMode = selectedMode is WorkoutMode.Echo
+            if (isEchoMode) {
+                // Eccentric Load Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            "Eccentric Load: ${eccentricLoad.percentage}%",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150%, 175%, 200%
+                        val eccentricLoadValues = listOf(
+                            EccentricLoad.LOAD_0,
+                            EccentricLoad.LOAD_50,
+                            EccentricLoad.LOAD_75,
+                            EccentricLoad.LOAD_100,
+                            EccentricLoad.LOAD_125,
+                            EccentricLoad.LOAD_150,
+                            EccentricLoad.LOAD_175,
+                            EccentricLoad.LOAD_200
+                        )
+                        val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let {
+                            if (it < 0) 3 else it // Default to 100% if not found
+                        }
+
+                        Slider(
+                            value = currentIndex.toFloat(),
+                            onValueChange = { value ->
+                                val index = value.toInt().coerceIn(0, eccentricLoadValues.size - 1)
+                                eccentricLoad = eccentricLoadValues[index]
+                            },
+                            valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
+                            steps = eccentricLoadValues.size - 2,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Value labels
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            eccentricLoadValues.forEach { load ->
+                                Text(
+                                    load.displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            "Load percentage applied during eccentric (lowering) phase",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Echo Level Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            "Echo Level",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            EchoLevel.entries.forEach { level ->
+                                FilterChip(
+                                    selected = echoLevel == level,
+                                    onClick = {
+                                        echoLevel = level
+                                        selectedMode = WorkoutMode.Echo(level)
+                                    },
+                                    label = { Text(level.displayName, style = MaterialTheme.typography.bodySmall) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Rest Time Card (shown for all modes)
             Card(
-                onClick = { isLoadPressed = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .scale(loadScale),
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = if (isLoadPressed) 2.dp else 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                 border = BorderStroke(1.dp, Color(0xFFF5F3FF))
             ) {
                 Column(
@@ -211,144 +399,14 @@ fun JustLiftScreen(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    Text(
-                        "Eccentric Load: ${eccentricLoad.percentage}%",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Discrete slider with 7 values: 50%, 75%, 100%, 125%, 150%, 175%, 200%
-                    val eccentricLoadValues = EccentricLoad.values()
-                    val sliderPosition = eccentricLoadValues.indexOf(eccentricLoad).toFloat()
-
-                    Slider(
-                        value = sliderPosition,
-                        onValueChange = { value ->
-                            eccentricLoad = eccentricLoadValues[value.toInt()]
-                        },
-                        valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
-                        steps = eccentricLoadValues.size - 2,
+                    CompactNumberPicker(
+                        value = restTime,
+                        onValueChange = { restTime = it },
+                        range = 0..300,
+                        label = "Rest Time",
+                        suffix = "sec",
                         modifier = Modifier.fillMaxWidth()
                     )
-
-                    // Value labels
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        eccentricLoadValues.forEach {
-                            Text(it.displayName, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        "Load percentage applied during eccentric (lowering) phase",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            LaunchedEffect(isLoadPressed) {
-                if (isLoadPressed) {
-                    kotlinx.coroutines.delay(100)
-                    isLoadPressed = false
-                }
-            }
-
-            // Progression/Regression Card
-            var isAdaptivePressed by remember { mutableStateOf(false) }
-            val adaptiveScale by animateFloatAsState(
-                targetValue = if (isAdaptivePressed) 0.99f else 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = 400f
-                ),
-                label = "adaptiveScale"
-            )
-            Card(
-                onClick = { isAdaptivePressed = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .scale(adaptiveScale),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = if (isAdaptivePressed) 2.dp else 4.dp),
-                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        "Adaptive Load",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = useProgression,
-                            onCheckedChange = {
-                                useProgression = it
-                                if (it) useRegression = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.small))
-                        Column {
-                            Text(
-                                "Progression",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                "Increase load by 5% each rep",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = useRegression,
-                            onCheckedChange = {
-                                useRegression = it
-                                if (it) useProgression = false
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.small))
-                        Column {
-                            Text(
-                                "Regression",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                "Decrease load by 5% each rep",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-            LaunchedEffect(isAdaptivePressed) {
-                if (isAdaptivePressed) {
-                    kotlinx.coroutines.delay(100)
-                    isAdaptivePressed = false
                 }
             }
 
@@ -357,14 +415,22 @@ fun JustLiftScreen(
                 onClick = {
                     viewModel.ensureConnection(
                         onConnected = {
+                            // Convert weight change per rep to kg (for storage)
+                            val weightChangeKg = if (weightUnit == WeightUnit.LB) {
+                                weightChangePerRep / 2.20462f
+                            } else {
+                                weightChangePerRep.toFloat()
+                            }
+                            
                             val updatedParameters = workoutParameters.copy(
-                                mode = selectedMode,
-                                eccentricLoad = eccentricLoad,
-                                progressionRegressionKg = when {
-                                    useProgression -> 2.5f
-                                    useRegression -> -2.5f
-                                    else -> 0f
-                                }
+                                mode = if (selectedMode is WorkoutMode.Echo) {
+                                    WorkoutMode.Echo(echoLevel)
+                                } else {
+                                    selectedMode
+                                },
+                                weightPerCableKg = weightPerCable,
+                                progressionRegressionKg = weightChangeKg,
+                                eccentricLoad = if (selectedMode is WorkoutMode.Echo) eccentricLoad else null
                             )
                             viewModel.updateWorkoutParameters(updatedParameters)
                             viewModel.showWorkoutSetupDialog()
@@ -388,7 +454,7 @@ fun JustLiftScreen(
 
             // Current workout status if active
             if (workoutState !is WorkoutState.Idle) {
-                Divider(modifier = Modifier.padding(vertical = Spacing.medium))
+                HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.medium))
 
                 WorkoutStatusCard(
                     workoutState = workoutState,
@@ -414,6 +480,7 @@ fun JustLiftScreen(
                 onStartWorkout = {
                     viewModel.hideWorkoutSetupDialog()
                     viewModel.startWorkout()
+                    navController.navigate(com.example.vitruvianredux.presentation.navigation.NavigationRoutes.ActiveWorkout.route)
                 },
                 onDismiss = { viewModel.hideWorkoutSetupDialog() },
                 exerciseRepository = viewModel.exerciseRepository

@@ -18,7 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import com.example.vitruvianredux.domain.model.ConnectionState
@@ -84,29 +86,35 @@ fun EnhancedMainScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    // Connection status icon (Bluetooth)
                     IconButton(onClick = {
                         if (connectionState is ConnectionState.Connected) {
                             viewModel.disconnect()
+                        } else {
+                            viewModel.ensureConnection(
+                                onConnected = {},
+                                onFailed = {}
+                            )
                         }
                     }) {
-                        when (connectionState) {
-                            is ConnectionState.Connected -> Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = "Connected - Tap to disconnect",
-                                tint = Color(0xFF4CAF50)
-                            )
-                            is ConnectionState.Connecting,
-                            is ConnectionState.Scanning -> CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                            else -> Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Disconnected",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Bluetooth,
+                            contentDescription = "Connection status",
+                            tint = when (connectionState) {
+                                is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
+                                is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
+                                is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
+                                is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
+                                is ConnectionState.Error -> Color(0xFFEF4444) // red-500
+                            }
+                        )
                     }
+
+                    // Theme toggle
+                    com.example.vitruvianredux.presentation.components.ThemeToggle(
+                        mode = themeMode,
+                        onModeChange = { themeViewModel.setThemeMode(it) }
+                    )
                 }
             )
         },
@@ -134,25 +142,26 @@ fun EnhancedMainScreen(
                                 }
                             }
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.BarChart,
-                                    "Analytics",
-                                    tint = if (currentRoute == NavigationRoutes.Analytics.route)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.outline
-                                )
-                                Text(
-                                    "Analytics",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (currentRoute == NavigationRoutes.Analytics.route)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.outline
-                                )
-                            }
+                            Icon(
+                                Icons.Default.BarChart,
+                                "Analytics",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (currentRoute == NavigationRoutes.Analytics.route)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.outline
+                            )
                         }
+                        Text(
+                            "Analytics",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = if (currentRoute == NavigationRoutes.Analytics.route)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Visible
+                        )
                         // Active indicator
                         if (currentRoute == NavigationRoutes.Analytics.route) {
                             androidx.compose.foundation.Canvas(
@@ -228,25 +237,26 @@ fun EnhancedMainScreen(
                                 }
                             }
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.Settings,
-                                    "Settings",
-                                    tint = if (currentRoute == NavigationRoutes.Settings.route)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.outline
-                                )
-                                Text(
-                                    "Settings",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (currentRoute == NavigationRoutes.Settings.route)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.outline
-                                )
-                            }
+                            Icon(
+                                Icons.Default.Settings,
+                                "Settings",
+                                modifier = Modifier.size(24.dp),
+                                tint = if (currentRoute == NavigationRoutes.Settings.route)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.outline
+                            )
                         }
+                        Text(
+                            "Settings",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = if (currentRoute == NavigationRoutes.Settings.route)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Visible
+                        )
                         // Active indicator
                         if (currentRoute == NavigationRoutes.Settings.route) {
                             androidx.compose.foundation.Canvas(

@@ -18,6 +18,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.vitruvianredux.data.local.ProgramDayEntity
+import com.example.vitruvianredux.data.local.WeeklyProgramEntity
+import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
@@ -48,7 +51,7 @@ fun ProgramBuilderScreen(
     // Map of day to selected routine
     var dailyRoutines by remember {
         mutableStateOf<Map<DayOfWeek, Routine?>>(
-            DayOfWeek.values().associateWith { null }
+            DayOfWeek.entries.associateWith { null }
         )
     }
 
@@ -85,7 +88,33 @@ fun ProgramBuilderScreen(
                         )
                     }
                     IconButton(onClick = {
-                        // TODO: Save program to database
+                        // Collect program data and save to database
+                        val programEntity = WeeklyProgramEntity(
+                            id = if (programId == "new") UUID.randomUUID().toString() else programId,
+                            title = programName,
+                            notes = null,
+                            isActive = false,
+                            createdAt = System.currentTimeMillis()
+                        )
+
+                        // Create ProgramDayEntity for each day with an assigned routine
+                        val programDays = dailyRoutines.entries
+                            .filter { (_, routine) -> routine != null }
+                            .map { (day, routine) ->
+                                ProgramDayEntity(
+                                    programId = programEntity.id,
+                                    dayOfWeek = day.value, // DayOfWeek.value: MONDAY=1 to SUNDAY=7
+                                    routineId = routine!!.id
+                                )
+                            }
+
+                        // Save program with days
+                        val programWithDays = WeeklyProgramWithDays(
+                            program = programEntity,
+                            days = programDays
+                        )
+                        viewModel.saveProgram(programWithDays)
+
                         navController.navigateUp()
                     }) {
                         Icon(Icons.Default.Done, contentDescription = "Save program")
@@ -129,7 +158,7 @@ fun ProgramBuilderScreen(
             }
 
             // 7 day cards
-            itemsIndexed(DayOfWeek.values().toList()) { index, day ->
+            itemsIndexed(DayOfWeek.entries.toList()) { index, day ->
                 DayRoutineCard(
                     day = day,
                     routine = dailyRoutines[day],

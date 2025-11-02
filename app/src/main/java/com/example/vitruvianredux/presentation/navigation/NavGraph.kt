@@ -1,15 +1,15 @@
 package com.example.vitruvianredux.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.vitruvianredux.data.repository.ExerciseRepository
-import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.presentation.screen.*
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.ThemeMode
@@ -37,8 +37,7 @@ fun NavGraph(
             HomeScreen(
                 navController = navController,
                 viewModel = viewModel,
-                themeMode = themeMode,
-                onThemeModeChange = onThemeModeChange
+                themeMode = themeMode
             )
         }
 
@@ -67,6 +66,15 @@ fun NavGraph(
                 viewModel = viewModel,
                 exerciseRepository = exerciseRepository,
                 themeMode = themeMode
+            )
+        }
+
+        // Active Workout screen - shows workout controls during active workout
+        composable(NavigationRoutes.ActiveWorkout.route) {
+            ActiveWorkoutScreen(
+                navController = navController,
+                viewModel = viewModel,
+                exerciseRepository = exerciseRepository
             )
         }
 
@@ -103,9 +111,11 @@ fun NavGraph(
 
         // Settings screen
         composable(NavigationRoutes.Settings.route) {
+            val weightUnit by viewModel.weightUnit.collectAsState()
+            val userPreferences by viewModel.userPreferences.collectAsState()
             SettingsTab(
-                weightUnit = viewModel.weightUnit.value,
-                autoplayEnabled = viewModel.userPreferences.value.autoplayEnabled,
+                weightUnit = weightUnit,
+                autoplayEnabled = userPreferences.autoplayEnabled,
                 onWeightUnitChange = { viewModel.setWeightUnit(it) },
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
