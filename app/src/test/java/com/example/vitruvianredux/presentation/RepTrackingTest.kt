@@ -24,7 +24,7 @@ class RepTrackingTest {
     @Test
     fun `test Old School mode - 3 warmup + 5 working reps`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 5,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
@@ -53,7 +53,7 @@ class RepTrackingTest {
     @Test
     fun `test Pump mode - 3 warmup + 10 working reps`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.Pump,
+            workoutType = WorkoutMode.Pump.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 5f,
             progressionRegressionKg = 0f,
@@ -78,7 +78,7 @@ class RepTrackingTest {
     @Test
     fun `test TUT mode - slower reps tracked correctly`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.TUT,
+            workoutType = WorkoutMode.TUT.toWorkoutType(),
             reps = 6,
             weightPerCableKg = 8f,
             progressionRegressionKg = 0f,
@@ -102,7 +102,7 @@ class RepTrackingTest {
     @Test
     fun `test TUT Beast mode - ultra-slow reps tracked correctly`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.TUTBeast,
+            workoutType = WorkoutMode.TUTBeast.toWorkoutType(),
             reps = 4,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
@@ -126,7 +126,7 @@ class RepTrackingTest {
     @Test
     fun `test Eccentric Only mode - 3 warmup + 8 working reps`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.EccentricOnly,
+            workoutType = WorkoutMode.EccentricOnly.toWorkoutType(),
             reps = 8,
             weightPerCableKg = 12f,
             progressionRegressionKg = 0f,
@@ -151,7 +151,7 @@ class RepTrackingTest {
     @Test
     fun `test Just Lift mode - unlimited reps`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 0,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
@@ -178,7 +178,7 @@ class RepTrackingTest {
     @Test
     fun `test counter wraparound at u16 max`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 5,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
@@ -227,7 +227,7 @@ class RepTrackingTest {
     @Test
     fun `test stop at top - completes on second-to-last rep`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 5,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
@@ -255,7 +255,7 @@ class RepTrackingTest {
     @Test
     fun `test progression with warmup calibration`() {
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 5,
             weightPerCableKg = 10f,
             progressionRegressionKg = 2f, // 2kg increase per rep

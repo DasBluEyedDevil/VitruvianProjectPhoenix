@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.EccentricLoad
@@ -22,35 +23,12 @@ import com.example.vitruvianredux.domain.model.EchoLevel
 import com.example.vitruvianredux.domain.model.RoutineExercise
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutMode
-import com.example.vitruvianredux.presentation.components.CustomNumberPicker
 import com.example.vitruvianredux.presentation.components.VideoPlayer
+import com.example.vitruvianredux.presentation.viewmodel.ExerciseConfigViewModel
+import com.example.vitruvianredux.presentation.viewmodel.ExerciseType
+import com.example.vitruvianredux.presentation.viewmodel.SetConfiguration
+import com.example.vitruvianredux.presentation.viewmodel.SetMode
 import com.example.vitruvianredux.ui.theme.*
-
-/**
- * Exercise type classification
- */
-enum class ExerciseType {
-    BODYWEIGHT,  // No equipment - no mode selection, show reps/duration toggle, rest time only
-    STANDARD     // Has equipment - show mode selection which determines other controls
-}
-
-/**
- * Set configuration mode
- */
-enum class SetMode {
-    REPS,       // Count reps per set
-    DURATION    // Time-based sets
-}
-
-/**
- * Per-set configuration data
- */
-data class SetConfiguration(
-    val setNumber: Int,
-    val reps: Int = 10,
-    val weightPerCable: Float = 15.0f,
-    val duration: Int = 30 // Duration in seconds
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,80 +40,50 @@ fun ExerciseEditBottomSheet(
     exerciseRepository: ExerciseRepository,
     onSave: (RoutineExercise) -> Unit,
     onDismiss: () -> Unit,
-    buttonText: String = "Save"
+    buttonText: String = "Save",
+    viewModel: ExerciseConfigViewModel = hiltViewModel()
 ) {
-    // Load demonstration videos
-    var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
-    var isLoadingVideo by remember { mutableStateOf(true) }
+    // Initialize the ViewModel with the exercise data.
+    // This will only run once for a given exercise ID, preventing state wipes on recomposition.
+    LaunchedEffect(exercise, weightUnit) {
+        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg)
+    }
 
+    // Collect state from the ViewModel
+    val exerciseType by viewModel.exerciseType.collectAsState()
+    val setMode by viewModel.setMode.collectAsState()
+    val sets by viewModel.sets.collectAsState()
+    val selectedMode by viewModel.selectedMode.collectAsState()
+    val weightChange by viewModel.weightChange.collectAsState()
+    val rest by viewModel.rest.collectAsState()
+    val notes by viewModel.notes.collectAsState()
+    val eccentricLoad by viewModel.eccentricLoad.collectAsState()
+    val echoLevel by viewModel.echoLevel.collectAsState()
+
+    // UI-specific state that doesn't need to be in the ViewModel
+    var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
     LaunchedEffect(exercise.exercise.id) {
         exercise.exercise.id?.let { exerciseId ->
             try {
                 videos = exerciseRepository.getVideos(exerciseId)
-                isLoadingVideo = false
-            } catch (e: Exception) {
-                isLoadingVideo = false
+            } catch (_: Exception) {
+                // Handle error
             }
-        } ?: run {
-            isLoadingVideo = false
         }
     }
+    val preferredVideo = videos.firstOrNull { it.angle == "FRONT" } ?: videos.firstOrNull()
 
-    // Get preferred video (FRONT angle preferred, or first available)
-    val preferredVideo = videos.firstOrNull { it.angle == "FRONT" }
-        ?: videos.firstOrNull()
-
-    // Determine exercise type (bodyweight vs equipment-based)
-    val exerciseType = remember(exercise) {
-        if (exercise.exercise.equipment.isEmpty() ||
-            exercise.exercise.equipment.equals("bodyweight", ignoreCase = true)) {
-            ExerciseType.BODYWEIGHT
-        } else {
-            ExerciseType.STANDARD
-        }
-    }
-
-    // Calculate dynamic ranges based on unit system
     val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
     val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
     val maxWeightChange = if (weightUnit == WeightUnit.LB) 10 else 10
 
-    // State variables
-    var setMode by remember { mutableStateOf(if (exercise.duration != null) SetMode.DURATION else SetMode.REPS) }
-    var sets by remember {
-        mutableStateOf(
-            exercise.setReps.mapIndexed { index, reps ->
-                val perSetWeightKg = exercise.setWeightsPerCableKg.getOrNull(index) ?: exercise.weightPerCableKg
-                SetConfiguration(
-                    setNumber = index + 1,
-                    reps = reps,
-                    weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
-                    duration = exercise.duration ?: 30
-                )
-            }.ifEmpty {
-                listOf(
-                    SetConfiguration(1, 10, kgToDisplay(15f, weightUnit)),
-                    SetConfiguration(2, 10, kgToDisplay(15f, weightUnit)),
-                    SetConfiguration(3, 10, kgToDisplay(15f, weightUnit))
-                )
-            }
-        )
-    }
-    // Convert workoutType to WorkoutMode for UI compatibility
-    var selectedMode by remember { mutableStateOf(exercise.workoutType.toWorkoutMode()) }
-    var weightChange by remember {
-        // Always default to 0 for weight change per rep
-        mutableStateOf(0)
-    }
-    var rest by remember { mutableStateOf(exercise.restSeconds.coerceIn(0, 300)) }
-    var notes by remember { mutableStateOf(exercise.notes) }
-    var eccentricLoad by remember { mutableStateOf(exercise.eccentricLoad) }
-    var echoLevel by remember { mutableStateOf(exercise.echoLevel) }
-
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            viewModel.onDismiss()
+            onDismiss()
+        },
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
@@ -162,7 +110,10 @@ fun ExerciseEditBottomSheet(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = {
+                    viewModel.onDismiss()
+                    onDismiss()
+                }) {
                     Icon(
                         Icons.Default.Close,
                         contentDescription = "Close",
@@ -181,7 +132,6 @@ fun ExerciseEditBottomSheet(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                // DEMONSTRATION VIDEO (if available)
                 preferredVideo?.let { video ->
                     Card(
                         modifier = Modifier
@@ -195,15 +145,14 @@ fun ExerciseEditBottomSheet(
                         )
                     }
                 }
-                // 1. MODE SELECTION (first, only for non-bodyweight exercises)
+
                 if (exerciseType == ExerciseType.STANDARD) {
                     ModeSelector(
                         selectedMode = selectedMode,
-                        onModeChange = { selectedMode = it }
+                        onModeChange = viewModel::onSelectedModeChange
                     )
                 }
 
-                // 1a. TUT BEAST MODE TOGGLE (if TUT mode selected)
                 val isTutMode = selectedMode is WorkoutMode.TUT || selectedMode is WorkoutMode.TUTBeast
                 if (isTutMode) {
                     Surface(
@@ -228,34 +177,25 @@ fun ExerciseEditBottomSheet(
                             Switch(
                                 checked = selectedMode is WorkoutMode.TUTBeast,
                                 onCheckedChange = { isBeast ->
-                                    selectedMode = if (isBeast) {
-                                        WorkoutMode.TUTBeast
-                                    } else {
-                                        WorkoutMode.TUT
-                                    }
+                                    viewModel.onSelectedModeChange(if (isBeast) WorkoutMode.TUTBeast else WorkoutMode.TUT)
                                 }
                             )
                         }
                     }
                 }
 
-                // 2a. ECHO MODE CONTROLS (if Echo mode selected)
                 val isEchoMode = selectedMode is WorkoutMode.Echo
                 if (isEchoMode) {
-                    // Eccentric Load Selector
                     EccentricLoadSelector(
                         eccentricLoad = eccentricLoad,
-                        onLoadChange = { eccentricLoad = it }
+                        onLoadChange = viewModel::onEccentricLoadChange
                     )
-
-                    // Level Selector
                     EchoLevelSelector(
                         level = echoLevel,
-                        onLevelChange = { echoLevel = it }
+                        onLevelChange = viewModel::onEchoLevelChange
                     )
                 }
 
-                // 2b. WEIGHT PROGRESSION/REGRESSION (for non-bodyweight, non-Echo modes)
                 if (exerciseType == ExerciseType.STANDARD && !isEchoMode) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -267,14 +207,14 @@ fun ExerciseEditBottomSheet(
                         Column(modifier = Modifier.padding(Spacing.small)) {
                             com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                                 value = weightChange,
-                                onValueChange = { weightChange = it },
+                                onValueChange = viewModel::onWeightChange,
                                 range = -maxWeightChange..maxWeightChange,
                                 label = "Weight Change Per Rep",
                                 suffix = weightSuffix,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
-                                "Negative = Regression (decrease weight), Positive = Progression (increase weight)",
+                                "Negative = Regression, Positive = Progression",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.outline,
                                 modifier = Modifier.padding(top = Spacing.extraSmall)
@@ -283,15 +223,13 @@ fun ExerciseEditBottomSheet(
                     }
                 }
 
-                // 3. REPS vs DURATION TOGGLE (for non-Echo modes)
                 if (!isEchoMode) {
                     SetModeToggle(
                         setMode = setMode,
-                        onModeChange = { setMode = it }
+                        onModeChange = viewModel::onSetModeChange
                     )
                 }
 
-                // 4. SETS CONFIGURATION (always shown)
                 SetsConfiguration(
                     sets = sets,
                     setMode = setMode,
@@ -299,10 +237,13 @@ fun ExerciseEditBottomSheet(
                     weightSuffix = weightSuffix,
                     maxWeight = maxWeight,
                     isEchoMode = isEchoMode,
-                    onSetsChange = { sets = it }
+                    onRepsChange = viewModel::updateReps,
+                    onWeightChange = viewModel::updateWeight,
+                    onDurationChange = viewModel::updateDuration,
+                    onAddSet = viewModel::addSet,
+                    onDeleteSet = viewModel::deleteSet
                 )
 
-                // 5. REST TIME (always shown)
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -313,7 +254,7 @@ fun ExerciseEditBottomSheet(
                     Column(modifier = Modifier.padding(Spacing.small)) {
                         com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                             value = rest,
-                            onValueChange = { rest = it },
+                            onValueChange = viewModel::onRestChange,
                             range = 0..300,
                             label = "Rest Time",
                             suffix = "sec",
@@ -322,16 +263,15 @@ fun ExerciseEditBottomSheet(
                     }
                 }
 
-                // 6. NOTES FIELD (always shown)
                 OutlinedTextField(
                     value = notes,
-                    onValueChange = { notes = it },
+                    onValueChange = viewModel::onNotesChange,
                     label = { Text("Notes (optional)") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp),
                     maxLines = 4,
-                    placeholder = { Text("Form cues, tempo, range of motion, etc.") }
+                    placeholder = { Text("Form cues, tempo, etc.") }
                 )
             }
 
@@ -343,28 +283,17 @@ fun ExerciseEditBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
                 TextButton(
-                    onClick = onDismiss,
+                    onClick = {
+                        viewModel.onDismiss()
+                        onDismiss()
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancel")
                 }
                 Button(
                     onClick = {
-                        val updatedExercise = exercise.copy(
-                            setReps = sets.map { it.reps },
-                            weightPerCableKg = displayToKg(sets.first().weightPerCable, weightUnit),
-                            setWeightsPerCableKg = sets.map { displayToKg(it.weightPerCable, weightUnit) },
-                            workoutType = selectedMode.toWorkoutType(
-                                eccentricLoad = if (selectedMode is WorkoutMode.Echo) eccentricLoad else EccentricLoad.LOAD_100
-                            ),
-                            eccentricLoad = eccentricLoad,
-                            echoLevel = echoLevel,
-                            progressionKg = displayToKg(weightChange.toFloat(), weightUnit),
-                            restSeconds = rest,
-                            notes = notes.trim(),
-                            duration = if (setMode == SetMode.DURATION) sets.firstOrNull()?.duration else null
-                        )
-                        onSave(updatedExercise)
+                        viewModel.onSave(onSave)
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -427,7 +356,11 @@ fun SetsConfiguration(
     weightSuffix: String,
     maxWeight: Int,
     isEchoMode: Boolean = false,
-    onSetsChange: (List<SetConfiguration>) -> Unit
+    onRepsChange: (Int, Int) -> Unit,
+    onWeightChange: (Int, Float) -> Unit,
+    onDurationChange: (Int, Int) -> Unit,
+    onAddSet: () -> Unit,
+    onDeleteSet: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -441,37 +374,26 @@ fun SetsConfiguration(
         )
 
         sets.forEachIndexed { index, setConfig ->
-            SetRow(
-                setConfig = setConfig,
-                setMode = setMode,
-                exerciseType = exerciseType,
-                weightSuffix = weightSuffix,
-                maxWeight = maxWeight,
-                isEchoMode = isEchoMode,
-                canDelete = sets.size > 1,
-                onSetChange = { updated ->
-                    val updatedSets = sets.toMutableList()
-                    updatedSets[index] = updated
-                    onSetsChange(updatedSets)
-                },
-                onDelete = {
-                    onSetsChange(sets.filterIndexed { i, _ -> i != index })
-                }
-            )
+            key(setConfig.id) { // Use stable ID as key
+                SetRow(
+                    setConfig = setConfig,
+                    setMode = setMode,
+                    exerciseType = exerciseType,
+                    weightSuffix = weightSuffix,
+                    maxWeight = maxWeight,
+                    isEchoMode = isEchoMode,
+                    canDelete = sets.size > 1,
+                    onRepsChange = { newReps -> onRepsChange(index, newReps) },
+                    onWeightChange = { newWeight -> onWeightChange(index, newWeight) },
+                    onDurationChange = { newDuration -> onDurationChange(index, newDuration) },
+                    onDelete = { onDeleteSet(index) }
+                )
+            }
         }
 
         // Add Set button
         OutlinedButton(
-            onClick = {
-                val lastSet = sets.lastOrNull()
-                val newSet = SetConfiguration(
-                    setNumber = sets.size + 1,
-                    reps = lastSet?.reps ?: 10,
-                    weightPerCable = lastSet?.weightPerCable ?: 15f,
-                    duration = lastSet?.duration ?: 30
-                )
-                onSetsChange(sets + newSet)
-            },
+            onClick = onAddSet,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp)
         ) {
@@ -491,7 +413,9 @@ fun SetRow(
     maxWeight: Int,
     isEchoMode: Boolean = false,
     canDelete: Boolean,
-    onSetChange: (SetConfiguration) -> Unit,
+    onRepsChange: (Int) -> Unit,
+    onWeightChange: (Float) -> Unit,
+    onDurationChange: (Int) -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -541,9 +465,7 @@ fun SetRow(
                     if (setMode == SetMode.REPS) {
                         com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                             value = setConfig.reps,
-                            onValueChange = { newReps ->
-                                onSetChange(setConfig.copy(reps = newReps))
-                            },
+                            onValueChange = onRepsChange,
                             range = 1..50,
                             label = if (setConfig.setNumber == 1) "Reps" else "",
                             suffix = "reps",
@@ -552,9 +474,7 @@ fun SetRow(
                     } else {
                         com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                             value = setConfig.duration,
-                            onValueChange = { newDuration ->
-                                onSetChange(setConfig.copy(duration = newDuration))
-                            },
+                            onValueChange = onDurationChange,
                             range = 10..300,
                             label = if (setConfig.setNumber == 1) "Duration" else "",
                             suffix = "sec",
@@ -594,9 +514,7 @@ fun SetRow(
                             // Standard exercises: Show weight picker
                             com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                                 value = setConfig.weightPerCable.toInt(),
-                                onValueChange = { newWeight ->
-                                    onSetChange(setConfig.copy(weightPerCable = newWeight.toFloat()))
-                                },
+                                onValueChange = { onWeightChange(it.toFloat()) },
                                 range = 1..maxWeight,
                                 label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
                                 suffix = weightSuffix,

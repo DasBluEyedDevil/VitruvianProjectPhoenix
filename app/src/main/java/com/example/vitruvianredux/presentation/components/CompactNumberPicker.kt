@@ -22,9 +22,9 @@ fun CompactNumberPicker(
     value: Int,
     onValueChange: (Int) -> Unit,
     range: IntRange,
+    modifier: Modifier = Modifier,
     label: String = "",
-    suffix: String = "",
-    modifier: Modifier = Modifier
+    suffix: String = ""
 ) {
     Column(
         modifier = modifier,
@@ -79,22 +79,6 @@ fun CompactNumberPicker(
                     // NumberPicker gained setTextColor() method in API 29
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         setTextColor(textColor.toArgb())
-                    }
-
-                    // Increase fling velocity/duration for faster scrolling
-                    try {
-                        val flingScroller = NumberPicker::class.java.getDeclaredField("mFlingScroller")
-                        flingScroller.isAccessible = true
-                        val scroller = flingScroller.get(this) as? android.widget.Scroller
-
-                        scroller?.let {
-                            val frictionField = android.widget.Scroller::class.java.getDeclaredField("mFriction")
-                            frictionField.isAccessible = true
-                            frictionField.setFloat(it, 0.005f)  // Lower = longer fling (default ~0.015)
-                        }
-                    } catch (e: Exception) {
-                        // If reflection fails, just use default behavior
-                        android.util.Log.w("CompactNumberPicker", "Could not customize fling behavior", e)
                     }
                 }
             },

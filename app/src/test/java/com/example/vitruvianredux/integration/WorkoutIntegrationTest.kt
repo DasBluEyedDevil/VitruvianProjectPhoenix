@@ -76,7 +76,7 @@ class WorkoutIntegrationTest {
 
         // Step 4: Start workout with parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 15.0f,
             progressionRegressionKg = 0f,
@@ -163,7 +163,7 @@ class WorkoutIntegrationTest {
         // When: Testing each mode
         modes.forEach { mode ->
             val params = WorkoutParameters(
-                mode = mode,
+                workoutType = mode.toWorkoutType(),
                 reps = 10,
                 weightPerCableKg = 15.0f,
                 progressionRegressionKg = 0f,
@@ -242,7 +242,7 @@ class WorkoutIntegrationTest {
         // Verify Just Lift mode auto-stop works locally
         // Given: Just Lift mode configured
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 15.0f,
             progressionRegressionKg = 0f,
@@ -495,7 +495,7 @@ class WorkoutIntegrationTest {
 
         modes.forEach { mode ->
             bleRepository.startWorkout(
-                WorkoutParameters(mode, 10, 15f, 0f, false, false, 3)
+                WorkoutParameters(workoutType = mode.toWorkoutType(), reps = 10, weightPerCableKg = 15f, progressionRegressionKg = 0f, isJustLift = false, stopAtTop = false, warmupReps = 3)
             )
             bleRepository.stopWorkout()
         }
