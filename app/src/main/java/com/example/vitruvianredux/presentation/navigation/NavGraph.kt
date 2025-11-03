@@ -119,7 +119,8 @@ fun NavGraph(
                 onWeightUnitChange = { viewModel.setWeightUnit(it) },
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
-                onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() }
+                onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
+                onTestProtocol = { viewModel.testOfficialAppProtocol() }
             )
         }
     }

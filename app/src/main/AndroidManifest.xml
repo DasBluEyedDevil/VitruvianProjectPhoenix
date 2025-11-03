@@ -24,7 +24,7 @@
     <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward all system notifications to BLE device! -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Internet permission for loading exercise video thumbnails -->
