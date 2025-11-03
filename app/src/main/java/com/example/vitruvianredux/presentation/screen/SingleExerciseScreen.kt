@@ -107,7 +107,7 @@ fun SingleExerciseScreen(
                             progressionRegressionKg = configuredExercise.progressionKg,
                             isJustLift = false,
                             stopAtTop = false,
-                            warmupReps = 0,
+                            warmupReps = 3,
                             selectedExerciseId = configuredExercise.exercise.id
                         )
 

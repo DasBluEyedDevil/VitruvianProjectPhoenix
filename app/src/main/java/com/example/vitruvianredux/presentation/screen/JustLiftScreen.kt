@@ -420,7 +420,8 @@ fun JustLiftScreen(
                                     selectedMode.toWorkoutType()
                                 },
                                 weightPerCableKg = weightPerCable,
-                                progressionRegressionKg = weightChangeKg
+                                progressionRegressionKg = weightChangeKg,
+                                isJustLift = true
                             )
                             viewModel.updateWorkoutParameters(updatedParameters)
                             viewModel.startWorkout()
