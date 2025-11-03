@@ -53,7 +53,7 @@ class ProtocolBuilderTest {
     fun `test old school mode program generation`() {
         // Given: Old School workout parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 15.0f,
             progressionRegressionKg = 0f,
@@ -78,7 +78,7 @@ class ProtocolBuilderTest {
     fun `test just lift mode program generation`() {
         // Given: Just Lift mode parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 20.0f,
             progressionRegressionKg = 0f,
@@ -98,7 +98,7 @@ class ProtocolBuilderTest {
     fun `test pump mode program generation`() {
         // Given: Pump mode parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.Pump,
+            workoutType = WorkoutMode.Pump.toWorkoutType(),
             reps = 15,
             weightPerCableKg = 12.0f,
             progressionRegressionKg = 0f,
@@ -120,7 +120,7 @@ class ProtocolBuilderTest {
     fun `test TUT mode program generation`() {
         // Given: TUT mode parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.TUT,
+            workoutType = WorkoutMode.TUT.toWorkoutType(),
             reps = 8,
             weightPerCableKg = 18.0f,
             progressionRegressionKg = 2.5f,
@@ -142,7 +142,7 @@ class ProtocolBuilderTest {
     fun `test echo mode program generation`() {
         // Given: Echo mode parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.Echo(EchoLevel.HARDER),
+            workoutType = WorkoutMode.Echo(EchoLevel.HARDER).toWorkoutType(),
             reps = 12,
             weightPerCableKg = 16.0f,
             progressionRegressionKg = 0f,
@@ -163,7 +163,7 @@ class ProtocolBuilderTest {
     fun `test stop at top flag in program generation`() {
         // Given: Parameters with stop at top enabled
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 15.0f,
             progressionRegressionKg = 0f,
@@ -184,7 +184,7 @@ class ProtocolBuilderTest {
     fun `test weight encoding in program - local calculation`() {
         // Given: Parameters with specific weight
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 25.0f,
             progressionRegressionKg = 5.0f,
@@ -253,14 +253,14 @@ class ProtocolBuilderTest {
         // This test verifies that ALL protocol commands can be generated locally
         // Given: Various workout scenarios
         val scenarios = listOf(
-            WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.Pump, 15, 12f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.TUT, 8, 18f, 2.5f, false, false, 3),
-            WorkoutParameters(WorkoutMode.TUTBeast, 6, 20f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.EccentricOnly, 5, 22f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.Echo(EchoLevel.HARD), 12, 16f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, true, false, 3), // Just Lift
-            WorkoutParameters(WorkoutMode.OldSchool, 10, 15f, 0f, false, true, 3)  // Stop at top
+            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, false, false, 3),
+            WorkoutParameters(WorkoutMode.Pump.toWorkoutType(), 15, 12f, 0f, false, false, 3),
+            WorkoutParameters(WorkoutMode.TUT.toWorkoutType(), 8, 18f, 2.5f, false, false, 3),
+            WorkoutParameters(WorkoutMode.TUTBeast.toWorkoutType(), 6, 20f, 0f, false, false, 3),
+            WorkoutParameters(WorkoutMode.EccentricOnly.toWorkoutType(), 5, 22f, 0f, false, false, 3),
+            WorkoutParameters(WorkoutMode.Echo(EchoLevel.HARD).toWorkoutType(), 12, 16f, 0f, false, false, 3),
+            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, true, false, 3), // Just Lift
+            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, false, true, 3)  // Stop at top
         )
 
         // When: Generating all protocol commands locally
@@ -290,7 +290,7 @@ class ProtocolBuilderTest {
     fun `test protocol generation is deterministic - no randomness`() {
         // Given: Same workout parameters
         val params = WorkoutParameters(
-            mode = WorkoutMode.Pump,
+            workoutType = WorkoutMode.Pump.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 15.0f,
             progressionRegressionKg = 0f,
@@ -319,7 +319,7 @@ class ProtocolBuilderTest {
         // Given: User wants 50 lbs per cable (22.68 kg)
         val perCableKg = 22.68f
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
@@ -352,7 +352,7 @@ class ProtocolBuilderTest {
         // Given: User wants 25 kg per cable
         val perCableKg = 25.0f
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
@@ -385,7 +385,7 @@ class ProtocolBuilderTest {
         // Given: User enters 50 lbs per cable (22.68 kg)
         val perCableKg = 22.68f // 50 lbs in kg
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
@@ -419,7 +419,7 @@ class ProtocolBuilderTest {
         // Given: User enters 100 lbs per cable (45.36 kg)
         val perCableKg = 45.36f // 100 lbs
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
