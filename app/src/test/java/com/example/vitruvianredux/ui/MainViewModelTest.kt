@@ -48,7 +48,7 @@ class MainViewModelTest {
     fun `test default workout parameters structure`() {
         // Verify default workout parameters structure
         val defaultParams = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,

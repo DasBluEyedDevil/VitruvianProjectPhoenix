@@ -55,7 +55,7 @@ class OfflineFunctionalityTest {
         // This test simulates a complete workout session without ANY server interaction
         // Given: Workout parameters configured locally
         val params = WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType(),
             reps = 10,
             weightPerCableKg = 15.0f,
             progressionRegressionKg = 0f,
@@ -139,8 +139,9 @@ class OfflineFunctionalityTest {
         val currentState = bleRepository.connectionState.value
         assertTrue(currentState is ConnectionState.Connected, "Should be connected")
 
-        val connectedState = currentState as ConnectionState.Connected
-        assertEquals(deviceAddress, connectedState.deviceAddress)
+        if (currentState is ConnectionState.Connected) {
+            assertEquals(deviceAddress, currentState.deviceAddress)
+        }
 
         // Verify direct BLE connection, no API calls
         coVerify(exactly = 1) { bleRepository.connectToDevice(deviceAddress) }
@@ -213,7 +214,7 @@ class OfflineFunctionalityTest {
         // Simulate the app working in airplane mode (no network connectivity)
         // Given: Network is unavailable (simulated by not mocking any network calls)
         val params = WorkoutParameters(
-            mode = WorkoutMode.Pump,
+            workoutType = WorkoutMode.Pump.toWorkoutType(),
             reps = 15,
             weightPerCableKg = 20.0f,
             progressionRegressionKg = 0f,
@@ -369,7 +370,7 @@ class OfflineFunctionalityTest {
         // Given: A complete app usage scenario
         val deviceAddress = "AA:BB:CC:DD:EE:FF"
         val params = WorkoutParameters(
-            mode = WorkoutMode.TUT,
+            workoutType = WorkoutMode.TUT.toWorkoutType(),
             reps = 12,
             weightPerCableKg = 18.0f,
             progressionRegressionKg = 2.5f,

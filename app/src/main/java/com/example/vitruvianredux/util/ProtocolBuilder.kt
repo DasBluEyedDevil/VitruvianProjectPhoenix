@@ -108,9 +108,6 @@ object ProtocolBuilder {
         System.arraycopy(profile, 0, frame, 0x30, profile.size)
 
         // Calculate weights for protocol
-        // CRITICAL: Machine interprets 0x58 as TOTAL weight (splits between cables)
-        // So we must DOUBLE the per-cable value to get the expected resistance
-        //
         // FIRMWARE QUIRK: Machine applies progression starting from "rep 0" (before first rep)
         // To get correct behavior where first working rep has base weight,
         // we must subtract progression from base weight when sending to firmware
@@ -120,7 +117,7 @@ object ProtocolBuilder {
             params.weightPerCableKg
         }
 
-        val totalWeightKg = adjustedWeightPerCable * 2.0f
+        val totalWeightKg = adjustedWeightPerCable
         val effectiveKg = adjustedWeightPerCable + 10.0f
 
         timber.log.Timber.d("=== WEIGHT DEBUG ===")
@@ -133,7 +130,7 @@ object ProtocolBuilder {
         // Effective weight at offset 0x54
         buffer.putFloat(0x54, effectiveKg)
 
-        // Total weight at offset 0x58 (machine splits this between cables)
+        // Total weight at offset 0x58
         buffer.putFloat(0x58, totalWeightKg)
 
         // Progression/Regression at offset 0x5C (kg per rep)
