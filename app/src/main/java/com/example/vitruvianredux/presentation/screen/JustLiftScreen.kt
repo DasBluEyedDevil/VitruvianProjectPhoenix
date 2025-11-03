@@ -319,20 +319,6 @@ fun JustLiftScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Value labels
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            eccentricLoadValues.forEach { load ->
-                                Text(
-                                    load.displayName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
                         Spacer(modifier = Modifier.height(Spacing.small))
 
                         Text(
@@ -375,7 +361,14 @@ fun JustLiftScreen(
                                         echoLevel = level
                                         selectedMode = WorkoutMode.Echo(level)
                                     },
-                                    label = { Text(level.displayName, style = MaterialTheme.typography.bodySmall) },
+                                    label = { 
+                                        Text(
+                                            level.displayName, 
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        ) 
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }

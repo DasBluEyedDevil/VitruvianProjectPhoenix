@@ -298,6 +298,7 @@ fun ExerciseEditBottomSheet(
                     exerciseType = exerciseType,
                     weightSuffix = weightSuffix,
                     maxWeight = maxWeight,
+                    isEchoMode = isEchoMode,
                     onSetsChange = { sets = it }
                 )
 
@@ -425,6 +426,7 @@ fun SetsConfiguration(
     exerciseType: ExerciseType,
     weightSuffix: String,
     maxWeight: Int,
+    isEchoMode: Boolean = false,
     onSetsChange: (List<SetConfiguration>) -> Unit
 ) {
     Column(
@@ -445,6 +447,7 @@ fun SetsConfiguration(
                 exerciseType = exerciseType,
                 weightSuffix = weightSuffix,
                 maxWeight = maxWeight,
+                isEchoMode = isEchoMode,
                 canDelete = sets.size > 1,
                 onSetChange = { updated ->
                     val updatedSets = sets.toMutableList()
@@ -486,6 +489,7 @@ fun SetRow(
     exerciseType: ExerciseType,
     weightSuffix: String,
     maxWeight: Int,
+    isEchoMode: Boolean = false,
     canDelete: Boolean,
     onSetChange: (SetConfiguration) -> Unit,
     onDelete: () -> Unit
@@ -559,40 +563,68 @@ fun SetRow(
                     }
                 }
 
-                // Weight picker (for standard exercises) OR Bodyweight label (for bodyweight exercises)
+                // Weight picker (for standard exercises) OR Adaptive label (for Echo mode) OR Bodyweight label
                 Box(modifier = Modifier.weight(1f)) {
-                    if (exerciseType == ExerciseType.STANDARD) {
-                        com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                            value = setConfig.weightPerCable.toInt(),
-                            onValueChange = { newWeight ->
-                                onSetChange(setConfig.copy(weightPerCable = newWeight.toFloat()))
-                            },
-                            range = 1..maxWeight,
-                            label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
-                            suffix = weightSuffix,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        // Bodyweight label aligned horizontally
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            if (setConfig.setNumber == 1) {
+                    when {
+                        isEchoMode -> {
+                            // Echo mode: Show "Adaptive" label instead of weight picker
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Force per Cable",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
                                 Text(
-                                    "Weight",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(bottom = 8.dp)
+                                    "Adaptive",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
-                            Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
-                            Text(
-                                "Bodyweight",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        exerciseType == ExerciseType.STANDARD -> {
+                            // Standard exercises: Show weight picker
+                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                                value = setConfig.weightPerCable.toInt(),
+                                onValueChange = { newWeight ->
+                                    onSetChange(setConfig.copy(weightPerCable = newWeight.toFloat()))
+                                },
+                                range = 1..maxWeight,
+                                label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
+                                suffix = weightSuffix,
+                                modifier = Modifier.fillMaxWidth()
                             )
+                        }
+                        else -> {
+                            // Bodyweight exercises: Show "Bodyweight" label
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Weight",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
+                                Text(
+                                    "Bodyweight",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -734,20 +766,6 @@ fun EccentricLoadSelector(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Value labels below slider
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    eccentricLoadValues.forEach { load ->
-                        Text(
-                            load.displayName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -793,7 +811,13 @@ fun EchoLevelSelector(
                         FilterChip(
                             selected = level == echoLevel,
                             onClick = { onLevelChange(echoLevel) },
-                            label = { Text(echoLevel.displayName, style = MaterialTheme.typography.bodySmall) },
+                            label = { 
+                                Text(
+                                    echoLevel.displayName, 
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1
+                                ) 
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }
