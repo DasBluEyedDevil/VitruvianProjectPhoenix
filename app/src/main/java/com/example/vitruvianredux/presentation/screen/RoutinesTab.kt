@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.WeightUnit
+import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -84,31 +85,16 @@ fun RoutinesTab(
             Spacer(modifier = Modifier.height(Spacing.medium))
 
             if (routines.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.FavoriteBorder,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.medium))
-                        Text(
-                            "No routines yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        Text(
-                            "Create a routine to save your workout",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                EmptyState(
+                    icon = Icons.Default.FitnessCenter,
+                    title = "No Routines Yet",
+                    message = "Create your first workout routine to get started",
+                    actionText = "Create Your First Routine",
+                    onAction = {
+                        routineToEdit = null
+                        showRoutineBuilder = true
                     }
-                }
+                )
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(Spacing.small)
@@ -138,8 +124,8 @@ fun RoutinesTab(
             }
         }
 
-        // Floating Action Button for creating new routine
-        FloatingActionButton(
+        // Extended Floating Action Button for creating new routine
+        ExtendedFloatingActionButton(
             onClick = {
                 routineToEdit = null
                 showRoutineBuilder = true
@@ -147,12 +133,15 @@ fun RoutinesTab(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(Spacing.medium),
-            containerColor = MaterialTheme.colorScheme.primary
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = "Create routine"
+                contentDescription = null // Icon is decorative, text label provides accessibility
             )
+            Spacer(modifier = Modifier.width(Spacing.small))
+            Text("New Routine")
         }
     }
 

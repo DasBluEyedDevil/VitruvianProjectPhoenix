@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
@@ -167,21 +168,24 @@ fun WeeklyProgramsScreen(
 
             // Programs List Header
             item {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(Spacing.medium)
                 ) {
                     Text(
                         "All Programs",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    TextButton(onClick = {
-                        navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(Spacing.extraSmall))
+                    OutlinedButton(
+                        onClick = {
+                            navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Create program", modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(Spacing.small))
                         Text("Create Program")
                     }
                 }
@@ -190,34 +194,16 @@ fun WeeklyProgramsScreen(
             // Programs List
             if (programs.isEmpty()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF5F3FF))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.large),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                "No programs yet",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.small))
-                            Button(onClick = {
-                                navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
-                            }) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(modifier = Modifier.width(Spacing.small))
-                                Text("Create Your First Program")
-                            }
-                        }
-                    }
+                    EmptyState(
+                        icon = Icons.Default.DateRange,
+                        title = "No Programs Yet",
+                        message = "Create your first weekly program to follow a structured training schedule",
+                        actionText = "Create Your First Program",
+                        onAction = {
+                            navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             } else {
                 items(programs) { program ->

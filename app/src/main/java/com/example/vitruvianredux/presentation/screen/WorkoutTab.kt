@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.net.Uri
@@ -61,6 +62,7 @@ fun WorkoutTab(
     onCancelRoutine: () -> Unit,
     onSkipRest: () -> Unit,
     onResetForNewWorkout: () -> Unit,
+    onStartNextExercise: () -> Unit = {},
     onUpdateParameters: (WorkoutParameters) -> Unit,
     onShowWorkoutSetupDialog: () -> Unit = {},
     onHideWorkoutSetupDialog: () -> Unit = {},
@@ -175,13 +177,65 @@ fun WorkoutTab(
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
-                            Button(
-                                onClick = onResetForNewWorkout,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
-                                Spacer(modifier = Modifier.width(Spacing.small))
-                                Text("Start New Workout")
+
+                            // Check if this is a routine with more exercises
+                            val hasMoreExercises = loadedRoutine != null &&
+                                currentExerciseIndex < (loadedRoutine.exercises.size - 1)
+
+                            if (hasMoreExercises && loadedRoutine != null) {
+                                // Show next exercise preview
+                                val nextExercise = loadedRoutine.exercises[currentExerciseIndex + 1]
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(Spacing.medium)) {
+                                        Text(
+                                            "Next Exercise",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+
+                                        Spacer(Modifier.height(Spacing.small))
+
+                                        Text(
+                                            nextExercise.exercise.name,
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+
+                                        Text(
+                                            "${nextExercise.setReps.size} sets x ${nextExercise.setReps.first()} reps",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+
+                                        Spacer(Modifier.height(Spacing.medium))
+
+                                        Button(
+                                            onClick = onStartNextExercise,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Start Next Exercise")
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Last exercise or not a routine - show "Start New Workout"
+                                Button(
+                                    onClick = onResetForNewWorkout,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
+                                    Spacer(modifier = Modifier.width(Spacing.small))
+                                    Text("Start New Workout")
+                                }
                             }
                         }
                     }
@@ -206,12 +260,12 @@ fun WorkoutTab(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
-                            
-                            if (autoStopState.isActive) {
+
+                            if (workoutParameters.isJustLift) {
                                 JustLiftAutoStopCard(autoStopState = autoStopState)
                                 Spacer(modifier = Modifier.height(Spacing.medium))
                             }
-                            
+
                             Button(
                                 onClick = onStopWorkout,
                                 modifier = Modifier.fillMaxWidth(),
@@ -241,7 +295,7 @@ fun WorkoutTab(
                         totalSets = workoutState.totalSets,
                         nextExerciseWeight = workoutParameters.weightPerCableKg,
                         nextExerciseReps = workoutParameters.reps,
-                        nextExerciseMode = workoutParameters.mode.displayName,
+                        nextExerciseMode = workoutParameters.workoutType.displayName,
                         currentExerciseIndex = if (loadedRoutine != null) currentExerciseIndex else null,
                         totalExercises = loadedRoutine?.exercises?.size,
                         formatWeight = { weight -> formatWeight(weight, weightUnit) },
@@ -375,7 +429,7 @@ fun WorkoutSetupDialog(
                     onExpandedChange = { showModeMenu = !showModeMenu }
                 ) {
                     OutlinedTextField(
-                        value = workoutParameters.mode.displayName,
+                        value = workoutParameters.workoutType.displayName,
                         onValueChange = {},
                         readOnly = true,
                         label = { Text(modeLabel) },
@@ -394,21 +448,21 @@ fun WorkoutSetupDialog(
                         DropdownMenuItem(
                             text = { Text("Old School") },
                             onClick = {
-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.OldSchool))
+                                onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.OldSchool)))
                                 showModeMenu = false
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Pump") },
                             onClick = {
-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Pump))
+                                onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.Pump)))
                                 showModeMenu = false
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Eccentric Only") },
                             onClick = {
-                                onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
+                                onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.EccentricOnly)))
                                 showModeMenu = false
                             }
                         )
@@ -460,7 +514,7 @@ fun WorkoutSetupDialog(
                             .fillMaxWidth()
                             .padding(16.dp)
                     ) {
-                        if (workoutParameters.mode is WorkoutMode.Echo) {
+                        if (workoutParameters.workoutType is WorkoutType.Echo) {
                             Text(
                                 "Weight per cable",
                                 style = MaterialTheme.typography.titleMedium,
@@ -537,11 +591,13 @@ fun WorkoutSetupDialog(
                 }
 
                 // Progression/Regression UI (only for certain modes)
-                if (workoutParameters.mode is WorkoutMode.Pump ||
-                    workoutParameters.mode is WorkoutMode.OldSchool ||
-                    workoutParameters.mode is WorkoutMode.EccentricOnly ||
-                    workoutParameters.mode is WorkoutMode.TUT ||
-                    workoutParameters.mode is WorkoutMode.TUTBeast
+                val isProgramMode = workoutParameters.workoutType is WorkoutType.Program
+                val programMode = if (isProgramMode) (workoutParameters.workoutType as WorkoutType.Program).mode else null
+                if (isProgramMode && (programMode == ProgramMode.Pump ||
+                    programMode == ProgramMode.OldSchool ||
+                    programMode == ProgramMode.EccentricOnly ||
+                    programMode == ProgramMode.TUT ||
+                    programMode == ProgramMode.TUTBeast)
                 ) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -685,7 +741,8 @@ fun WorkoutSetupDialog(
             workoutParameters = workoutParameters,
             onDismiss = { showModeSubSelector = false },
             onSelect = { mode, eccentricLoad ->
-                onUpdateParameters(workoutParameters.copy(mode = mode, eccentricLoad = eccentricLoad))
+                val workoutType = mode.toWorkoutType(eccentricLoad ?: EccentricLoad.LOAD_100)
+                onUpdateParameters(workoutParameters.copy(workoutType = workoutType))
                 showModeSubSelector = false
             }
         )
@@ -868,15 +925,21 @@ fun ModeSubSelectorDialog(
         "Echo" -> {
             var selectedEchoLevel by remember { 
                 mutableStateOf(
-                    if (workoutParameters.mode is WorkoutMode.Echo) {
-                        (workoutParameters.mode as WorkoutMode.Echo).level
+                    if (workoutParameters.workoutType is WorkoutType.Echo) {
+                        workoutParameters.workoutType.level
                     } else {
                         EchoLevel.HARD
                     }
                 )
             }
             var selectedEccentricLoad by remember { 
-                mutableStateOf(workoutParameters.eccentricLoad ?: EccentricLoad.LOAD_100) 
+                mutableStateOf(
+                    if (workoutParameters.workoutType is WorkoutType.Echo) {
+                        workoutParameters.workoutType.eccentricLoad
+                    } else {
+                        EccentricLoad.LOAD_100
+                    }
+                )
             }
             var showEchoLevelMenu by remember { mutableStateOf(false) }
             var showEccentricMenu by remember { mutableStateOf(false) }
@@ -1103,12 +1166,15 @@ fun WorkoutParametersCard(
     workoutState: WorkoutState,
     autoStopState: AutoStopUiState,
     weightUnit: WeightUnit,
+    loadedRoutine: Routine?,
+    currentExerciseIndex: Int,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     onUpdateParameters: (WorkoutParameters) -> Unit,
     onStartWorkout: () -> Unit,
     onStopWorkout: () -> Unit,
-    onResetForNewWorkout: () -> Unit
+    onResetForNewWorkout: () -> Unit,
+    onStartNextExercise: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1139,7 +1205,7 @@ fun WorkoutParametersCard(
                 onExpandedChange = { showModeMenu = !showModeMenu && workoutState is WorkoutState.Idle }
             ) {
                 OutlinedTextField(
-                    value = workoutParameters.mode.displayName,
+                    value = workoutParameters.workoutType.displayName,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text(modeLabel) },
@@ -1158,35 +1224,35 @@ fun WorkoutParametersCard(
                     DropdownMenuItem(
                         text = { Text("Old School") },
                         onClick = {
-                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.OldSchool))
+                            onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.OldSchool)))
                             showModeMenu = false
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Pump") },
                         onClick = {
-                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Pump))
+                            onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.Pump)))
                             showModeMenu = false
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("TUT") },
                         onClick = {
-                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUT))
+                            onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.TUT)))
                             showModeMenu = false
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("TUT Beast") },
                         onClick = {
-                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.TUTBeast))
+                            onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.TUTBeast)))
                             showModeMenu = false
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Eccentric Only") },
                         onClick = {
-                            onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.EccentricOnly))
+                            onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Program(ProgramMode.EccentricOnly)))
                             showModeMenu = false
                         }
                     )
@@ -1230,7 +1296,12 @@ fun WorkoutParametersCard(
                             ).forEach { (level, label) ->
                                 OutlinedButton(
                                     onClick = {
-                                        onUpdateParameters(workoutParameters.copy(mode = WorkoutMode.Echo(level)))
+                                        val eccentricLoad = if (workoutParameters.workoutType is WorkoutType.Echo) {
+                                            workoutParameters.workoutType.eccentricLoad
+                                        } else {
+                                            EccentricLoad.LOAD_100
+                                        }
+                                        onUpdateParameters(workoutParameters.copy(workoutType = WorkoutType.Echo(level, eccentricLoad)))
                                         showEchoLevelDialog = false
                                     },
                                     modifier = Modifier.fillMaxWidth()
@@ -1319,7 +1390,7 @@ fun WorkoutParametersCard(
                 )
             }
 
-            if (autoStopState.isActive) {
+            if (workoutParameters.isJustLift && workoutState !is WorkoutState.Idle) {
                 Spacer(modifier = Modifier.height(Spacing.medium))
                 JustLiftAutoStopCard(autoStopState = autoStopState)
             }
@@ -1378,13 +1449,65 @@ fun WorkoutParametersCard(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(Spacing.small))
-                        Button(
-                            onClick = onResetForNewWorkout,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text("Start New Workout")
+
+                        // Check if this is a routine with more exercises
+                        val hasMoreExercises = loadedRoutine != null &&
+                            currentExerciseIndex < (loadedRoutine.exercises.size - 1)
+
+                        if (hasMoreExercises && loadedRoutine != null) {
+                            // Show next exercise preview
+                            val nextExercise = loadedRoutine.exercises[currentExerciseIndex + 1]
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(Spacing.medium)) {
+                                    Text(
+                                        "Next Exercise",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+
+                                    Spacer(Modifier.height(Spacing.small))
+
+                                    Text(
+                                        nextExercise.exercise.name,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+
+                                    Text(
+                                        "${nextExercise.setReps.size} sets x ${nextExercise.setReps.first()} reps",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+
+                                    Spacer(Modifier.height(Spacing.medium))
+
+                                    Button(
+                                        onClick = onStartNextExercise,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Start Next Exercise")
+                                    }
+                                }
+                            }
+                        } else {
+                            // Last exercise or not a routine - show "Start New Workout"
+                            Button(
+                                onClick = onResetForNewWorkout,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
+                                Spacer(modifier = Modifier.width(Spacing.small))
+                                Text("Start New Workout")
+                            }
                         }
                     }
                 }
@@ -1404,10 +1527,15 @@ fun WorkoutParametersCard(
 fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (autoStopState.isActive) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -1415,25 +1543,61 @@ fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
                 .padding(Spacing.medium),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                "Just Lift Auto-Stop",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PanTool,
+                    contentDescription = null,
+                    tint = if (autoStopState.isActive) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+                Spacer(Modifier.width(Spacing.small))
+                Text(
+                    text = if (autoStopState.isActive) {
+                        "Stopping in ${autoStopState.secondsRemaining}s..."
+                    } else {
+                        "Auto-Stop Ready"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (autoStopState.isActive) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(Spacing.small))
+
             LinearProgressIndicator(
                 progress = { autoStopState.progress },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(Spacing.small))
-            Text(
-                if (autoStopState.secondsRemaining > 0) {
-                    "Stopping in ${autoStopState.secondsRemaining}s"
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
+                color = if (autoStopState.isActive) {
+                    MaterialTheme.colorScheme.error
                 } else {
-                    "Stopping..."
+                    MaterialTheme.colorScheme.outline
+                }
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            Text(
+                text = "Put handles down for 5 seconds to stop",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (autoStopState.isActive) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -1576,14 +1740,14 @@ fun CurrentExerciseCard(
                 }
 
                 Text(
-                    text = "$repsText @ $weightText - ${currentExercise.mode.displayName}",
+                    text = "$repsText @ $weightText - ${currentExercise.workoutType.displayName}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 // Just Lift mode - show basic details
                 Text(
-                    text = "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.mode.displayName}",
+                    text = "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.workoutType.displayName}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

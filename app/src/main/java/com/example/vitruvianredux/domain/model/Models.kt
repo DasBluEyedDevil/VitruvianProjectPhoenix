@@ -44,29 +44,98 @@ sealed class WorkoutState {
 }
 
 /**
- * Workout modes available on Vitruvian trainer
+ * Program modes that use command 0x4F (96-byte frame)
+ * Note: Official app uses 0x4F, NOT 0x04
  */
-sealed class WorkoutMode(val modeValue: Int, val displayName: String) {
-    object OldSchool : WorkoutMode(0, "Old School")
-    object Pump : WorkoutMode(2, "Pump")
-    object TUT : WorkoutMode(3, "TUT")
-    object TUTBeast : WorkoutMode(4, "TUT Beast")
-    object EccentricOnly : WorkoutMode(6, "Eccentric Only")
-    data class Echo(val level: EchoLevel) : WorkoutMode(10, "Echo")
+sealed class ProgramMode(val modeValue: Int, val displayName: String) {
+    object OldSchool : ProgramMode(0, "Old School")
+    object Pump : ProgramMode(2, "Pump")
+    object TUT : ProgramMode(3, "TUT")
+    object TUTBeast : ProgramMode(4, "TUT Beast")
+    object EccentricOnly : ProgramMode(6, "Eccentric Only")
+    
+    companion object {
+        fun fromValue(value: Int): ProgramMode = when(value) {
+            0 -> OldSchool
+            2 -> Pump
+            3 -> TUT
+            4 -> TUTBeast
+            6 -> EccentricOnly
+            else -> OldSchool
+        }
+    }
+}
+
+/**
+ * WorkoutMode - Legacy sealed class for UI compatibility
+ * Maps to WorkoutType for protocol usage
+ */
+sealed class WorkoutMode(val displayName: String) {
+    object OldSchool : WorkoutMode("Old School")
+    object Pump : WorkoutMode("Pump")
+    object TUT : WorkoutMode("TUT")
+    object TUTBeast : WorkoutMode("TUT Beast")
+    object EccentricOnly : WorkoutMode("Eccentric Only")
+    data class Echo(val level: EchoLevel) : WorkoutMode("Echo (${level.displayName})")
+    
+    /**
+     * Convert WorkoutMode to WorkoutType
+     */
+    fun toWorkoutType(eccentricLoad: EccentricLoad = EccentricLoad.LOAD_100): WorkoutType = when (this) {
+        is OldSchool -> WorkoutType.Program(ProgramMode.OldSchool)
+        is Pump -> WorkoutType.Program(ProgramMode.Pump)
+        is TUT -> WorkoutType.Program(ProgramMode.TUT)
+        is TUTBeast -> WorkoutType.Program(ProgramMode.TUTBeast)
+        is EccentricOnly -> WorkoutType.Program(ProgramMode.EccentricOnly)
+        is Echo -> WorkoutType.Echo(level, eccentricLoad)
+    }
+}
+
+/**
+ * Workout type - either Program (0x04) or Echo (0x4E)
+ */
+sealed class WorkoutType {
+    data class Program(val mode: ProgramMode) : WorkoutType()
+    data class Echo(val level: EchoLevel, val eccentricLoad: EccentricLoad) : WorkoutType()
+    
+    val displayName: String get() = when (this) {
+        is Program -> mode.displayName
+        is Echo -> "Echo (${level.displayName})"
+    }
+    
+    val modeValue: Int get() = when (this) {
+        is Program -> mode.modeValue
+        is Echo -> 10
+    }
+    
+    /**
+     * Convert WorkoutType to WorkoutMode for UI compatibility
+     */
+    fun toWorkoutMode(): WorkoutMode = when (this) {
+        is Program -> when (mode) {
+            ProgramMode.OldSchool -> WorkoutMode.OldSchool
+            ProgramMode.Pump -> WorkoutMode.Pump
+            ProgramMode.TUT -> WorkoutMode.TUT
+            ProgramMode.TUTBeast -> WorkoutMode.TUTBeast
+            ProgramMode.EccentricOnly -> WorkoutMode.EccentricOnly
+        }
+        is Echo -> WorkoutMode.Echo(level)
+    }
 }
 
 /**
  * Echo mode difficulty levels
  */
 enum class EchoLevel(val levelValue: Int, val displayName: String) {
-    HARD(1, "Hard"),
-    HARDER(2, "Harder"),
-    HARDEST(3, "Hardest"),
-    EPIC(4, "Epic")
+    HARD(0, "Hard"),
+    HARDER(1, "Harder"),
+    HARDEST(2, "Hardest"),
+    EPIC(3, "Epic")
 }
 
 /**
  * Eccentric load percentage for Echo mode
+ * Machine hardware limit: 150% maximum
  */
 enum class EccentricLoad(val percentage: Int, val displayName: String) {
     LOAD_0(0, "0%"),
@@ -74,9 +143,7 @@ enum class EccentricLoad(val percentage: Int, val displayName: String) {
     LOAD_75(75, "75%"),
     LOAD_100(100, "100%"),
     LOAD_125(125, "125%"),
-    LOAD_150(150, "150%"),
-    LOAD_175(175, "175%"),
-    LOAD_200(200, "200%")
+    LOAD_150(150, "150%")
 }
 
 /**
@@ -90,15 +157,14 @@ enum class WeightUnit {
  * Workout parameters
  */
 data class WorkoutParameters(
-    val mode: WorkoutMode,
+    val workoutType: WorkoutType,
     val reps: Int,
-    val weightPerCableKg: Float,
-    val progressionRegressionKg: Float = 0f,  // Positive = progression, negative = regression
+    val weightPerCableKg: Float = 0f,  // Only used for Program modes
+    val progressionRegressionKg: Float = 0f,  // Only used for Program modes (not TUT/TUTBeast)
     val isJustLift: Boolean = false,
     val stopAtTop: Boolean = false,
     val warmupReps: Int = 3,
-    val selectedExerciseId: String? = null,
-    val eccentricLoad: EccentricLoad? = EccentricLoad.LOAD_100
+    val selectedExerciseId: String? = null
 )
 
 /**

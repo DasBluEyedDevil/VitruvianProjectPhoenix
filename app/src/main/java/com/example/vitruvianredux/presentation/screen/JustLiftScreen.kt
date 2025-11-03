@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.components.CompactNumberPicker
+import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
 
@@ -45,7 +46,6 @@ fun JustLiftScreen(
     val repCount by viewModel.repCount.collectAsState()
     val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
-    val isWorkoutSetupDialogVisible by viewModel.isWorkoutSetupDialogVisible.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
@@ -100,9 +100,9 @@ fun JustLiftScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(20.dp)
+                    .padding(Spacing.large)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(Spacing.medium)
             ) {
             // Mode Selection Card
             var isModePressed by remember { mutableStateOf(false) }
@@ -122,12 +122,12 @@ fun JustLiftScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = if (isModePressed) 2.dp else 4.dp),
-                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(Spacing.medium)
                 ) {
                     Text(
                         "Workout Mode",
@@ -135,12 +135,12 @@ fun JustLiftScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.small))
 
                     // Mode chips: Old School, Pump, Echo
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.small)
                     ) {
                         FilterChip(
                             selected = selectedMode is WorkoutMode.OldSchool,
@@ -168,7 +168,7 @@ fun JustLiftScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.small))
 
                     Text(
                         when (selectedMode) {
@@ -200,12 +200,12 @@ fun JustLiftScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(Spacing.medium)
                     ) {
                         val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                         val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
@@ -243,12 +243,12 @@ fun JustLiftScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(Spacing.medium)
                     ) {
                         val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                         val maxWeightChange = 10
@@ -265,7 +265,7 @@ fun JustLiftScreen(
                             "Negative = Regression, Positive = Progression",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp)
+                            modifier = Modifier.padding(top = Spacing.small)
                         )
                     }
                 }
@@ -280,12 +280,12 @@ fun JustLiftScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(Spacing.medium)
                     ) {
                         Text(
                             "Eccentric Load: ${eccentricLoad.percentage}%",
@@ -293,18 +293,16 @@ fun JustLiftScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(Spacing.medium))
 
-                        // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150%, 175%, 200%
+                        // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150% (machine hardware limit)
                         val eccentricLoadValues = listOf(
                             EccentricLoad.LOAD_0,
                             EccentricLoad.LOAD_50,
                             EccentricLoad.LOAD_75,
                             EccentricLoad.LOAD_100,
                             EccentricLoad.LOAD_125,
-                            EccentricLoad.LOAD_150,
-                            EccentricLoad.LOAD_175,
-                            EccentricLoad.LOAD_200
+                            EccentricLoad.LOAD_150
                         )
                         val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let {
                             if (it < 0) 3 else it // Default to 100% if not found
@@ -335,7 +333,7 @@ fun JustLiftScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(Spacing.small))
 
                         Text(
                             "Load percentage applied during eccentric (lowering) phase",
@@ -351,12 +349,12 @@ fun JustLiftScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(Spacing.medium)
                     ) {
                         Text(
                             "Echo Level",
@@ -364,11 +362,11 @@ fun JustLiftScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(Spacing.small))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.small)
                         ) {
                             EchoLevel.entries.forEach { level ->
                                 FilterChip(
@@ -392,12 +390,12 @@ fun JustLiftScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(Spacing.medium)
                 ) {
                     CompactNumberPicker(
                         value = restTime,
@@ -423,17 +421,17 @@ fun JustLiftScreen(
                             }
                             
                             val updatedParameters = workoutParameters.copy(
-                                mode = if (selectedMode is WorkoutMode.Echo) {
-                                    WorkoutMode.Echo(echoLevel)
+                                workoutType = if (selectedMode is WorkoutMode.Echo) {
+                                    WorkoutType.Echo(echoLevel, eccentricLoad)
                                 } else {
-                                    selectedMode
+                                    selectedMode.toWorkoutType()
                                 },
                                 weightPerCableKg = weightPerCable,
-                                progressionRegressionKg = weightChangeKg,
-                                eccentricLoad = if (selectedMode is WorkoutMode.Echo) eccentricLoad else null
+                                progressionRegressionKg = weightChangeKg
                             )
                             viewModel.updateWorkoutParameters(updatedParameters)
-                            viewModel.showWorkoutSetupDialog()
+                            viewModel.startWorkout()
+                            navController.navigate(NavigationRoutes.ActiveWorkout.route)
                         },
                         onFailed = { /* Error shown via StateFlow */ }
                     )
@@ -448,7 +446,7 @@ fun JustLiftScreen(
                 )
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(Spacing.small))
                 Text("Start Workout", style = MaterialTheme.typography.titleMedium)
             }
 
@@ -467,24 +465,6 @@ fun JustLiftScreen(
                 )
             }
             }
-        }
-
-        // Workout Setup Dialog
-        if (isWorkoutSetupDialogVisible) {
-            WorkoutSetupDialog(
-                workoutParameters = workoutParameters,
-                weightUnit = weightUnit,
-                kgToDisplay = viewModel::kgToDisplay,
-                displayToKg = viewModel::displayToKg,
-                onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
-                onStartWorkout = {
-                    viewModel.hideWorkoutSetupDialog()
-                    viewModel.startWorkout()
-                    navController.navigate(com.example.vitruvianredux.presentation.navigation.NavigationRoutes.ActiveWorkout.route)
-                },
-                onDismiss = { viewModel.hideWorkoutSetupDialog() },
-                exerciseRepository = viewModel.exerciseRepository
-            )
         }
 
         // Auto-connect UI overlays

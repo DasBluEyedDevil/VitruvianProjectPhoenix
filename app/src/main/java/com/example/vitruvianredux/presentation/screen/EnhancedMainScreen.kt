@@ -56,17 +56,13 @@ fun EnhancedMainScreen(
         }
     }
 
-    // Request BLE permissions
+    // Request BLE permissions (REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward notifications to BLE device!)
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        buildList {
-            add(Manifest.permission.BLUETOOTH_SCAN)
-            add(Manifest.permission.BLUETOOTH_CONNECT)
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-            // Add notification permission for Android 13+ (required for foreground service)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
+        listOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
     } else {
         listOf(
             Manifest.permission.BLUETOOTH,
@@ -87,19 +83,28 @@ fun EnhancedMainScreen(
                 ),
                 actions = {
                     // Connection status icon (Bluetooth)
-                    IconButton(onClick = {
-                        if (connectionState is ConnectionState.Connected) {
-                            viewModel.disconnect()
-                        } else {
-                            viewModel.ensureConnection(
-                                onConnected = {},
-                                onFailed = {}
-                            )
-                        }
-                    }) {
+                    IconButton(
+                        onClick = {
+                            if (connectionState is ConnectionState.Connected) {
+                                viewModel.disconnect()
+                            } else {
+                                viewModel.ensureConnection(
+                                    onConnected = {},
+                                    onFailed = {}
+                                )
+                            }
+                        },
+                        modifier = Modifier.size(48.dp) // Ensure 48dp touch target
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Bluetooth,
-                            contentDescription = "Connection status",
+                            contentDescription = when (connectionState) {
+                                is ConnectionState.Connected -> "Connected to machine. Tap to disconnect"
+                                is ConnectionState.Connecting -> "Connecting to machine"
+                                is ConnectionState.Disconnected -> "Disconnected. Tap to connect"
+                                is ConnectionState.Scanning -> "Scanning for machine"
+                                is ConnectionState.Error -> "Connection error. Tap to retry"
+                            },
                             tint = when (connectionState) {
                                 is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
                                 is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
