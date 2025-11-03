@@ -8,9 +8,15 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.vitruvianredux.presentation.screen.EnhancedMainScreen
+import com.example.vitruvianredux.presentation.screen.LargeSplashScreen
 import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
 import com.example.vitruvianredux.ui.theme.VitruvianReduxTheme
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -31,15 +37,27 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeViewModel: ThemeViewModel = hiltViewModel()
             val themeMode = themeViewModel.themeMode.collectAsState().value
+            var showLargeSplash by remember { mutableStateOf(true) }
+
+            // Hide large splash after a short delay
+            LaunchedEffect(Unit) {
+                // 900ms feels snappy; adjust if you want shorter/longer
+                kotlinx.coroutines.delay(900)
+                showLargeSplash = false
+            }
+
             VitruvianReduxTheme(themeMode = themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    EnhancedMainScreen()
+                    if (showLargeSplash) {
+                        LargeSplashScreen(visible = true)
+                    } else {
+                        EnhancedMainScreen()
+                    }
                 }
             }
         }
     }
 }
-
