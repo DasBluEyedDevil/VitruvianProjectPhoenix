@@ -58,7 +58,7 @@ class MainViewModel @Inject constructor(
 
     private val _workoutParameters = MutableStateFlow(
         WorkoutParameters(
-            mode = WorkoutMode.OldSchool,
+            workoutType = WorkoutType.Program(ProgramMode.OldSchool),
             reps = 10,
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
@@ -574,7 +574,7 @@ class MainViewModel @Inject constructor(
             if (!skipCountdown) {
                 Timber.d("")
                 Timber.d(" STARTING COUNTDOWN")
-                Timber.d(" Mode: ${params.mode.displayName}")
+                Timber.d(" Mode: ${params.workoutType.displayName}")
                 Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
                 Timber.d("")
 
@@ -604,7 +604,7 @@ class MainViewModel @Inject constructor(
 
             WorkoutForegroundService.startWorkoutService(
                 getContext(),
-                params.mode.displayName,
+                params.workoutType.displayName,
                 params.reps
             )
 
@@ -621,18 +621,34 @@ class MainViewModel @Inject constructor(
             bleRepository.stopWorkout()
             WorkoutForegroundService.stopWorkoutService(getApplication())
             _hapticEvents.emit(HapticEvent.WORKOUT_END)
-            
+
             // Mark as completed - NO AUTOPLAY
             _workoutState.value = WorkoutState.Completed
-            
+
             // Save current progress
             saveWorkoutSession()
-            
+
             // Reset state
             repCounter.reset()
             resetAutoStopState()
-            
+
             Timber.d("Workout stopped by user")
+        }
+    }
+
+    /**
+     * Test official app protocol - systematically try 9-byte commands on all characteristics
+     * This is a diagnostic function to identify which characteristic triggers workout start
+     */
+    fun testOfficialAppProtocol() {
+        viewModelScope.launch {
+            try {
+                Timber.d("ViewModel: Starting official app protocol test")
+                bleRepository.testOfficialAppProtocol()
+                Timber.d("ViewModel: Test complete - check logs for results")
+            } catch (e: Exception) {
+                Timber.e(e, "ViewModel: Test failed")
+            }
         }
     }
 
@@ -726,7 +742,12 @@ class MainViewModel @Inject constructor(
             _currentSetIndex.value++
             val targetReps = currentExercise.setReps[_currentSetIndex.value]
             _workoutParameters.value = workoutParameters.value.copy(
-                reps = targetReps
+                reps = targetReps,
+                // Preserve all other parameters from current exercise
+                progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
+                weightPerCableKg = workoutParameters.value.weightPerCableKg,
+                workoutType = workoutParameters.value.workoutType,
+                selectedExerciseId = workoutParameters.value.selectedExerciseId
             )
             startWorkout(skipCountdown = true)
         } else {
@@ -738,7 +759,10 @@ class MainViewModel @Inject constructor(
                 val nextExercise = routine.exercises[_currentExerciseIndex.value]
                 _workoutParameters.value = workoutParameters.value.copy(
                     weightPerCableKg = nextExercise.weightPerCableKg,
-                    reps = nextExercise.setReps[0]
+                    reps = nextExercise.setReps[0],
+                    workoutType = nextExercise.workoutType,
+                    progressionRegressionKg = nextExercise.progressionKg,
+                    selectedExerciseId = nextExercise.exercise.id
                 )
                 startWorkout(skipCountdown = true)
             } else {
@@ -755,6 +779,33 @@ class MainViewModel @Inject constructor(
     fun skipRest() {
         if (_workoutState.value is WorkoutState.Resting) {
             startNextSetOrExercise()
+        }
+    }
+
+    /**
+     * Manually advance to the next exercise in a routine.
+     * Called when user clicks "Start Next Exercise" button after completing an exercise.
+     */
+    fun advanceToNextExercise() {
+        val routine = _loadedRoutine.value ?: return
+
+        // Move to next exercise
+        if (_currentExerciseIndex.value < routine.exercises.size - 1) {
+            _currentExerciseIndex.value++
+            _currentSetIndex.value = 0
+
+            // Update workout parameters for new exercise
+            val nextExercise = routine.exercises[_currentExerciseIndex.value]
+            _workoutParameters.value = workoutParameters.value.copy(
+                weightPerCableKg = nextExercise.weightPerCableKg,
+                reps = nextExercise.setReps[0],
+                workoutType = nextExercise.workoutType,
+                progressionRegressionKg = nextExercise.progressionKg,
+                selectedExerciseId = nextExercise.exercise.id
+            )
+
+            // Start the next exercise
+            startWorkout(skipCountdown = true)
         }
     }
 
@@ -780,10 +831,15 @@ class MainViewModel @Inject constructor(
             params.weightPerCableKg // Fallback to configured if no metrics
         }
 
+        val (eccentricLoad, echoLevel) = when (val wt = params.workoutType) {
+            is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
+            is WorkoutType.Program -> 100 to 2 // Defaults for program modes
+        }
+        
         val session = WorkoutSession(
             id = sessionId,
             timestamp = workoutStartTime,
-            mode = params.mode.displayName,
+            mode = params.workoutType.displayName,
             reps = params.reps,
             weightPerCableKg = actualPerCableWeightKg, // Store per-cable weight
             progressionKg = params.progressionRegressionKg,
@@ -792,7 +848,9 @@ class MainViewModel @Inject constructor(
             warmupReps = warmup,
             workingReps = working,
             isJustLift = params.isJustLift,
-            stopAtTop = params.stopAtTop
+            stopAtTop = params.stopAtTop,
+            eccentricLoad = eccentricLoad,
+            echoLevel = echoLevel
         )
 
         workoutRepository.saveSession(session)
@@ -809,7 +867,7 @@ class MainViewModel @Inject constructor(
                     exerciseId = exerciseId,
                     weightPerCableKg = actualPerCableWeightKg,
                     reps = working,
-                    workoutMode = params.mode.displayName
+                    workoutMode = params.workoutType.displayName
                 )
                 if (isNewPR) {
                     Timber.d("NEW PERSONAL RECORD! Exercise: $exerciseId, Weight: ${actualPerCableWeightKg}kg, Reps: $working")
@@ -963,7 +1021,7 @@ class MainViewModel @Inject constructor(
         
         updateWorkoutParameters(
             WorkoutParameters(
-                mode = _workoutParameters.value.mode, // Keep current mode
+                workoutType = _workoutParameters.value.workoutType, // Keep current workout type
                 reps = firstSetReps,
                 weightPerCableKg = firstExercise.weightPerCableKg,
                 progressionRegressionKg = firstExercise.progressionKg,

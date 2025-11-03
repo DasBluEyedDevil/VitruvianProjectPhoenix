@@ -15,6 +15,8 @@ import com.example.vitruvianredux.domain.model.RoutineExercise
 import com.example.vitruvianredux.domain.model.Exercise
 import com.example.vitruvianredux.domain.model.CableConfiguration
 import com.example.vitruvianredux.domain.model.WorkoutMode
+import com.example.vitruvianredux.domain.model.WorkoutType
+import com.example.vitruvianredux.domain.model.ProgramMode
 import com.example.vitruvianredux.domain.model.EchoLevel
 import com.example.vitruvianredux.domain.model.EccentricLoad
 import kotlinx.coroutines.flow.Flow
@@ -403,17 +405,22 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     setReps = setReps.joinToString(","), // Convert List<Int> to comma-separated String
     weightPerCableKg = weightPerCableKg,
     setWeights = setWeightsPerCableKg.joinToString(",") { it.toString() },
-    mode = when (mode) {
-        is WorkoutMode.OldSchool -> "OldSchool"
-        is WorkoutMode.Pump -> "Pump"
-        is WorkoutMode.TUT -> "TUT"
-        is WorkoutMode.TUTBeast -> "TUTBeast"
-        is WorkoutMode.EccentricOnly -> "EccentricOnly"
-        is WorkoutMode.Echo -> "Echo"
+    mode = when (workoutType) {
+        is WorkoutType.Program -> when (workoutType.mode) {
+            is ProgramMode.OldSchool -> "OldSchool"
+            is ProgramMode.Pump -> "Pump"
+            is ProgramMode.TUT -> "TUT"
+            is ProgramMode.TUTBeast -> "TUTBeast"
+            is ProgramMode.EccentricOnly -> "EccentricOnly"
+        }
+        is WorkoutType.Echo -> "Echo"
     },
-    eccentricLoad = eccentricLoad.percentage,
-    echoLevel = when (mode) {
-        is WorkoutMode.Echo -> (mode as WorkoutMode.Echo).level.levelValue
+    eccentricLoad = when (workoutType) {
+        is WorkoutType.Echo -> workoutType.eccentricLoad.percentage
+        else -> eccentricLoad.percentage
+    },
+    echoLevel = when (workoutType) {
+        is WorkoutType.Echo -> workoutType.level.levelValue
         else -> echoLevel.levelValue
     },
     progressionKg = progressionKg,
@@ -447,14 +454,17 @@ private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
     setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
     weightPerCableKg = weightPerCableKg,
     setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
-    mode = when (mode) {
-        "OldSchool" -> WorkoutMode.OldSchool
-        "Pump" -> WorkoutMode.Pump
-        "TUT" -> WorkoutMode.TUT
-        "TUTBeast" -> WorkoutMode.TUTBeast
-        "EccentricOnly" -> WorkoutMode.EccentricOnly
-        "Echo" -> WorkoutMode.Echo(level = EchoLevel.values().getOrNull(echoLevel)?.let { it } ?: EchoLevel.HARDER)
-        else -> WorkoutMode.OldSchool
+    workoutType = when (mode) {
+        "Echo" -> WorkoutType.Echo(
+            level = EchoLevel.values().getOrNull(echoLevel) ?: EchoLevel.HARDER,
+            eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
+        )
+        "OldSchool" -> WorkoutType.Program(ProgramMode.OldSchool)
+        "Pump" -> WorkoutType.Program(ProgramMode.Pump)
+        "TUT" -> WorkoutType.Program(ProgramMode.TUT)
+        "TUTBeast" -> WorkoutType.Program(ProgramMode.TUTBeast)
+        "EccentricOnly" -> WorkoutType.Program(ProgramMode.EccentricOnly)
+        else -> WorkoutType.Program(ProgramMode.OldSchool)
     },
     eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
     echoLevel = EchoLevel.values().getOrNull(echoLevel) ?: EchoLevel.HARDER,

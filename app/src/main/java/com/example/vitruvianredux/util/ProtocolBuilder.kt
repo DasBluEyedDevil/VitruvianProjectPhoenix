@@ -1,7 +1,7 @@
 package com.example.vitruvianredux.util
 
 import com.example.vitruvianredux.domain.model.EchoLevel
-import com.example.vitruvianredux.domain.model.WorkoutMode
+import com.example.vitruvianredux.domain.model.ProgramMode
 import com.example.vitruvianredux.domain.model.WorkoutParameters
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -37,12 +37,13 @@ object ProtocolBuilder {
 
     /**
      * Build the 96-byte program parameters frame
+     * CRITICAL: Working web app uses command 0x04 (verified from console logs)
      */
     fun buildProgramParams(params: WorkoutParameters): ByteArray {
         val frame = ByteArray(96)
         val buffer = ByteBuffer.wrap(frame).order(ByteOrder.LITTLE_ENDIAN)
 
-        // Header section
+        // Header section - Command 0x04 for PROGRAM mode (verified from working web app)
         frame[0] = 0x04
         frame[1] = 0x00
         frame[2] = 0x00
@@ -89,11 +90,19 @@ object ProtocolBuilder {
 
         // Get the mode profile block (32 bytes for offsets 0x30-0x4F)
         // For Just Lift, use the base mode; otherwise use the mode directly
-        val profileMode = if (params.isJustLift) {
-            // For Just Lift, use Old School as base mode
-            WorkoutMode.OldSchool
-        } else {
-            params.mode
+        val profileMode = when (val workoutType = params.workoutType) {
+            is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
+                if (params.isJustLift) {
+                    // For Just Lift, use Old School as base mode
+                    ProgramMode.OldSchool
+                } else {
+                    workoutType.mode
+                }
+            }
+            is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                // Echo mode uses Old School as base profile
+                ProgramMode.OldSchool
+            }
         }
         val profile = getModeProfile(profileMode)
         System.arraycopy(profile, 0, frame, 0x30, profile.size)
@@ -101,11 +110,23 @@ object ProtocolBuilder {
         // Calculate weights for protocol
         // CRITICAL: Machine interprets 0x58 as TOTAL weight (splits between cables)
         // So we must DOUBLE the per-cable value to get the expected resistance
-        val totalWeightKg = params.weightPerCableKg * 2.0f
-        val effectiveKg = params.weightPerCableKg + 10.0f
+        //
+        // FIRMWARE QUIRK: Machine applies progression starting from "rep 0" (before first rep)
+        // To get correct behavior where first working rep has base weight,
+        // we must subtract progression from base weight when sending to firmware
+        val adjustedWeightPerCable = if (params.progressionRegressionKg != 0f) {
+            params.weightPerCableKg - params.progressionRegressionKg
+        } else {
+            params.weightPerCableKg
+        }
+
+        val totalWeightKg = adjustedWeightPerCable * 2.0f
+        val effectiveKg = adjustedWeightPerCable + 10.0f
 
         timber.log.Timber.d("=== WEIGHT DEBUG ===")
         timber.log.Timber.d("Per-cable weight (input): ${params.weightPerCableKg} kg")
+        timber.log.Timber.d("Progression: ${params.progressionRegressionKg} kg")
+        timber.log.Timber.d("Adjusted weight (compensated): $adjustedWeightPerCable kg")
         timber.log.Timber.d("Total weight (sent to 0x58): $totalWeightKg kg")
         timber.log.Timber.d("Effective weight (sent to 0x54): $effectiveKg kg")
 
@@ -209,11 +230,11 @@ object ProtocolBuilder {
     /**
      * Get mode profile block for program modes (32 bytes)
      */
-    private fun getModeProfile(mode: WorkoutMode): ByteArray {
+    private fun getModeProfile(mode: ProgramMode): ByteArray {
         val buffer = ByteBuffer.allocate(32).order(ByteOrder.LITTLE_ENDIAN)
 
         when (mode) {
-            is WorkoutMode.OldSchool -> {
+            is ProgramMode.OldSchool -> {
                 buffer.putShort(0x00, 0)
                 buffer.putShort(0x02, 20)
                 buffer.putFloat(0x04, 3.0f)
@@ -227,7 +248,7 @@ object ProtocolBuilder {
                 buffer.putShort(0x1a, -110)
                 buffer.putFloat(0x1c, 0.0f)
             }
-            is WorkoutMode.Pump -> {
+            is ProgramMode.Pump -> {
                 buffer.putShort(0x00, 50)
                 buffer.putShort(0x02, 450)
                 buffer.putFloat(0x04, 10.0f)
@@ -241,7 +262,7 @@ object ProtocolBuilder {
                 buffer.putShort(0x1a, -50)
                 buffer.putFloat(0x1c, 1.0f)
             }
-            is WorkoutMode.TUT -> {
+            is ProgramMode.TUT -> {
                 buffer.putShort(0x00, 250)
                 buffer.putShort(0x02, 350)
                 buffer.putFloat(0x04, 7.0f)
@@ -255,7 +276,7 @@ object ProtocolBuilder {
                 buffer.putShort(0x1a, -50)
                 buffer.putFloat(0x1c, 14.0f)
             }
-            is WorkoutMode.TUTBeast -> {
+            is ProgramMode.TUTBeast -> {
                 buffer.putShort(0x00, 150)
                 buffer.putShort(0x02, 250)
                 buffer.putFloat(0x04, 7.0f)
@@ -269,7 +290,7 @@ object ProtocolBuilder {
                 buffer.putShort(0x1a, -50)
                 buffer.putFloat(0x1c, 28.0f)
             }
-            is WorkoutMode.EccentricOnly -> {
+            is ProgramMode.EccentricOnly -> {
                 buffer.putShort(0x00, 50)
                 buffer.putShort(0x02, 550)
                 buffer.putFloat(0x04, 50.0f)
@@ -282,10 +303,6 @@ object ProtocolBuilder {
                 buffer.putShort(0x18, -100)
                 buffer.putShort(0x1a, -50)
                 buffer.putFloat(0x1c, 20.0f)
-            }
-            is WorkoutMode.Echo -> {
-                // Echo mode uses Old School as base profile
-                return getModeProfile(WorkoutMode.OldSchool)
             }
         }
 
@@ -307,10 +324,10 @@ object ProtocolBuilder {
         )
 
         return when (level) {
-            EchoLevel.HARD -> params.copy(gain = 0.75f, cap = 55.0f)
-            EchoLevel.HARDER -> params.copy(gain = 1.0f, cap = 50.0f)
-            EchoLevel.HARDEST -> params.copy(gain = 1.25f, cap = 40.0f)
-            EchoLevel.EPIC -> params.copy(gain = 1.667f, cap = 30.0f)
+            EchoLevel.HARD -> params.copy(gain = 1.0f, cap = 50.0f)
+            EchoLevel.HARDER -> params.copy(gain = 1.25f, cap = 40.0f)
+            EchoLevel.HARDEST -> params.copy(gain = 1.667f, cap = 30.0f)
+            EchoLevel.EPIC -> params.copy(gain = 3.333f, cap = 15.0f)
         }
     }
 

@@ -49,6 +49,7 @@ interface BleRepository {
     suspend fun startWorkout(params: WorkoutParameters): Result<Unit>
     suspend fun stopWorkout(): Result<Unit>
     suspend fun setColorScheme(schemeIndex: Int): Result<Unit>
+    suspend fun testOfficialAppProtocol(): Result<Unit>
 }
 
 @Singleton
@@ -251,9 +252,9 @@ class BleRepositoryImpl @Inject constructor(
 
                 // Collect rep events and forward to repository flow
                 scope.launch {
-                    Timber.d("🔥 Starting rep event collection from BleManager")
+                    Timber.d("?? Starting rep event collection from BleManager")
                     repEvents.collect { repNotification ->
-                        Timber.d("🔥 BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
+                        Timber.d("?? BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
                         _repEvents.emit(repNotification)
                     }
                 }
@@ -267,10 +268,10 @@ class BleRepositoryImpl @Inject constructor(
                 ?.useAutoConnect(false)
                 ?.done {
                     // Device connected successfully
-                    // Give device time to stabilize before sending commands
+                    // Send INIT sequence after connection (LEDs acknowledge connection)
                     Timber.d("Device connected! Waiting 2 seconds before sending INIT...")
                     scope.launch {
-                        delay(2000) // Wait 2 seconds (web app waits for user action)
+                        delay(2000) // Wait 2 seconds (matching web app behavior)
                         Timber.d("Now sending INIT sequence...")
                         val initResult = sendInitSequence()
                         if (initResult.isSuccess) {
@@ -330,33 +331,41 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun startWorkout(params: WorkoutParameters): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            // Device should already be initialized from connection
-            Timber.d("Starting workout - sending program parameters...")
-            
-            // Build and send program parameters
-            val programFrame = ProtocolBuilder.buildProgramParams(params)
-            bleManager?.sendCommand(programFrame)?.getOrThrow()
-            delay(100)
+            // MATCH WEB APP EXACTLY:
+            // - Program modes (Old School, Pump, TUT): Send ONLY program params (96 bytes)
+            // - Echo mode: Send ONLY echo control (40 bytes)
+            Timber.d("Starting workout with type: ${params.workoutType.displayName}")
 
-            // If Echo mode, send echo control frame
-            if (params.mode is com.example.vitruvianredux.domain.model.WorkoutMode.Echo) {
-                val echoFrame = ProtocolBuilder.buildEchoControl(
-                    level = params.mode.level,
-                    warmupReps = params.warmupReps,
-                    targetReps = params.reps,
-                    isJustLift = params.isJustLift
-                )
-                bleManager?.sendCommand(echoFrame)?.getOrThrow()
-                delay(100)
+            when (params.workoutType) {
+                is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                    // Echo mode: Send ONLY echo control frame (web app: device.js line 328)
+                    Timber.d("Echo mode: sending ONLY echo control frame (40 bytes)")
+                    val echoFrame = ProtocolBuilder.buildEchoControl(
+                        level = params.workoutType.level,
+                        warmupReps = params.warmupReps,
+                        targetReps = params.reps,
+                        isJustLift = params.isJustLift,
+                        eccentricPct = params.workoutType.eccentricLoad.percentage
+                    )
+                    bleManager?.sendCommand(echoFrame)?.getOrThrow()
+                    delay(100)
+                }
+                is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
+                    // Program mode: Send ONLY program params (web app: device.js line 283)
+                    Timber.d("Program mode: sending ONLY program params (96 bytes)")
+                    val programFrame = ProtocolBuilder.buildProgramParams(params)
+                    bleManager?.sendCommand(programFrame)?.getOrThrow()
+                    delay(100)
+                }
             }
 
-            Timber.d("Workout started with mode: ${params.mode.displayName}")
+            Timber.d("Workout command sent successfully!")
 
             // Start monitor polling for workout data (100ms interval)
             // Property polling already running as keep-alive from connection time
             Timber.d("Starting monitor polling for workout...")
             bleManager?.startMonitorPolling()
-            
+
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to start workout")
@@ -392,6 +401,17 @@ class BleRepositoryImpl @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to set color scheme")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun testOfficialAppProtocol(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Timber.d("Repository: Starting official app protocol test")
+            bleManager?.testOfficialAppProtocol()?.getOrThrow()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to test official app protocol")
             Result.failure(e)
         }
     }

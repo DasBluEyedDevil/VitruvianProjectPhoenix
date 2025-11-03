@@ -3,15 +3,22 @@ package com.example.vitruvianredux.presentation.screen
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.presentation.screen.ExerciseEditBottomSheet
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+import com.example.vitruvianredux.ui.theme.Spacing
+import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import java.util.UUID
 
 /**
@@ -25,20 +32,13 @@ fun SingleExerciseScreen(
     viewModel: MainViewModel,
     exerciseRepository: ExerciseRepository
 ) {
-    val workoutState by viewModel.workoutState.collectAsState()
-    val currentMetric by viewModel.currentMetric.collectAsState()
-    val workoutParameters by viewModel.workoutParameters.collectAsState()
-    val repCount by viewModel.repCount.collectAsState()
-    val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
-    val hapticEvents = viewModel.hapticEvents
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
     // State for exercise selection and configuration flow
-    var showExercisePicker by remember { mutableStateOf(workoutState is WorkoutState.Idle) }
+    var showExercisePicker by remember { mutableStateOf(false) }
     var exerciseToConfig by remember { mutableStateOf<RoutineExercise?>(null) }
-    var hasStartedConfig by remember { mutableStateOf(false) } // Track if user has started configuring
 
     Scaffold(
         topBar = {
@@ -57,46 +57,51 @@ fun SingleExerciseScreen(
             )
         }
     ) { padding ->
-        // Only show WorkoutTab after an exercise has been selected (not while showing picker)
-        if (!showExercisePicker || hasStartedConfig) {
-            WorkoutTab(
-                connectionState = ConnectionState.Connected("", ""),
-                workoutState = workoutState,
-                currentMetric = currentMetric,
-                workoutParameters = workoutParameters,
-                repCount = repCount,
-                autoStopState = autoStopState,
-                weightUnit = weightUnit,
-                exerciseRepository = exerciseRepository,
-                isWorkoutSetupDialogVisible = false, // Don't show old setup dialog
-                hapticEvents = hapticEvents,
-                loadedRoutine = null,
-                currentExerciseIndex = 0,
-                kgToDisplay = viewModel::kgToDisplay,
-                displayToKg = viewModel::displayToKg,
-                formatWeight = viewModel::formatWeight,
-                onScan = { viewModel.startScanning() },
-                onDisconnect = { viewModel.disconnect() },
-                onStartWorkout = {
-                    viewModel.ensureConnection(
-                        onConnected = { viewModel.startWorkout() },
-                        onFailed = { /* Error shown via StateFlow */ }
-                    )
-                },
-                onStopWorkout = { viewModel.stopWorkout() },
-                onCancelRoutine = { viewModel.cancelRoutine() },
-                onSkipRest = { viewModel.skipRest() },
-                onResetForNewWorkout = {
-                    viewModel.resetForNewWorkout()
-                    showExercisePicker = true // Show exercise picker again for new workout
-                },
-                onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
-                onShowWorkoutSetupDialog = { showExercisePicker = true }, // Trigger exercise picker instead
-                onHideWorkoutSetupDialog = { showExercisePicker = false },
-                showConnectionCard = false,
-                showWorkoutSetupCard = false,
-                modifier = Modifier.padding(padding)
+        // Landing page - choose exercise to begin
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.FitnessCenter,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
+
+            Spacer(Modifier.height(Spacing.large))
+
+            Text(
+                "Choose an exercise to begin",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(Spacing.medium))
+
+            Text(
+                "Select from our library of exercises",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = Spacing.large)
+            )
+
+            Spacer(Modifier.height(Spacing.extraLarge))
+
+            Button(
+                onClick = { showExercisePicker = true },
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(56.dp)
+            ) {
+                Icon(Icons.Default.Search, contentDescription = null)
+                Spacer(Modifier.width(Spacing.small))
+                Text("Select Exercise")
+            }
         }
 
         // Exercise picker dialog
@@ -104,11 +109,8 @@ fun SingleExerciseScreen(
             showDialog = showExercisePicker,
             fullScreen = true,
             onDismiss = {
+                // Just close picker, stay on screen - don't navigate back
                 showExercisePicker = false
-                // Only go back if user never started configuring (dismissed at exercise picker stage)
-                if (workoutState is WorkoutState.Idle && !hasStartedConfig) {
-                    navController.navigateUp()
-                }
             },
             onExerciseSelected = { selectedExercise ->
                 // Convert ExerciseEntity to Exercise domain model
@@ -131,13 +133,12 @@ fun SingleExerciseScreen(
                     progressionKg = 0f, // No progression by default
                     restSeconds = 60, // 60 seconds rest
                     notes = "",
-                    mode = WorkoutMode.OldSchool, // Default mode
+                    workoutType = WorkoutType.Program(ProgramMode.OldSchool), // Default mode
                     eccentricLoad = EccentricLoad.LOAD_100, // Default eccentric load
                     echoLevel = EchoLevel.HARDER // Default echo level
                 )
                 exerciseToConfig = newRoutineExercise
                 showExercisePicker = false
-                hasStartedConfig = true // Mark that user has started the config flow
             },
             exerciseRepository = exerciseRepository
         )
@@ -154,21 +155,25 @@ fun SingleExerciseScreen(
                 onSave = { configuredExercise ->
                     // Convert RoutineExercise to WorkoutParameters
                     val parameters = WorkoutParameters(
-                        mode = configuredExercise.mode,
+                        workoutType = configuredExercise.workoutType,
                         reps = configuredExercise.setReps.firstOrNull() ?: 10,
                         weightPerCableKg = configuredExercise.weightPerCableKg,
                         progressionRegressionKg = configuredExercise.progressionKg,
                         isJustLift = false,
                         stopAtTop = false,
                         warmupReps = 0,
-                        selectedExerciseId = configuredExercise.exercise.id,
-                        eccentricLoad = configuredExercise.eccentricLoad
+                        selectedExerciseId = configuredExercise.exercise.id
                     )
 
-                    // Update parameters and start workout
+                    // Update parameters
                     viewModel.updateWorkoutParameters(parameters)
+
+                    // Start workout and navigate to ActiveWorkoutScreen
                     viewModel.ensureConnection(
-                        onConnected = { viewModel.startWorkout() },
+                        onConnected = {
+                            viewModel.startWorkout()
+                            navController.navigate(NavigationRoutes.ActiveWorkout.route)
+                        },
                         onFailed = { /* Error shown via StateFlow */ }
                     )
 
@@ -176,10 +181,7 @@ fun SingleExerciseScreen(
                 },
                 onDismiss = {
                     exerciseToConfig = null
-                    // If dismissed before workout started, show exercise picker again (let them pick different exercise)
-                    if (workoutState is WorkoutState.Idle) {
-                        showExercisePicker = true
-                    }
+                    showExercisePicker = true
                 }
             )
         }

@@ -27,6 +27,19 @@ object BleConstants {
         UUID.fromString("ef0e485a-8749-4314-b1be-01e57cd1712e")
     )
 
+    // Official app workout command characteristics (discovered from HCI logs)
+    // These are writable characteristics (props: 4 = WRITE_NO_RESPONSE)
+    val WORKOUT_CMD_CHAR_UUIDS = listOf(
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6a5"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6a6"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6a7"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6a8"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6a9"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6aa"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6ab"),
+        UUID.fromString("6d094aa3-b60d-4916-8a55-8ed73fb9f6ac")
+    )
+
     // Device name prefix for filtering - matches "Vee" devices
     const val DEVICE_NAME_PREFIX = "Vee"
 

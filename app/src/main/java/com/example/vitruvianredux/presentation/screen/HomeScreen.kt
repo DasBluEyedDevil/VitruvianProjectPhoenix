@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.vitruvianredux.domain.model.ConnectionState
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.presentation.components.StatsCard
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
@@ -46,6 +47,7 @@ fun HomeScreen(
     val progressPercentage by viewModel.progressPercentage.collectAsState()
 
     // Collect connection state
+    val connectionState by viewModel.connectionState.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
@@ -126,7 +128,7 @@ fun HomeScreen(
 
             WorkoutCard(
                 title = "Just Lift",
-                description = "Quick workout session",
+                description = "Quick setup, start lifting immediately",
                 icon = Icons.Default.FitnessCenter,
                 gradient = Brush.linearGradient(
                     colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE)) // purple-500 to purple-700
@@ -135,8 +137,8 @@ fun HomeScreen(
             )
 
             WorkoutCard(
-                title = "Single Exercises",
-                description = "Build custom routines",
+                title = "Single Exercise",
+                description = "Perform one exercise with custom configuration",
                 icon = Icons.Default.PlayArrow,
                 gradient = Brush.linearGradient(
                     colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA)) // violet-500 to purple-600
@@ -146,7 +148,7 @@ fun HomeScreen(
 
             WorkoutCard(
                 title = "Daily Routines",
-                description = "Structured daily plans",
+                description = "Choose from your saved multi-exercise routines",
                 icon = Icons.Default.CalendarToday,
                 gradient = Brush.linearGradient(
                     colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo-500 to violet-600
@@ -156,7 +158,7 @@ fun HomeScreen(
 
             WorkoutCard(
                 title = "Weekly Programs",
-                description = "Complete training programs",
+                description = "Follow a structured weekly training schedule",
                 icon = Icons.Default.DateRange,
                 gradient = Brush.linearGradient(
                     colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue-500 to indigo-600
@@ -339,7 +341,7 @@ fun HomeActiveProgramCard(
                         val weightDisplay = formatWeight(weightKg, weightUnit)
 
                         // Get mode display name
-                        val modeText = exercise.mode.displayName
+                        val modeText = exercise.workoutType.displayName
 
                         Text(
                             text = "${exercise.exercise.name} | $repsText | $weightDisplay | $modeText",

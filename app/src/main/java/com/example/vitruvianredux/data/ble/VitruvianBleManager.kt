@@ -37,6 +37,9 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
     private var propertyCharacteristic: BluetoothGattCharacteristic? = null
     private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
 
+    // Official app workout command characteristics (for testing)
+    private val workoutCmdCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
+
     // Monitor polling - MUST be on Main dispatcher for Nordic BLE library
     private val pollingScope = CoroutineScope(Dispatchers.Main)
     private var monitorPollingJob: Job? = null
@@ -94,7 +97,17 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
             gatt.services.forEach { service ->
                 Timber.d("Service: ${service.uuid}")
                 service.characteristics.forEach { char ->
-                    Timber.d("  - Characteristic: ${char.uuid} (props: ${char.properties})")
+                    Timber.d("  - Characteristic: ${char.uuid} (props: ${char.properties}, instance: ${char.instanceId})")
+
+                    // Get the handle by reading the characteristic's instance ID
+                    try {
+                        val handleField = char.javaClass.getDeclaredField("mHandle")
+                        handleField.isAccessible = true
+                        val handle = handleField.getInt(char)
+                        Timber.d("    HANDLE: 0x${handle.toString(16).uppercase()} = ${char.uuid}")
+                    } catch (e: Exception) {
+                        Timber.w("    Could not get handle: ${e.message}")
+                    }
                 }
             }
             Timber.d("=== End Service Discovery ===")
@@ -152,6 +165,16 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
                 }
             }
             Timber.d("Collected ${notifyCharacteristics.size} notify characteristics")
+
+            // Collect workout command characteristics for testing official app protocol
+            workoutCmdCharacteristics.clear()
+            for (uuid in BleConstants.WORKOUT_CMD_CHAR_UUIDS) {
+                allCharacteristics.find { it.uuid == uuid }?.let { char ->
+                    workoutCmdCharacteristics.add(char)
+                    Timber.d("Found workout command characteristic: $uuid")
+                }
+            }
+            Timber.d("Collected ${workoutCmdCharacteristics.size} workout command characteristics")
 
             return true
         }
@@ -291,15 +314,92 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
     fun sendCommand(data: ByteArray): Result<Unit> {
         return try {
             nusRxCharacteristic?.let { characteristic ->
+                // Log detailed hex dump for debugging
+                Timber.d("=== SENDING COMMAND ===")
+                Timber.d("Size: ${data.size} bytes")
+                Timber.d("Full hex: ${data.toHexString()}")
+
+                // Show first 64 bytes formatted for easy reading
+                if (data.size > 0) {
+                    val preview = data.take(64)
+                    val formatted = preview.chunked(16) { bytes ->
+                        bytes.joinToString(" ") { "%02x".format(it) }
+                    }.joinToString("\n  ")
+                    Timber.d("First ${preview.size} bytes:\n  $formatted")
+                }
+
                 writeCharacteristic(characteristic, data)
                     // REMOVED .split() - Vitruvian protocol requires exact frame sizes!
                     // .split() was breaking 96-byte program params into chunks
                     .enqueue()
-                Timber.d("Sent command (${data.size} bytes): ${data.toHexString()}")
+
+                Timber.d("=== COMMAND SENT ===")
                 Result.success(Unit)
             } ?: Result.failure(Exception("NUS RX characteristic not available"))
         } catch (e: Exception) {
             Timber.e(e, "Failed to send command")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Test PROGRAM frame on all workout characteristics
+     * Sends the 96-byte PROGRAM frame (Old School mode) to each characteristic
+     */
+    @Suppress("DEPRECATION")
+    suspend fun testOfficialAppProtocol(): Result<Unit> = kotlinx.coroutines.withContext(Dispatchers.Main) {
+        try {
+            Timber.d("=== TESTING PROGRAM FRAME ON ALL CHARACTERISTICS ===")
+            Timber.d("Found ${workoutCmdCharacteristics.size} workout command characteristics to test")
+
+            if (workoutCmdCharacteristics.isEmpty()) {
+                Timber.e("No workout command characteristics found!")
+                return@withContext Result.failure(Exception("No workout command characteristics available"))
+            }
+
+            // Build PROGRAM frame for Old School workout: 20kg per cable, 5 reps
+            val programFrame = com.example.vitruvianredux.util.ProtocolBuilder.buildProgramParams(
+                com.example.vitruvianredux.domain.model.WorkoutParameters(
+                    workoutType = com.example.vitruvianredux.domain.model.WorkoutType.Program(
+                        com.example.vitruvianredux.domain.model.ProgramMode.OldSchool
+                    ),
+                    weightPerCableKg = 20f,
+                    reps = 5
+                )
+            )
+
+            Timber.d("PROGRAM frame size: ${programFrame.size} bytes")
+            Timber.d("PROGRAM frame (first 32 bytes): ${programFrame.take(32).joinToString(" ") { "%02X".format(it) }}")
+
+            workoutCmdCharacteristics.forEachIndexed { index, char ->
+                Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Timber.d("Testing characteristic ${index + 1}/${workoutCmdCharacteristics.size}")
+                Timber.d("UUID: ${char.uuid}")
+                Timber.d("Properties: ${char.properties}")
+                Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+                // Send PROGRAM frame
+                Timber.d("→ Sending 96-byte PROGRAM frame...")
+                writeCharacteristic(char, programFrame, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+                    .enqueue()
+
+                Timber.d("✓ PROGRAM frame sent to ${char.uuid}")
+                Timber.d("→ Waiting 10 seconds for response...")
+                Timber.d("→ WATCH FOR: Cable engagement and workout start")
+                Timber.d("→ WATCH FOR: Rep notifications on UUID 8308f2a6")
+
+                delay(10000)
+
+                Timber.d("Moving to next characteristic...\n")
+            }
+
+            Timber.d("=== TESTING COMPLETE ===")
+            Timber.d("Total characteristics tested: ${workoutCmdCharacteristics.size}")
+            Timber.d("If cables engaged during test, that characteristic is the workout command channel!")
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to test PROGRAM frame")
             Result.failure(e)
         }
     }

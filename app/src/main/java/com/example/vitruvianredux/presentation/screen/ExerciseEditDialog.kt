@@ -121,7 +121,8 @@ fun ExerciseEditBottomSheet(
             }
         )
     }
-    var selectedMode by remember { mutableStateOf<WorkoutMode>(exercise.mode) }
+    // Convert workoutType to WorkoutMode for UI compatibility
+    var selectedMode by remember { mutableStateOf(exercise.workoutType.toWorkoutMode()) }
     var weightChange by remember {
         // Always default to 0 for weight change per rep
         mutableStateOf(0)
@@ -254,8 +255,8 @@ fun ExerciseEditBottomSheet(
                     )
                 }
 
-                // 2b. WEIGHT PROGRESSION/REGRESSION (for non-bodyweight, non-Echo, non-TUT modes)
-                if (exerciseType == ExerciseType.STANDARD && !isEchoMode && !isTutMode) {
+                // 2b. WEIGHT PROGRESSION/REGRESSION (for non-bodyweight, non-Echo modes)
+                if (exerciseType == ExerciseType.STANDARD && !isEchoMode) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -352,7 +353,9 @@ fun ExerciseEditBottomSheet(
                             setReps = sets.map { it.reps },
                             weightPerCableKg = displayToKg(sets.first().weightPerCable, weightUnit),
                             setWeightsPerCableKg = sets.map { displayToKg(it.weightPerCable, weightUnit) },
-                            mode = selectedMode,
+                            workoutType = selectedMode.toWorkoutType(
+                                eccentricLoad = if (selectedMode is WorkoutMode.Echo) eccentricLoad else EccentricLoad.LOAD_100
+                            ),
                             eccentricLoad = eccentricLoad,
                             echoLevel = echoLevel,
                             progressionKg = displayToKg(weightChange.toFloat(), weightUnit),
@@ -707,16 +710,14 @@ fun EccentricLoadSelector(
                 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150%, 175%, 200%
+                // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150% (machine hardware limit)
                 val eccentricLoadValues = listOf(
                     EccentricLoad.LOAD_0,
                     EccentricLoad.LOAD_50,
                     EccentricLoad.LOAD_75,
                     EccentricLoad.LOAD_100,
                     EccentricLoad.LOAD_125,
-                    EccentricLoad.LOAD_150,
-                    EccentricLoad.LOAD_175,
-                    EccentricLoad.LOAD_200
+                    EccentricLoad.LOAD_150
                 )
                 val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let { 
                     if (it < 0) 3 else it // Default to 100% if not found

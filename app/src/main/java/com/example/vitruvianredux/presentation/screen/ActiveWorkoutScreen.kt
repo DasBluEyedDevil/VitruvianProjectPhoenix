@@ -112,6 +112,7 @@ fun ActiveWorkoutScreen(
             onCancelRoutine = { viewModel.cancelRoutine() },
             onSkipRest = { viewModel.skipRest() },
             onResetForNewWorkout = { viewModel.resetForNewWorkout() },
+            onStartNextExercise = { viewModel.advanceToNextExercise() },
             onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
             onShowWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
             onHideWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
