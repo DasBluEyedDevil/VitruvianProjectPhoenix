@@ -76,7 +76,7 @@ sealed class WorkoutMode(val displayName: String) {
     object TUT : WorkoutMode("TUT")
     object TUTBeast : WorkoutMode("TUT Beast")
     object EccentricOnly : WorkoutMode("Eccentric Only")
-    data class Echo(val level: EchoLevel) : WorkoutMode("Echo (${level.displayName})")
+    data class Echo(val level: EchoLevel) : WorkoutMode("Echo")
     
     /**
      * Convert WorkoutMode to WorkoutType
@@ -100,7 +100,7 @@ sealed class WorkoutType {
     
     val displayName: String get() = when (this) {
         is Program -> mode.displayName
-        is Echo -> "Echo (${level.displayName})"
+        is Echo -> "Echo"
     }
     
     val modeValue: Int get() = when (this) {
