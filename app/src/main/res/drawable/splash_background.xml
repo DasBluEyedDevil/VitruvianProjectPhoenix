@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/ic_launcher_background"/>
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solid orange background -->
+    <item android:drawable="@color/ic_launcher_background"/>
+
+    <!-- Phoenix logo centered with minimal padding for larger appearance -->
+    <item
+        android:top="60dp"
+        android:bottom="60dp"
+        android:left="60dp"
+        android:right="60dp">
+        <bitmap
+            android:src="@drawable/vitphoe_logo_foreground"
+            android:gravity="fill" />
+    </item>
+</layer-list>
