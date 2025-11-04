@@ -13,6 +13,7 @@ import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import com.example.vitruvianredux.service.WorkoutForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -74,6 +75,9 @@ class MainViewModel @Inject constructor(
 
     private val _autoStopState = MutableStateFlow(AutoStopUiState())
     val autoStopState: StateFlow<AutoStopUiState> = _autoStopState.asStateFlow()
+
+    private val _autoStartCountdown = MutableStateFlow<Int?>(null)
+    val autoStartCountdown: StateFlow<Int?> = _autoStartCountdown.asStateFlow()
 
     private val _scannedDevices = MutableStateFlow<List<ScannedDevice>>(emptyList())
     val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevices.asStateFlow()
@@ -226,6 +230,8 @@ class MainViewModel @Inject constructor(
     private var autoStopTriggered = false
     private var autoStopStopRequested = false
 
+    private var autoStartJob: Job? = null
+
     init {
         Timber.d("MainViewModel initialized")
 
@@ -324,6 +330,51 @@ class MainViewModel @Inject constructor(
                     Timber.d("Device already in list, skipping: ${scanResult.device.address}")
                 }
             }
+        }
+
+        // Collect handle state for auto-start/stop
+        viewModelScope.launch {
+            bleRepository.handleState.collect { state ->
+                Timber.d("Handle state received in ViewModel: $state, useAutoStart=${workoutParameters.value.useAutoStart}, workoutState=${workoutState.value}")
+                if (workoutParameters.value.useAutoStart && workoutState.value is WorkoutState.Idle) {
+                    when (state) {
+                        com.example.vitruvianredux.data.ble.HandleState.Grabbed -> {
+                            Timber.d("Handles grabbed! Starting auto-start timer")
+                            startAutoStartTimer()
+                        }
+                        com.example.vitruvianredux.data.ble.HandleState.Released -> {
+                            Timber.d("Handles released! Canceling auto-start timer")
+                            cancelAutoStartTimer()
+                        }
+                        else -> { /* Do nothing */ }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun cancelAutoStartTimer() {
+        autoStartJob?.cancel()
+        autoStartJob = null
+        _autoStartCountdown.value = null
+    }
+
+    private fun startAutoStartTimer() {
+        if (autoStartJob != null || workoutState.value !is WorkoutState.Idle) {
+            Timber.d("Auto-start timer NOT started: autoStartJob=$autoStartJob, workoutState=${workoutState.value}")
+            return
+        }
+
+        Timber.d("Auto-start timer STARTING!")
+        autoStartJob = viewModelScope.launch {
+            for (i in 5 downTo 1) {
+                _autoStartCountdown.value = i
+                Timber.d("Auto-start countdown: $i")
+                delay(1000)
+            }
+            _autoStartCountdown.value = null
+            Timber.d("Auto-start countdown complete! Starting workout...")
+            startWorkout()
         }
     }
 
@@ -541,6 +592,11 @@ class MainViewModel @Inject constructor(
 
     fun updateWorkoutParameters(params: WorkoutParameters) {
         _workoutParameters.value = params
+    }
+
+    fun enableHandleDetection() {
+        Timber.d("MainViewModel: Enabling handle detection for auto-start")
+        bleRepository.enableHandleDetection()
     }
 
     fun startWorkout(skipCountdown: Boolean = false) {
