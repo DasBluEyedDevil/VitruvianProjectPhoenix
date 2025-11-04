@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import com.example.vitruvianredux.presentation.screen.EnhancedMainScreen
 import com.example.vitruvianredux.presentation.screen.LargeSplashScreen
 import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
-import com.example.vitruvianredux.ui.theme.VitruvianReduxTheme
+import com.example.vitruvianredux.ui.theme.VitruvianProjectPhoenixTheme
 import androidx.hilt.navigation.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
                 showLargeSplash = false
             }
 
-            VitruvianReduxTheme(themeMode = themeMode) {
+            VitruvianProjectPhoenixTheme(themeMode = themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
