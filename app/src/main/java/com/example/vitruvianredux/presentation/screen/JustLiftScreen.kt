@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.domain.model.*
@@ -49,12 +50,51 @@ fun JustLiftScreen(
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    var selectedMode by remember { mutableStateOf<WorkoutMode>(WorkoutMode.OldSchool) }
-    var weightPerCable by remember { mutableStateOf(20f) } // Default weight in kg
-    var weightChangePerRep by remember { mutableStateOf(0) } // Progression/Regression value
+    var selectedMode by remember { mutableStateOf(workoutParameters.workoutType.toWorkoutMode()) }
+    var weightPerCable by remember { mutableStateOf(workoutParameters.weightPerCableKg) }
+    var weightChangePerRep by remember { mutableStateOf(workoutParameters.progressionRegressionKg.toInt()) } // Progression/Regression value
     var restTime by remember { mutableStateOf(60) } // Rest time in seconds
     var eccentricLoad by remember { mutableStateOf(EccentricLoad.LOAD_100) }
     var echoLevel by remember { mutableStateOf(EchoLevel.HARDER) }
+
+    LaunchedEffect(workoutParameters.workoutType) {
+        val workoutType = workoutParameters.workoutType
+        if (workoutType is WorkoutType.Echo) {
+            eccentricLoad = workoutType.eccentricLoad
+            echoLevel = workoutType.level
+        }
+    }
+
+    LaunchedEffect(workoutState) {
+        if (workoutState is WorkoutState.Active) {
+            navController.navigate(NavigationRoutes.ActiveWorkout.route)
+        }
+    }
+
+    // Enable handle detection for auto-start when screen is shown and connected
+    val connectionState by viewModel.connectionState.collectAsState()
+    LaunchedEffect(connectionState) {
+        if (connectionState is ConnectionState.Connected) {
+            viewModel.enableHandleDetection()
+        }
+    }
+
+    LaunchedEffect(selectedMode, weightPerCable, weightChangePerRep, restTime) {
+        val weightChangeKg = if (weightUnit == WeightUnit.LB) {
+            weightChangePerRep / 2.20462f
+        } else {
+            weightChangePerRep.toFloat()
+        }
+
+        val updatedParameters = workoutParameters.copy(
+            workoutType = selectedMode.toWorkoutType(eccentricLoad),
+            weightPerCableKg = weightPerCable,
+            progressionRegressionKg = weightChangeKg,
+            isJustLift = true,
+            useAutoStart = true // Enable auto-start for Just Lift
+        )
+        viewModel.updateWorkoutParameters(updatedParameters)
+    }
 
     Scaffold(
         topBar = {
@@ -401,48 +441,13 @@ fun JustLiftScreen(
                 }
             }
 
-            // Start Workout Button
-            Button(
-                onClick = {
-                    viewModel.ensureConnection(
-                        onConnected = {
-                            // Convert weight change per rep to kg (for storage)
-                            val weightChangeKg = if (weightUnit == WeightUnit.LB) {
-                                weightChangePerRep / 2.20462f
-                            } else {
-                                weightChangePerRep.toFloat()
-                            }
-                            
-                            val updatedParameters = workoutParameters.copy(
-                                workoutType = if (selectedMode is WorkoutMode.Echo) {
-                                    WorkoutType.Echo(echoLevel, eccentricLoad)
-                                } else {
-                                    selectedMode.toWorkoutType()
-                                },
-                                weightPerCableKg = weightPerCable,
-                                progressionRegressionKg = weightChangeKg,
-                                isJustLift = true
-                            )
-                            viewModel.updateWorkoutParameters(updatedParameters)
-                            viewModel.startWorkout()
-                            navController.navigate(NavigationRoutes.ActiveWorkout.route)
-                        },
-                        onFailed = { /* Error shown via StateFlow */ }
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                enabled = workoutState is WorkoutState.Idle,
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                Spacer(modifier = Modifier.width(Spacing.small))
-                Text("Start Workout", style = MaterialTheme.typography.titleMedium)
-            }
+            // Auto-start/Auto-stop unified card
+            val autoStartCountdown by viewModel.autoStartCountdown.collectAsState()
+            JustLiftAutoCard(
+                workoutState = workoutState,
+                autoStartCountdown = autoStartCountdown,
+                autoStopState = autoStopState
+            )
 
             // Current workout status if active
             if (workoutState !is WorkoutState.Idle) {
@@ -541,6 +546,119 @@ fun WorkoutStatusCard(
                     Spacer(modifier = Modifier.width(Spacing.small))
                     Text("Stop Workout")
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Unified Auto-Start/Auto-Stop Card for Just Lift Mode
+ * Shows auto-start when idle, auto-stop when active
+ */
+@Composable
+private fun JustLiftAutoCard(
+    workoutState: WorkoutState,
+    autoStartCountdown: Int?,
+    autoStopState: com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
+) {
+    val isIdle = workoutState is WorkoutState.Idle
+    val isActive = workoutState is WorkoutState.Active
+    
+    // Show card when idle (for auto-start) or active (for auto-stop)
+    if (isIdle || isActive) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = when {
+                    autoStartCountdown != null -> MaterialTheme.colorScheme.primaryContainer
+                    autoStopState.isActive -> MaterialTheme.colorScheme.errorContainer
+                    isActive -> MaterialTheme.colorScheme.surfaceVariant
+                    else -> MaterialTheme.colorScheme.secondaryContainer
+                }
+            ),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (isIdle) Icons.Default.PlayCircle else Icons.Default.PanTool,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = when {
+                            autoStartCountdown != null -> MaterialTheme.colorScheme.onPrimaryContainer
+                            autoStopState.isActive -> MaterialTheme.colorScheme.onErrorContainer
+                            isActive -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        }
+                    )
+                    Spacer(Modifier.width(Spacing.small))
+                    Text(
+                        text = when {
+                            autoStartCountdown != null -> "Starting in ${autoStartCountdown}s..."
+                            autoStopState.isActive -> "Stopping in ${autoStopState.secondsRemaining}s..."
+                            isActive -> "Auto-Stop Ready"
+                            else -> "Auto-Start Ready"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = when {
+                            autoStartCountdown != null -> MaterialTheme.colorScheme.onPrimaryContainer
+                            autoStopState.isActive -> MaterialTheme.colorScheme.onErrorContainer
+                            isActive -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                // Progress bar for countdown
+                if (autoStartCountdown != null || autoStopState.isActive) {
+                    LinearProgressIndicator(
+                        progress = {
+                            if (autoStartCountdown != null) {
+                                (5 - autoStartCountdown) / 5f
+                            } else {
+                                autoStopState.progress
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        color = when {
+                            autoStartCountdown != null -> MaterialTheme.colorScheme.primary
+                            autoStopState.isActive -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.outline
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                }
+
+                // Instructions
+                Text(
+                    text = when {
+                        isIdle -> "Grab and hold handles for 5 seconds to start"
+                        isActive -> "Put handles down for 5 seconds to stop"
+                        else -> ""
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when {
+                        autoStartCountdown != null -> MaterialTheme.colorScheme.onPrimaryContainer
+                        autoStopState.isActive -> MaterialTheme.colorScheme.onErrorContainer
+                        isActive -> MaterialTheme.colorScheme.onSurfaceVariant
+                        else -> MaterialTheme.colorScheme.onSecondaryContainer
+                    },
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

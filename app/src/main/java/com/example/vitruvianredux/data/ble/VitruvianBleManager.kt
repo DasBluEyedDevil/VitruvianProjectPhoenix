@@ -71,6 +71,16 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
     private val _statusMessages = MutableSharedFlow<String>(replay = 1)
     val statusMessages: SharedFlow<String> = _statusMessages.asSharedFlow()
 
+    private val _handleState = MutableStateFlow<HandleState>(HandleState.Released)
+    val handleState: StateFlow<HandleState> = _handleState.asStateFlow()
+
+    // Baseline position tracking for handle grab detection
+    private var baselinePositionA: Int? = null
+    private var baselinePositionB: Int? = null
+    private var baselineSampleCount = 0
+    private val BASELINE_SAMPLES_NEEDED = 10 // Average first 10 samples to establish baseline
+    private val GRAB_THRESHOLD = 100 // Position must increase by 100+ units from baseline to be "grabbed"
+
     override fun log(priority: Int, message: String) {
         Timber.tag("VitruvianBLE").log(priority, message)
     }
@@ -250,6 +260,9 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
      * Called when workout starts
      */
     fun startMonitorPolling() {
+        // Reset baseline when starting monitor polling for auto-start detection
+        resetHandleBaseline()
+        
         monitorPollingJob?.cancel()
         monitorPollingJob = pollingScope.launch {
             Timber.d("Starting monitor polling (100ms interval)")
@@ -407,6 +420,46 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
     /**
      * Handle monitor data notifications (real-time metrics)
      */
+    private fun analyzeHandleState(metric: WorkoutMetric): HandleState {
+        // First, establish baseline position (resting position when handles hang freely)
+        if (baselineSampleCount < BASELINE_SAMPLES_NEEDED) {
+            if (baselinePositionA == null) {
+                baselinePositionA = metric.positionA
+                baselinePositionB = metric.positionB
+            } else {
+                // Running average
+                baselinePositionA = ((baselinePositionA!! * baselineSampleCount) + metric.positionA) / (baselineSampleCount + 1)
+                baselinePositionB = ((baselinePositionB!! * baselineSampleCount) + metric.positionB) / (baselineSampleCount + 1)
+            }
+            baselineSampleCount++
+            Timber.d("Establishing baseline: sample $baselineSampleCount/$BASELINE_SAMPLES_NEEDED, baselineA=$baselinePositionA, baselineB=$baselinePositionB")
+            return HandleState.Released
+        }
+
+        // After baseline is established, detect if handles are lifted significantly above baseline
+        val deltaA = metric.positionA - (baselinePositionA ?: 0)
+        val deltaB = metric.positionB - (baselinePositionB ?: 0)
+        val isGrabbed = deltaA > GRAB_THRESHOLD || deltaB > GRAB_THRESHOLD
+        
+        Timber.v("Handle state: posA=${metric.positionA} (Δ$deltaA), posB=${metric.positionB} (Δ$deltaB), grabbed=$isGrabbed")
+
+        return when {
+            isGrabbed -> HandleState.Grabbed
+            else -> HandleState.Released
+        }
+    }
+    
+    /**
+     * Reset baseline tracking (call when disconnecting or starting fresh)
+     */
+    fun resetHandleBaseline() {
+        baselinePositionA = null
+        baselinePositionB = null
+        baselineSampleCount = 0
+        _handleState.value = HandleState.Released
+        Timber.d("Handle baseline reset")
+    }
+
     private fun handleMonitorData(data: Data) {
         try {
             Timber.v("handleMonitorData called")
@@ -484,6 +537,13 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
                 Timber.w("Failed to emit metric - no collectors? Subscribers: ${_monitorData.subscriptionCount.value}")
             }
 
+            // Analyze and update handle state
+            val newHandleState = analyzeHandleState(metric)
+            if (newHandleState != _handleState.value) {
+                _handleState.value = newHandleState
+                Timber.d("Handle state changed: $newHandleState")
+            }
+
         } catch (e: Exception) {
             Timber.e(e, "Error parsing monitor data")
         }
@@ -541,6 +601,12 @@ sealed class ConnectionStatus {
     object Disconnected : ConnectionStatus()
     object Ready : ConnectionStatus()
     data class Error(val message: String) : ConnectionStatus()
+}
+
+enum class HandleState {
+    Released,
+    Grabbed,
+    Moving
 }
 
 /**

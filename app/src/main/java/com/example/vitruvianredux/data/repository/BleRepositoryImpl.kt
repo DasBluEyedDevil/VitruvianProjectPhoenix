@@ -40,6 +40,7 @@ interface BleRepository {
     val monitorData: Flow<WorkoutMetric>
     val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
     val scannedDevices: Flow<ScanResult>
+    val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
 
     suspend fun startScanning(): Result<Unit>
     suspend fun stopScanning()
@@ -50,6 +51,7 @@ interface BleRepository {
     suspend fun stopWorkout(): Result<Unit>
     suspend fun setColorScheme(schemeIndex: Int): Result<Unit>
     suspend fun testOfficialAppProtocol(): Result<Unit>
+    fun enableHandleDetection() // Start monitor polling for auto-start detection
 }
 
 @Singleton
@@ -79,6 +81,9 @@ class BleRepositoryImpl @Inject constructor(
 
     private val _scannedDevices = MutableSharedFlow<ScanResult>(replay = 10)
     override val scannedDevices: Flow<ScanResult> = _scannedDevices.asSharedFlow()
+
+    private val _handleState = MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
+    override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
 
     private var isScanning = false
 
@@ -258,6 +263,13 @@ class BleRepositoryImpl @Inject constructor(
                         _repEvents.emit(repNotification)
                     }
                 }
+
+                // Collect handle state and forward to repository flow
+                scope.launch {
+                    handleState.collect { state ->
+                        _handleState.value = state
+                    }
+                }
             }
 
             // Connect to device
@@ -414,6 +426,11 @@ class BleRepositoryImpl @Inject constructor(
             Timber.e(e, "Failed to test official app protocol")
             Result.failure(e)
         }
+    }
+
+    override fun enableHandleDetection() {
+        Timber.d("Enabling handle detection - starting monitor polling for auto-start")
+        bleManager?.startMonitorPolling()
     }
 }
 
