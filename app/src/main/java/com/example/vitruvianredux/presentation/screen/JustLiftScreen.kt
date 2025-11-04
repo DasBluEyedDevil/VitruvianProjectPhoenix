@@ -144,6 +144,14 @@ fun JustLiftScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Spacing.medium)
             ) {
+            // Auto-start/Auto-stop unified card (at top for visibility)
+            val autoStartCountdown by viewModel.autoStartCountdown.collectAsState()
+            JustLiftAutoCard(
+                workoutState = workoutState,
+                autoStartCountdown = autoStartCountdown,
+                autoStopState = autoStopState
+            )
+
             // Mode Selection Card
             var isModePressed by remember { mutableStateOf(false) }
             val modeScale by animateFloatAsState(
@@ -441,14 +449,6 @@ fun JustLiftScreen(
                 }
             }
 
-            // Auto-start/Auto-stop unified card
-            val autoStartCountdown by viewModel.autoStartCountdown.collectAsState()
-            JustLiftAutoCard(
-                workoutState = workoutState,
-                autoStartCountdown = autoStartCountdown,
-                autoStopState = autoStopState
-            )
-
             // Current workout status if active
             if (workoutState !is WorkoutState.Idle) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.medium))
@@ -573,11 +573,12 @@ private fun JustLiftAutoCard(
                     autoStartCountdown != null -> MaterialTheme.colorScheme.primaryContainer
                     autoStopState.isActive -> MaterialTheme.colorScheme.errorContainer
                     isActive -> MaterialTheme.colorScheme.surfaceVariant
-                    else -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> MaterialTheme.colorScheme.tertiaryContainer // More visible than secondaryContainer
                 }
             ),
             shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            border = BorderStroke(2.dp, if (isIdle) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline)
         ) {
             Column(
                 modifier = Modifier
@@ -608,13 +609,13 @@ private fun JustLiftAutoCard(
                             isActive -> "Auto-Stop Ready"
                             else -> "Auto-Start Ready"
                         },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = when {
                             autoStartCountdown != null -> MaterialTheme.colorScheme.onPrimaryContainer
                             autoStopState.isActive -> MaterialTheme.colorScheme.onErrorContainer
                             isActive -> MaterialTheme.colorScheme.onSurfaceVariant
-                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                            else -> MaterialTheme.colorScheme.onTertiaryContainer
                         }
                     )
                 }
@@ -650,12 +651,13 @@ private fun JustLiftAutoCard(
                         isActive -> "Put handles down for 5 seconds to stop"
                         else -> ""
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
                     color = when {
                         autoStartCountdown != null -> MaterialTheme.colorScheme.onPrimaryContainer
                         autoStopState.isActive -> MaterialTheme.colorScheme.onErrorContainer
                         isActive -> MaterialTheme.colorScheme.onSurfaceVariant
-                        else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        else -> MaterialTheme.colorScheme.onTertiaryContainer
                     },
                     textAlign = TextAlign.Center
                 )
