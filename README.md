@@ -1,4 +1,4 @@
-# Vitruvian: Project Phoenix - Android Control App
+# Vitruvian Project Phoenix - Android Control App
 
 A native Android application for controlling Vitruvian Trainer workout machines via Bluetooth Low Energy (BLE).
 
@@ -333,7 +333,7 @@ For issues, questions, or contributions:
 
 ## 🚀 Current Status
 
-The Vitruvian: Project Phoenix Android app is under active development with most core functionality complete. The app provides comprehensive control of Vitruvian Trainer machines with advanced features for workout tracking, routine management, and performance analytics.
+The Vitruvian Project Phoenix Android app is under active development with most core functionality complete. The app provides comprehensive control of Vitruvian Trainer machines with advanced features for workout tracking, routine management, and performance analytics.
 
 ### Build Information
 - **Build Location:** `app/build/outputs/apk/debug/app-debug.apk`
@@ -356,4 +356,3 @@ The Vitruvian: Project Phoenix Android app is under active development with most
 🚧 CSV export  
 🚧 Unit conversion  
 🚧 Dark mode
-

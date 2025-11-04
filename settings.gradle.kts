@@ -20,6 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Vitruvian: Project Phoenix"
+rootProject.name = "Vitruvian Project Phoenix"
 include(":app")
- 
