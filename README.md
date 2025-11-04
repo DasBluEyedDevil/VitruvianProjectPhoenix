@@ -27,19 +27,29 @@ This app enables local control of Vitruvian Trainer machines after the company's
 - [x] Multi-tab navigation
 - [x] Workout history screen
 - [x] Settings screen
+- [x] Foreground service for workout tracking
+- [x] Exercise library with 200+ exercises
+- [x] Personal records tracking
+- [x] Theme customization
 
-### In Progress
-- [ ] Live charting with MPAndroidChart
-- [ ] Mode selection UI
-- [ ] CSV export
-- [ ] Unit switching (kg/lb)
+### Phase 3: Advanced Features ✅
+- [x] Active workout screen with real-time metrics
+- [x] Analytics and statistics dashboard
+- [x] Program builder for custom workout routines
+- [x] Daily and weekly routine management
+- [x] Single exercise mode (Just Lift)
+- [x] Rest timer and countdown features
+- [x] Haptic feedback
+- [x] DataStore preferences
+- [x] Comprehensive unit and integration tests
 
 ### Planned Features
-- [ ] Workout templates
-- [ ] Statistics dashboard
-- [ ] CSV export
-- [ ] Dark mode
+- [ ] Live charting visualization
+- [ ] CSV export functionality
+- [ ] Unit switching (kg/lb)
+- [ ] Dark mode toggle
 - [ ] Widget support
+- [ ] Cloud backup
 
 ## Technology Stack
 
@@ -48,34 +58,74 @@ This app enables local control of Vitruvian Trainer machines after the company's
 - **Architecture:** MVVM + Clean Architecture
 - **DI:** Hilt/Dagger
 - **BLE:** Nordic BLE Library (v2.7.1)
-- **Database:** Room (planned)
-- **Charting:** MPAndroidChart (planned)
+- **Database:** Room with DAO pattern
+- **Preferences:** DataStore
+- **Charting:** MPAndroidChart
 - **Async:** Kotlin Coroutines + Flow
+- **Image Loading:** Coil
+- **Logging:** Timber
+- **Testing:** JUnit, Mockk, Turbine, Truth, Robolectric
 
 ## Project Structure
 
 ```
 app/src/main/java/com/example/vitruvianredux/
-├── VitruvianApp.kt                 # Application class
-├── MainActivity.kt                 # Main activity
+├── VitruvianApp.kt                          # Application class
+├── MainActivity.kt                          # Main activity
 ├── data/
 │   ├── ble/
-│   │   └── VitruvianBleManager.kt  # BLE communication
+│   │   └── VitruvianBleManager.kt           # BLE communication
+│   ├── local/
+│   │   ├── WorkoutDatabase.kt               # Room database
+│   │   ├── WorkoutDao.kt                    # Workout data access
+│   │   ├── ExerciseDao.kt                   # Exercise library access
+│   │   ├── PersonalRecordDao.kt             # PR tracking
+│   │   └── ExerciseImporter.kt              # Exercise library importer
+│   ├── preferences/
+│   │   └── PreferencesManager.kt            # DataStore preferences
 │   └── repository/
-│       └── BleRepositoryImpl.kt    # BLE repository implementation
+│       ├── BleRepositoryImpl.kt             # BLE repository
+│       ├── WorkoutRepository.kt             # Workout data repository
+│       ├── ExerciseRepository.kt            # Exercise library repository
+│       └── PersonalRecordRepository.kt      # Personal records repository
 ├── domain/
-│   └── model/
-│       └── Models.kt               # Domain models
+│   ├── model/
+│   │   ├── Models.kt                        # Domain models
+│   │   ├── Exercise.kt                      # Exercise models
+│   │   ├── Routine.kt                       # Routine models
+│   │   └── UserPreferences.kt               # Preferences models
+│   └── usecase/
+│       └── RepCounterFromMachine.kt         # Rep counting logic
 ├── presentation/
 │   ├── screen/
-│   │   └── MainScreen.kt           # Main UI screen
-│   └── viewmodel/
-│       └── MainViewModel.kt        # Main ViewModel
+│   │   ├── HomeScreen.kt                    # Home dashboard
+│   │   ├── ActiveWorkoutScreen.kt           # Active workout tracking
+│   │   ├── AnalyticsScreen.kt               # Statistics and analytics
+│   │   ├── JustLiftScreen.kt                # Single exercise mode
+│   │   ├── ProgramBuilderScreen.kt          # Custom routine builder
+│   │   ├── SingleExerciseScreen.kt          # Individual exercise config
+│   │   ├── DailyRoutinesScreen.kt           # Daily workout routines
+│   │   └── WeeklyProgramsScreen.kt          # Weekly programs
+│   ├── viewmodel/
+│   │   ├── MainViewModel.kt                 # Main ViewModel
+│   │   ├── ExerciseConfigViewModel.kt       # Exercise configuration
+│   │   ├── ExerciseLibraryViewModel.kt      # Exercise library
+│   │   └── ThemeViewModel.kt                # Theme management
+│   ├── components/
+│   │   ├── ConnectionStatusBanner.kt        # Connection status UI
+│   │   └── EmptyStateComponent.kt           # Empty state UI
+│   └── ui/theme/
+│       ├── Theme.kt                         # Theme configuration
+│       ├── Color.kt                         # Color definitions
+│       ├── Type.kt                          # Typography
+│       └── Spacing.kt                       # Spacing system
+├── service/
+│   └── WorkoutForegroundService.kt          # Foreground workout service
 ├── util/
-│   ├── Constants.kt                # BLE UUIDs and constants
-│   └── ProtocolBuilder.kt          # Binary protocol frames
+│   ├── Constants.kt                         # BLE UUIDs and constants
+│   └── ProtocolBuilder.kt                   # Binary protocol frames
 └── di/
-    └── AppModule.kt                # Dependency injection
+    └── AppModule.kt                         # Dependency injection
 ```
 
 ## Getting Started
@@ -89,9 +139,17 @@ app/src/main/java/com/example/vitruvianredux/
 ### Building the Project
 
 1. Clone the repository
-2. Open in Android Studio
-3. Sync Gradle files
-4. Build and run on a physical device (BLE doesn't work on emulators)
+2. Open in Android Studio Arctic Fox or newer
+3. Sync Gradle files (will auto-download dependencies)
+4. Build the project: `./gradlew build`
+5. Run on a physical device (BLE doesn't work on emulators)
+
+**Build Configuration:**
+- Compile SDK: 36
+- Min SDK: 26 (Android 8.0)
+- Target SDK: 36
+- Kotlin: Latest stable
+- Gradle: 8.x
 
 ### Permissions Required
 
@@ -124,29 +182,36 @@ All protocol frames are byte-perfect matches to the original web application.
 
 ## Development Roadmap
 
-See `reference/ANDROID_ROADMAP.md` for the complete 18-week development plan.
-
-### Current Progress: Beta 1 (Phase 2 Complete)
+### Current Progress: Alpha Release (Phase 3 Complete)
 
 **Completed:**
 - ✅ Project setup and dependencies
 - ✅ BLE infrastructure with Nordic library
 - ✅ Complete protocol implementation
-- ✅ Domain models and architecture
+- ✅ Domain models and Clean Architecture
 - ✅ Enhanced UI with device selection
 - ✅ Connection management
-- ✅ Workout start/stop
+- ✅ Workout start/stop with foreground service
 - ✅ Rep detection engine
 - ✅ Workout history with Room database
 - ✅ Permission handling with Accompanist
 - ✅ Multi-tab navigation
+- ✅ Exercise library (200+ exercises)
+- ✅ Personal records tracking
+- ✅ Program builder for custom routines
+- ✅ Analytics and statistics dashboard
+- ✅ Daily and weekly routine management
+- ✅ Theme customization
+- ✅ Comprehensive test coverage
 
-**Next Steps (Beta 2):**
-- Live charting implementation
-- Mode selection UI
+**Next Steps (Beta Release):**
+- Live charting visualization
 - CSV export functionality
 - Unit conversion (kg/lb)
-- Bug fixes from beta feedback
+- Dark mode toggle
+- Performance optimization
+- UI/UX refinements
+- Beta testing feedback integration
 
 ## Contributing
 
@@ -160,36 +225,88 @@ This is an open-source community project to rescue Vitruvian machines from becom
 
 ## Testing
 
-### Manual Testing Checklist
-- [ ] BLE device discovery
-- [ ] Connection establishment
-- [ ] Old School mode workout
-- [ ] Pump mode workout
-- [ ] TUT mode workout
-- [ ] Echo mode workout
-- [ ] Real-time load monitoring
-- [ ] Position tracking
-- [ ] Workout stop
-- [ ] Disconnection handling
+### Running Tests
 
-### Unit Tests (Planned)
-- Protocol builder tests
-- ViewModel tests
-- Repository tests
+```bash
+# Run all unit tests
+./gradlew test
+
+# Run specific test class
+./gradlew test --tests "com.example.vitruvianredux.protocol.ProtocolBuilderTest"
+
+# Run instrumented tests (requires device/emulator)
+./gradlew connectedAndroidTest
+```
+
+### Test Coverage
+
+The project includes comprehensive test suites:
+
+**Unit Tests:**
+- Protocol builder tests (`ProtocolBuilderTest.kt`)
+- ViewModel tests (`MainViewModelTest.kt`, `MainViewModelEnhancedTest.kt`)
+- BLE manager tests (`VitruvianBleManagerTest.kt`)
+- Repository tests (`WorkoutRepositoryTest.kt`)
+- Domain logic tests (`WorkoutModeTest.kt`)
+- Rep counting tests (`RepCountingTest.kt`, `RepTrackingTest.kt`)
+
+**Integration Tests:**
+- Workout integration tests (`WorkoutIntegrationTest.kt`)
+- BLE connection tests (`BleConnectionTest.kt`)
+- Offline functionality tests (`OfflineFunctionalityTest.kt`)
+
+### Manual Testing Checklist
+- [ ] BLE device discovery and scanning
+- [ ] Connection establishment and stability
+- [ ] All workout modes (Old School, Pump, TUT, TUT Beast, Eccentric, Echo)
+- [ ] Real-time load and position monitoring
+- [ ] Rep counting accuracy
+- [ ] Workout history recording
+- [ ] Exercise library browsing
+- [ ] Personal records tracking
+- [ ] Program builder functionality
+- [ ] Routine management
+- [ ] Analytics dashboard
+- [ ] Theme customization
+- [ ] Permission handling
+- [ ] Foreground service persistence
+- [ ] Disconnection and reconnection handling
 
 ## Known Issues
 
-- Permission handling UI needs improvement
-- Rep counting not yet implemented
-- No workout history yet
-- Charts not yet integrated
+- Live charting visualization not yet implemented
+- CSV export feature pending
+- Unit conversion (kg/lb) not yet available
+- Dark mode toggle not yet implemented
+- Some UI elements need polish
 
-## Resources
+## Additional Features
 
-- **Reference Implementation:** `reference/` directory contains original web app code
-- **Documentation:** `reference/ANDROID_ROADMAP.md` - Complete development plan
-- **Quick Start:** `reference/ANDROID_QUICK_START.md` - Setup guide
-- **Mapping Guide:** `reference/WEB_TO_ANDROID_MAPPING.md` - Web to Android translation
+### Exercise Library
+The app includes a comprehensive exercise library with 200+ pre-loaded exercises:
+- Categorized by muscle group
+- Detailed instructions
+- Equipment requirements
+- Difficulty ratings
+
+### Personal Records Tracking
+- Automatic PR detection during workouts
+- Historical PR tracking
+- Performance trends
+- Progress visualization
+
+### Routine Management
+- **Daily Routines:** Quick-access workout templates
+- **Weekly Programs:** Structured multi-day training plans
+- **Program Builder:** Create custom workout routines
+- **Template Library:** Pre-built workout templates
+
+### Foreground Service
+The app uses a foreground service during workouts to ensure:
+- Persistent BLE connection
+- Uninterrupted workout tracking
+- Background operation
+- System notification for quick access
 
 ## License
 
@@ -210,17 +327,33 @@ For issues, questions, or contributions:
 
 ---
 
-**Status:** Beta 1 - Ready for Testing  
-**Version:** 0.1.0-beta  
-**Last Updated:** October 27, 2025
+**Status:** Alpha - Active Development  
+**Version:** 0.1.0-alpha  
+**Last Updated:** November 4, 2025
 
-## 🎉 Beta 1 Released!
+## 🚀 Current Status
 
-The Vitruvian Redux Android app is now ready for beta testing! This release includes all core functionality needed to control your Vitruvian Trainer machine locally.
+The Vitruvian Redux Android app is under active development with most core functionality complete. The app provides comprehensive control of Vitruvian Trainer machines with advanced features for workout tracking, routine management, and performance analytics.
 
-### Download Beta
-- **APK Location:** `app/build/outputs/apk/debug/app-debug.apk`
-- **Installation Guide:** See [BETA_TESTING_GUIDE.md](docs/BETA_TESTING_GUIDE.md)
+### Build Information
+- **Build Location:** `app/build/outputs/apk/debug/app-debug.apk`
 - **Minimum Android:** 8.0 (API 26)
-- **Size:** ~8 MB
+- **Target Android:** API 36
+- **APK Size:** ~8-10 MB
+
+### What Works
+✅ Full BLE device control  
+✅ All workout modes  
+✅ Exercise library (200+ exercises)  
+✅ Workout history and tracking  
+✅ Personal records  
+✅ Custom routines and programs  
+✅ Analytics dashboard  
+✅ Theme customization  
+
+### In Development
+🚧 Live charting  
+🚧 CSV export  
+🚧 Unit conversion  
+🚧 Dark mode
 
