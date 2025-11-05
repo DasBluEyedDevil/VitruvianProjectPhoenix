@@ -29,7 +29,18 @@ import java.nio.ByteOrder
  * Uses Nordic BLE Library for robust BLE operations
  */
 @OptIn(ExperimentalStdlibApi::class)
-class VitruvianBleManager(context: Context) : BleManager(context) {
+class VitruvianBleManager(
+    context: Context,
+    private val connectionLogger: com.example.vitruvianredux.data.logger.ConnectionLogger? = null
+) : BleManager(context) {
+
+    private var currentDeviceName: String? = null
+    private var currentDeviceAddress: String? = null
+
+    fun setDeviceInfo(name: String?, address: String?) {
+        currentDeviceName = name
+        currentDeviceAddress = address
+    }
 
     // GATT characteristics
     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
@@ -440,8 +451,24 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
         val deltaA = metric.positionA - (baselinePositionA ?: 0)
         val deltaB = metric.positionB - (baselinePositionB ?: 0)
         val isGrabbed = deltaA > GRAB_THRESHOLD || deltaB > GRAB_THRESHOLD
-        
+
         Timber.v("Handle state: posA=${metric.positionA} (Δ$deltaA), posB=${metric.positionB} (Δ$deltaB), grabbed=$isGrabbed")
+
+        // Log to ConnectionLogger when state changes or periodically
+        if (System.currentTimeMillis() % 50 == 0L || isGrabbed != (_handleState.value == HandleState.Grabbed)) {
+            connectionLogger?.logHandleDetection(
+                currentDeviceName,
+                currentDeviceAddress,
+                baselinePositionA,
+                baselinePositionB,
+                metric.positionA,
+                metric.positionB,
+                deltaA,
+                deltaB,
+                GRAB_THRESHOLD,
+                isGrabbed
+            )
+        }
 
         return when {
             isGrabbed -> HandleState.Grabbed
@@ -529,6 +556,16 @@ class VitruvianBleManager(context: Context) : BleManager(context) {
                 positionA = positionA,
                 positionB = positionB,
                 ticks = ticks
+            )
+
+            // Log monitor data to ConnectionLogger (sampled)
+            connectionLogger?.logMonitorDataReceived(
+                currentDeviceName,
+                currentDeviceAddress,
+                positionA,
+                positionB,
+                loadA,
+                loadB
             )
 
             val emitted = _monitorData.tryEmit(metric)
