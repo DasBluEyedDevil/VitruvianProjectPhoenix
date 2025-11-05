@@ -701,7 +701,6 @@ fun SettingsTab(
                 )
             }
         }
-    }
 
     if (showDeleteAllDialog) {
         AlertDialog(
