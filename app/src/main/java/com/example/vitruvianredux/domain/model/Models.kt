@@ -163,7 +163,7 @@ data class WorkoutParameters(
     val progressionRegressionKg: Float = 0f,  // Only used for Program modes (not TUT/TUTBeast)
     val isJustLift: Boolean = false,
     val useAutoStart: Boolean = false, // true for Just Lift, false for others
-    val stopAtTop: Boolean = false,
+    val stopAtTop: Boolean = true,  // SAFETY: Default true to maintain tension through full final rep
     val warmupReps: Int = 3,
     val selectedExerciseId: String? = null
 )
