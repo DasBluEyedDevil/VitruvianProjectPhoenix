@@ -100,23 +100,22 @@ fun SingleExerciseScreen(
                     exerciseRepository = exerciseRepository,
                     buttonText = "Start Workout",
                     onSave = { configuredExercise ->
-                        val parameters = WorkoutParameters(
-                            workoutType = configuredExercise.workoutType,
-                            reps = configuredExercise.setReps.firstOrNull() ?: 10,
-                            weightPerCableKg = configuredExercise.weightPerCableKg,
-                            progressionRegressionKg = configuredExercise.progressionKg,
-                            isJustLift = false,
-                            stopAtTop = false,
-                            warmupReps = 3,
-                            selectedExerciseId = configuredExercise.exercise.id
+                        // Create a temporary single-exercise routine for proper multi-set support
+                        // This ensures rest timers work and sets progress correctly
+                        val tempRoutine = Routine(
+                            id = "temp_single_exercise_${UUID.randomUUID()}",
+                            name = "Single Exercise: ${configuredExercise.exercise.name}",
+                            description = "Temporary routine for single exercise mode",
+                            exercises = listOf(configuredExercise)
                         )
 
-                        viewModel.updateWorkoutParameters(parameters)
+                        // Load the routine (this sets up all the multi-set tracking)
+                        viewModel.loadRoutine(tempRoutine)
 
                         viewModel.ensureConnection(
                             onConnected = {
                                 viewModel.startWorkout()
-                                navController.navigate(NavigationRoutes.ActiveWorkout.route) { 
+                                navController.navigate(NavigationRoutes.ActiveWorkout.route) {
                                     popUpTo(NavigationRoutes.Home.route) // Clear back stack to home
                                 }
                             },
