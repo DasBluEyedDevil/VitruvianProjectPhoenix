@@ -317,6 +317,7 @@ fun SettingsTab(
     onAutoplayChange: (Boolean) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
+    onNavigateToConnectionLogs: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
@@ -595,6 +596,63 @@ fun SettingsTab(
                 }
             }
         }
+
+    // Developer Tools Section
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFF59E0B), Color(0xFFEF4444))
+                            ),
+                            RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Developer Tools",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                OutlinedButton(
+                    onClick = onNavigateToConnectionLogs,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Timeline, contentDescription = "Connection logs")
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Text("Connection Logs")
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "View Bluetooth connection debug logs to diagnose connectivity issues",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 
     // App Info Section
     Card(
