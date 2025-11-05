@@ -64,7 +64,7 @@ class MainViewModel @Inject constructor(
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
             isJustLift = false,
-            stopAtTop = true,  // SAFETY: Stop at contracted position (prevents dangerous tension release mid-rep)
+            stopAtTop = false,  // User preference - can be toggled in settings
             warmupReps = 3
         )
     )
@@ -92,6 +92,10 @@ class MainViewModel @Inject constructor(
     val weightUnit: StateFlow<WeightUnit> = userPreferences
         .map { it.weightUnit }
         .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
+
+    val stopAtTop: StateFlow<Boolean> = userPreferences
+        .map { it.stopAtTop }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // Feature 4: Routine Management
     private val _routines = MutableStateFlow<List<Routine>>(emptyList())
@@ -1096,6 +1100,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun setStopAtTop(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setStopAtTop(enabled)
+        }
+    }
+
     /**
      * Convert weight from KG to display unit
      */
@@ -1223,7 +1233,7 @@ class MainViewModel @Inject constructor(
                 weightPerCableKg = firstExercise.weightPerCableKg,
                 progressionRegressionKg = firstExercise.progressionKg,
                 isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
-                stopAtTop = true,   // SAFETY: Stop at contracted position (prevents dangerous tension release mid-rep)
+                stopAtTop = stopAtTop.value,   // Use user preference from settings
                 warmupReps = _workoutParameters.value.warmupReps
             )
         )
