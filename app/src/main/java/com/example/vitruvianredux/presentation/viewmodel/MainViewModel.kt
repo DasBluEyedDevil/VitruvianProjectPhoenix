@@ -64,7 +64,7 @@ class MainViewModel @Inject constructor(
             weightPerCableKg = 10f,
             progressionRegressionKg = 0f,
             isJustLift = false,
-            stopAtTop = false,
+            stopAtTop = true,  // SAFETY: Default to true for safe rep completion
             warmupReps = 3
         )
     )
@@ -1223,7 +1223,7 @@ class MainViewModel @Inject constructor(
                 weightPerCableKg = firstExercise.weightPerCableKg,
                 progressionRegressionKg = firstExercise.progressionKg,
                 isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
-                stopAtTop = false,   // Default to false for routines (can be changed in settings)
+                stopAtTop = true,    // SAFETY: Maintain tension through full final rep
                 warmupReps = _workoutParameters.value.warmupReps
             )
         )
