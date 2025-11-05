@@ -119,7 +119,15 @@ fun NavGraph(
                 onWeightUnitChange = { viewModel.setWeightUnit(it) },
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
-                onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() }
+                onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
+                onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) }
+            )
+        }
+
+        // Connection Logs screen - debug BLE connections
+        composable(NavigationRoutes.ConnectionLogs.route) {
+            ConnectionLogsScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }
