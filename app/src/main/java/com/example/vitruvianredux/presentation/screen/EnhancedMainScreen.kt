@@ -302,10 +302,19 @@ fun EnhancedMainScreen(
             }
         }
     ) { padding ->
+        // Remove top padding to eliminate gap since nested screens have their own TopAppBars
+        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val adjustedPadding = PaddingValues(
+            start = padding.calculateLeftPadding(layoutDirection),
+            end = padding.calculateRightPadding(layoutDirection),
+            top = 0.dp,
+            bottom = padding.calculateBottomPadding()
+        )
+
         if (!permissionState.allPermissionsGranted) {
             PermissionRequestScreen(
                 permissionState = permissionState,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(adjustedPadding)
             )
         } else {
             NavGraph(
@@ -314,7 +323,7 @@ fun EnhancedMainScreen(
                 exerciseRepository = exerciseRepository,
                 themeMode = themeMode,
                 onThemeModeChange = { mode -> themeViewModel.setThemeMode(mode) },
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.padding(adjustedPadding)
             )
         }
     }
