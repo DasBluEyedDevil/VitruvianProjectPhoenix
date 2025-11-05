@@ -230,15 +230,26 @@ class ConnectionLogger @Inject constructor(
         commandName: String,
         deviceName: String?,
         deviceAddress: String?,
-        commandData: String? = null
+        commandData: ByteArray? = null,
+        additionalInfo: String? = null
     ) {
+        val hexDump = commandData?.let {
+            buildString {
+                append("Size: ${it.size} bytes\n")
+                append("Hex: ${it.toHexString()}\n")
+                if (additionalInfo != null) {
+                    append("Info: $additionalInfo")
+                }
+            }
+        }
+
         log(
             EventType.COMMAND_SENT,
-            Level.DEBUG,
+            Level.INFO, // Changed to INFO so it shows by default
             "Command sent: $commandName",
             deviceAddress = deviceAddress,
             deviceName = deviceName,
-            details = commandData
+            details = hexDump
         )
     }
 
@@ -335,6 +346,100 @@ class ConnectionLogger @Inject constructor(
         )
     }
 
+    fun logMonitorDataReceived(
+        deviceName: String?,
+        deviceAddress: String?,
+        positionA: Int,
+        positionB: Int,
+        loadA: Float,
+        loadB: Float
+    ) {
+        // Only log every 10th sample to avoid flooding (100ms polling = log every 1 second)
+        if (System.currentTimeMillis() % 10 == 0L) {
+            log(
+                EventType.DATA_RECEIVED,
+                Level.DEBUG,
+                "Monitor data",
+                deviceAddress = deviceAddress,
+                deviceName = deviceName,
+                details = "PosA=$positionA, PosB=$positionB, LoadA=${loadA}kg, LoadB=${loadB}kg"
+            )
+        }
+    }
+
+    fun logCharacteristicWrite(
+        characteristicUuid: String,
+        deviceName: String?,
+        deviceAddress: String?,
+        data: ByteArray,
+        success: Boolean
+    ) {
+        log(
+            if (success) EventType.COMMAND_SUCCESS else EventType.WRITE_ERROR,
+            if (success) Level.INFO else Level.ERROR,
+            "${if (success) "Successfully wrote" else "Failed to write"} to characteristic",
+            deviceAddress = deviceAddress,
+            deviceName = deviceName,
+            details = buildString {
+                append("UUID: $characteristicUuid\n")
+                append("Data: ${data.toHexString()}\n")
+                append("Size: ${data.size} bytes")
+            }
+        )
+    }
+
+    fun logCharacteristicRead(
+        characteristicUuid: String,
+        deviceName: String?,
+        deviceAddress: String?,
+        data: ByteArray?
+    ) {
+        log(
+            EventType.DATA_RECEIVED,
+            Level.DEBUG,
+            "Read characteristic",
+            deviceAddress = deviceAddress,
+            deviceName = deviceName,
+            details = buildString {
+                append("UUID: $characteristicUuid\n")
+                if (data != null) {
+                    append("Data: ${data.toHexString()}\n")
+                    append("Size: ${data.size} bytes")
+                } else {
+                    append("Data: null")
+                }
+            }
+        )
+    }
+
+    fun logHandleDetection(
+        deviceName: String?,
+        deviceAddress: String?,
+        baselineA: Int?,
+        baselineB: Int?,
+        currentA: Int,
+        currentB: Int,
+        deltaA: Int,
+        deltaB: Int,
+        threshold: Int,
+        grabbed: Boolean
+    ) {
+        log(
+            EventType.DATA_RECEIVED,
+            Level.DEBUG,
+            "Handle detection: ${if (grabbed) "GRABBED" else "RELEASED"}",
+            deviceAddress = deviceAddress,
+            deviceName = deviceName,
+            details = buildString {
+                append("BaselineA=$baselineA, BaselineB=$baselineB\n")
+                append("CurrentA=$currentA, CurrentB=$currentB\n")
+                append("DeltaA=$deltaA, DeltaB=$deltaB\n")
+                append("Threshold=$threshold\n")
+                append("Status: ${if (grabbed) "GRABBED" else "RELEASED"}")
+            }
+        )
+    }
+
     /**
      * Clean up old logs (e.g., older than 7 days)
      */
@@ -350,5 +455,12 @@ class ConnectionLogger @Inject constructor(
     suspend fun clearAllLogs() {
         connectionLogDao.deleteAll()
         Timber.i("Cleared all connection logs")
+    }
+
+    /**
+     * Convert byte array to hex string for logging
+     */
+    private fun ByteArray.toHexString(): String {
+        return joinToString(" ") { byte -> "%02X".format(byte) }
     }
 }
