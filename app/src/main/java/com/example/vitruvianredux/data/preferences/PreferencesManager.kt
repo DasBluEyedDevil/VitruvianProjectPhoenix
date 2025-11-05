@@ -25,6 +25,7 @@ class PreferencesManager @Inject constructor(
 ) {
     private val WEIGHT_UNIT_KEY = stringPreferencesKey("weight_unit")
     private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
+    private val STOP_AT_TOP_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("stop_at_top")
 
     /**
      * Flow of user preferences
@@ -39,8 +40,13 @@ class PreferencesManager @Inject constructor(
                 WeightUnit.KG
             }
             val autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true
-            
-            UserPreferences(weightUnit = weightUnit, autoplayEnabled = autoplayEnabled)
+            val stopAtTop = preferences[STOP_AT_TOP_KEY] ?: false
+
+            UserPreferences(
+                weightUnit = weightUnit,
+                autoplayEnabled = autoplayEnabled,
+                stopAtTop = stopAtTop
+            )
         }
 
     /**
@@ -61,5 +67,15 @@ class PreferencesManager @Inject constructor(
             preferences[AUTOPLAY_ENABLED_KEY] = enabled
         }
         Timber.d("Autoplay enabled preference set to: $enabled")
+    }
+
+    /**
+     * Set the stop at top preference
+     */
+    suspend fun setStopAtTop(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[STOP_AT_TOP_KEY] = enabled
+        }
+        Timber.d("Stop at top preference set to: $enabled")
     }
 }
