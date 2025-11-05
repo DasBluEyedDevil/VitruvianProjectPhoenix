@@ -42,6 +42,8 @@ fun ProgramBuilderScreen(
     exerciseRepository: ExerciseRepository
 ) {
     val routines by viewModel.routines.collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+    val connectionError by viewModel.connectionError.collectAsState()
 
     var programName by remember { mutableStateOf("New Program") }
     var isEditingName by remember { mutableStateOf(false) }
@@ -302,6 +304,18 @@ fun ProgramBuilderScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // Auto-connect UI overlays (same as other screens)
+    if (isAutoConnecting) {
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+    }
+
+    connectionError?.let { error ->
+        com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+            message = error,
+            onDismiss = { viewModel.clearConnectionError() }
         )
     }
 }
