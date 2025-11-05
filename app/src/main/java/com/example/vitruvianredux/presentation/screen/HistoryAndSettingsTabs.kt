@@ -317,7 +317,6 @@ fun SettingsTab(
     onAutoplayChange: (Boolean) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
-    onTestProtocol: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
@@ -594,63 +593,6 @@ fun SettingsTab(
                     Spacer(modifier = Modifier.width(Spacing.small))
                     Text("Delete All Workouts")
                 }
-            }
-        }
-
-    // Debug Section
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-    ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.medium)
-            ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFF10B981), Color(0xFF059669))
-                            ),
-                            RoundedCornerShape(12.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
-                Spacer(modifier = Modifier.width(Spacing.medium))
-                Text(
-                    "Debug / Testing",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-                Spacer(modifier = Modifier.height(Spacing.small))
-
-                Button(
-                    onClick = onTestProtocol,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
-                ) {
-                    Icon(Icons.Default.Science, contentDescription = "Test protocol")
-                    Spacer(modifier = Modifier.width(Spacing.small))
-                    Text("Test PROGRAM Frame")
-                }
-
-                Text(
-                    "Sends 96-byte PROGRAM frame to all 8 workout characteristics. Takes ~90 seconds. Watch for cable engagement!",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.small)
-                )
             }
         }
 

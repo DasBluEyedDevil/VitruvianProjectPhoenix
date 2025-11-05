@@ -58,7 +58,23 @@ fun ActiveWorkoutScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(screenTitle) },
+                title = {
+                    Column {
+                        Text(screenTitle)
+                        // Show progress indicator for routines
+                        loadedRoutine?.let { routine ->
+                            val totalExercises = routine.exercises.size
+                            val currentExerciseNum = currentExerciseIndex + 1
+                            if (totalExercises > 1) {
+                                Text(
+                                    text = "Exercise $currentExerciseNum of $totalExercises",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = {

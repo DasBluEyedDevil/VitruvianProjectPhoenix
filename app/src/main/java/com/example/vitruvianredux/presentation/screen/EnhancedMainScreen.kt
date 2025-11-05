@@ -9,12 +9,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import com.example.vitruvianredux.domain.model.ConnectionState
-import com.example.vitruvianredux.presentation.navigation.BottomNavItem
 import com.example.vitruvianredux.presentation.navigation.NavGraph
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
@@ -45,6 +44,13 @@ fun EnhancedMainScreen(
 
     val themeViewModel: ThemeViewModel = hiltViewModel()
     val themeMode by themeViewModel.themeMode.collectAsState()
+
+    // Determine if we're in dark mode for TopAppBar color
+    val isDarkMode = when (themeMode) {
+        ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
 
     val navController = rememberNavController()
     var currentRoute by remember { mutableStateOf(NavigationRoutes.Home.route) }
@@ -76,10 +82,26 @@ fun EnhancedMainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vitruvian Control") },
+                title = {
+                    Text(
+                        text = "Vitruvian: Project Phoenix",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFFCC9600), // Darker Gold
+                                    Color(0xFFCC5428), // Darker Orange
+                                    Color(0xFFB22D00), // Darker Red-Orange
+                                    Color(0xFFCC9600)  // Darker Gold
+                                )
+                            ),
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = if (isDarkMode) TopAppBarDark else TopAppBarLight,
+                    titleContentColor = TextPrimary,
+                    actionIconContentColor = TextPrimary
                 ),
                 actions = {
                     // Connection status icon (Bluetooth)
@@ -175,7 +197,7 @@ fun EnhancedMainScreen(
                                     .height(4.dp)
                             ) {
                                 drawRoundRect(
-                                    color = androidx.compose.ui.graphics.Color(0xFF9333EA),
+                                    color = Color(0xFF9333EA),
                                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
                                 )
                             }
@@ -221,7 +243,7 @@ fun EnhancedMainScreen(
                                     .height(4.dp)
                             ) {
                                 drawRoundRect(
-                                    color = androidx.compose.ui.graphics.Color(0xFF9333EA),
+                                    color = Color(0xFF9333EA),
                                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
                                 )
                             }
@@ -270,7 +292,7 @@ fun EnhancedMainScreen(
                                     .height(4.dp)
                             ) {
                                 drawRoundRect(
-                                    color = androidx.compose.ui.graphics.Color(0xFF9333EA),
+                                    color = Color(0xFF9333EA),
                                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
                                 )
                             }
