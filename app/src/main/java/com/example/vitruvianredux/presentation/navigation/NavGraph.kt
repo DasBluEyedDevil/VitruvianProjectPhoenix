@@ -127,7 +127,8 @@ fun NavGraph(
         // Connection Logs screen - debug BLE connections
         composable(NavigationRoutes.ConnectionLogs.route) {
             ConnectionLogsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                mainViewModel = viewModel
             )
         }
     }
