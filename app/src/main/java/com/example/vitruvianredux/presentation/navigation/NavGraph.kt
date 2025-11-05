@@ -118,8 +118,10 @@ fun NavGraph(
             SettingsTab(
                 weightUnit = weightUnit,
                 autoplayEnabled = userPreferences.autoplayEnabled,
+                stopAtTop = userPreferences.stopAtTop,
                 onWeightUnitChange = { viewModel.setWeightUnit(it) },
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
+                onStopAtTopChange = { viewModel.setStopAtTop(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
                 onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                 onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
