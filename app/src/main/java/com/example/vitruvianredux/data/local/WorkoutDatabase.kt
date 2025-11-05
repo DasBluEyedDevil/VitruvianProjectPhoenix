@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
  * Room database for workout history
  *
  * Version history:
+ * - v14: Added ConnectionLogEntity for Bluetooth connection debugging
  * - v13: Added eccentricLoad and echoLevel to workout_sessions for Echo mode persistence
  * - v12: Added setWeights, mode, eccentricLoad, echoLevel to routine_exercises
  * - v11: Added WeeklyProgramEntity and ProgramDayEntity for weekly program scheduling
@@ -28,9 +29,10 @@ import androidx.room.TypeConverters
         ExerciseVideoEntity::class,
         PersonalRecordEntity::class,
         WeeklyProgramEntity::class,
-        ProgramDayEntity::class
+        ProgramDayEntity::class,
+        ConnectionLogEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -38,4 +40,5 @@ abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
     abstract fun exerciseDao(): ExerciseDao
     abstract fun personalRecordDao(): PersonalRecordDao
+    abstract fun connectionLogDao(): ConnectionLogDao
 }
