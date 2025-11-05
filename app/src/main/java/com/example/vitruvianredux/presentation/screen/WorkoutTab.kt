@@ -280,28 +280,8 @@ fun WorkoutTab(
                 else -> {}
             }
 
-            // Display state-specific cards
+            // Display state-specific cards (only non-overlay cards)
             when (workoutState) {
-                is WorkoutState.Countdown -> {
-                    CountdownCard(secondsRemaining = workoutState.secondsRemaining)
-                }
-                is WorkoutState.Resting -> {
-                    RestTimerCard(
-                        restSecondsRemaining = workoutState.restSecondsRemaining,
-                        nextExerciseName = workoutState.nextExerciseName,
-                        isLastExercise = workoutState.isLastExercise,
-                        currentSet = workoutState.currentSet,
-                        totalSets = workoutState.totalSets,
-                        nextExerciseWeight = workoutParameters.weightPerCableKg,
-                        nextExerciseReps = workoutParameters.reps,
-                        nextExerciseMode = workoutParameters.workoutType.displayName,
-                        currentExerciseIndex = if (loadedRoutine != null) currentExerciseIndex else null,
-                        totalExercises = loadedRoutine?.exercises?.size,
-                        formatWeight = { weight -> formatWeight(weight, weightUnit) },
-                        onSkipRest = onSkipRest,
-                        onEndWorkout = onStopWorkout
-                    )
-                }
                 is WorkoutState.Active -> {
                     // Show rep counter first (above video) so it's always visible
                     RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
@@ -328,6 +308,31 @@ fun WorkoutTab(
                     formatWeight = formatWeight
                 )
             }
+        }
+
+        // OVERLAYS - These float on top of all content, always visible without scrolling
+        when (workoutState) {
+            is WorkoutState.Countdown -> {
+                CountdownCard(secondsRemaining = workoutState.secondsRemaining)
+            }
+            is WorkoutState.Resting -> {
+                RestTimerCard(
+                    restSecondsRemaining = workoutState.restSecondsRemaining,
+                    nextExerciseName = workoutState.nextExerciseName,
+                    isLastExercise = workoutState.isLastExercise,
+                    currentSet = workoutState.currentSet,
+                    totalSets = workoutState.totalSets,
+                    nextExerciseWeight = workoutParameters.weightPerCableKg,
+                    nextExerciseReps = workoutParameters.reps,
+                    nextExerciseMode = workoutParameters.workoutType.displayName,
+                    currentExerciseIndex = if (loadedRoutine != null) currentExerciseIndex else null,
+                    totalExercises = loadedRoutine?.exercises?.size,
+                    formatWeight = { weight -> formatWeight(weight, weightUnit) },
+                    onSkipRest = onSkipRest,
+                    onEndWorkout = onStopWorkout
+                )
+            }
+            else -> {}
         }
         }
     }

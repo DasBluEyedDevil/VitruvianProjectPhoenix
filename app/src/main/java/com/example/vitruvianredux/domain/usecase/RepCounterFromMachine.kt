@@ -81,7 +81,10 @@ class RepCounterFromMachine {
             if (topDelta > 0) {
                 recordTopPosition(posA, posB)
 
-                if (stopAtTop && !isJustLift && workingTarget > 0 && workingReps == workingTarget - 1) {
+                // SAFETY FIX: Stop at top position AFTER completing target reps
+                // This ensures full tension through both concentric and eccentric of final rep
+                // Changed from (workingTarget - 1) to (workingTarget) so we don't release early
+                if (stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
                     shouldStop = true
                     onRepEvent?.invoke(
                         RepEvent(
@@ -138,6 +141,8 @@ class RepCounterFromMachine {
                 )
             )
 
+            // Only stop at bottom if stopAtTop is disabled
+            // Most users should use stopAtTop (safer) but this preserves old behavior for those who want it
             if (!stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
                 shouldStop = true
                 onRepEvent?.invoke(
