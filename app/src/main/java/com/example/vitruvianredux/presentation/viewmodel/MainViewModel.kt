@@ -723,22 +723,34 @@ class MainViewModel @Inject constructor(
             bleRepository.stopWorkout()
             WorkoutForegroundService.stopWorkoutService(getApplication())
             _hapticEvents.emit(HapticEvent.WORKOUT_END)
-            
+
             // Save progress
             saveWorkoutSession()
 
             val routine = _loadedRoutine.value
-            val autoplay = userPreferences.value.autoplayEnabled
             val isJustLift = workoutParameters.value.isJustLift
 
-            // Autoplay logic ONLY for automatic completion
-            if (routine != null && autoplay && !isJustLift) {
+            // Check if there are more sets or exercises remaining
+            val hasMoreSets = routine?.let {
+                val currentExercise = it.exercises.getOrNull(_currentExerciseIndex.value)
+                currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1
+            } ?: false
+
+            val hasMoreExercises = routine?.let {
+                _currentExerciseIndex.value < it.exercises.size - 1
+            } ?: false
+
+            val shouldShowRestTimer = (hasMoreSets || hasMoreExercises) && !isJustLift
+
+            // Show rest timer if there are more sets/exercises (regardless of autoplay preference)
+            // Autoplay preference only controls whether we auto-advance after rest
+            if (shouldShowRestTimer) {
                 startRestTimer()
             } else {
                 _workoutState.value = WorkoutState.Completed
                 repCounter.reset()
                 resetAutoStopState()
-                
+
                 // Auto-reset for Just Lift mode to enable immediate restart
                 if (isJustLift) {
                     Timber.d("Just Lift mode: Auto-resetting to Idle after brief completion display")
@@ -782,6 +794,7 @@ class MainViewModel @Inject constructor(
             val routine = _loadedRoutine.value ?: return@launch
             val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return@launch
             val restDuration = currentExercise.restSeconds
+            val autoplay = userPreferences.value.autoplayEnabled
 
             for (i in restDuration downTo 1) {
                 val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
@@ -802,7 +815,21 @@ class MainViewModel @Inject constructor(
                 delay(1000)
             }
 
-            startNextSetOrExercise()
+            // Only auto-advance if autoplay is enabled
+            // If autoplay is disabled, user must manually start next set via skipRest()
+            if (autoplay) {
+                startNextSetOrExercise()
+            } else {
+                // Stay in resting state with 0 seconds remaining
+                // User will see "Start Next Set" button in UI
+                _workoutState.value = WorkoutState.Resting(
+                    restSecondsRemaining = 0,
+                    nextExerciseName = nextName,
+                    isLastExercise = isLastSet && nextExercise == null,
+                    currentSet = _currentSetIndex.value + 1,
+                    totalSets = currentExercise.setReps.size
+                )
+            }
         }
     }
 
