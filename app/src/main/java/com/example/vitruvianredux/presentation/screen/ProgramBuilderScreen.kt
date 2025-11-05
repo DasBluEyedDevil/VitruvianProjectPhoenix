@@ -55,6 +55,36 @@ fun ProgramBuilderScreen(
         )
     }
 
+    // Load existing program data if editing (programId != "new")
+    val programs by viewModel.weeklyPrograms.collectAsState()
+    LaunchedEffect(programId, programs, routines) {
+        if (programId != "new") {
+            val existingProgram = programs.find { it.program.id == programId }
+            existingProgram?.let { program ->
+                // Set program name
+                programName = program.program.title
+
+                // Convert ProgramDayEntity list back to Map<DayOfWeek, Routine?>
+                val routineMap = mutableMapOf<DayOfWeek, Routine?>()
+
+                // Initialize all days as rest days
+                DayOfWeek.entries.forEach { day ->
+                    routineMap[day] = null
+                }
+
+                // Fill in workout days from program
+                program.days.forEach { programDay ->
+                    // programDay.dayOfWeek is Int (1=MONDAY, 7=SUNDAY)
+                    val dayOfWeek = DayOfWeek.of(programDay.dayOfWeek)
+                    val routine = routines.find { it.id == programDay.routineId }
+                    routineMap[dayOfWeek] = routine
+                }
+
+                dailyRoutines = routineMap
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

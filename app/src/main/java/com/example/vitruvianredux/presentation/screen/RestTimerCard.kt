@@ -48,16 +48,16 @@ fun RestTimerCard(
     onEndWorkout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Background gradient (light theme shown here; relies on theme colors for dark mode)
+    // Background gradient - respects theme mode
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF8FAFC), // slate-50
-                        Color(0xFFF5F3FF), // purple-50
-                        Color(0xFFEFF6FF)  // blue-50
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             )

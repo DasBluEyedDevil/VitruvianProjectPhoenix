@@ -253,14 +253,14 @@ class ProtocolBuilderTest {
         // This test verifies that ALL protocol commands can be generated locally
         // Given: Various workout scenarios
         val scenarios = listOf(
-            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.Pump.toWorkoutType(), 15, 12f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.TUT.toWorkoutType(), 8, 18f, 2.5f, false, false, 3),
-            WorkoutParameters(WorkoutMode.TUTBeast.toWorkoutType(), 6, 20f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.EccentricOnly.toWorkoutType(), 5, 22f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.Echo(EchoLevel.HARD).toWorkoutType(), 12, 16f, 0f, false, false, 3),
-            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, true, false, 3), // Just Lift
-            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, false, true, 3)  // Stop at top
+            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, false, false, false, 3),
+            WorkoutParameters(WorkoutMode.Pump.toWorkoutType(), 15, 12f, 0f, false, false, false, 3),
+            WorkoutParameters(WorkoutMode.TUT.toWorkoutType(), 8, 18f, 2.5f, false, false, false, 3),
+            WorkoutParameters(WorkoutMode.TUTBeast.toWorkoutType(), 6, 20f, 0f, false, false, false, 3),
+            WorkoutParameters(WorkoutMode.EccentricOnly.toWorkoutType(), 5, 22f, 0f, false, false, false, 3),
+            WorkoutParameters(WorkoutMode.Echo(EchoLevel.HARD).toWorkoutType(), 12, 16f, 0f, false, false, false, 3),
+            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, true, true, false, 3), // Just Lift (with auto-start)
+            WorkoutParameters(WorkoutMode.OldSchool.toWorkoutType(), 10, 15f, 0f, false, false, true, 3)  // Stop at top
         )
 
         // When: Generating all protocol commands locally
@@ -311,10 +311,10 @@ class ProtocolBuilderTest {
     }
 
     @Test
-    fun `test weight protocol - per cable weight is doubled for total resistance`() {
-        // CRITICAL: This test prevents the weight halving bug
-        // The machine expects TOTAL weight at offset 0x58, which it splits between cables
-        // So if user wants 50 lbs per cable, we must send 100 lbs total
+    fun `test weight protocol - per cable weight sent directly to machine`() {
+        // CRITICAL: This test prevents weight DOUBLING bug
+        // Machine expects PER-CABLE weight at offset 0x58 (NOT total for both cables)
+        // Doubling was causing entering 20 lbs to give 40 lbs resistance (fixed in b21d4c9)
 
         // Given: User wants 50 lbs per cable (22.68 kg)
         val perCableKg = 22.68f
@@ -324,6 +324,7 @@ class ProtocolBuilderTest {
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
             isJustLift = false,
+            useAutoStart = false,
             stopAtTop = false,
             warmupReps = 3
         )
@@ -331,16 +332,15 @@ class ProtocolBuilderTest {
         // When: Building program parameters
         val program = ProtocolBuilder.buildProgramParams(params)
 
-        // Then: Total weight at offset 0x58 should be DOUBLE the per-cable weight
+        // Then: Weight at offset 0x58 should equal per-cable weight (NO doubling)
         val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
         val totalWeightSent = buffer.getFloat(0x58)
-        val expectedTotalWeight = perCableKg * 2.0f
 
         assertEquals(
-            expectedTotalWeight,
+            perCableKg,
             totalWeightSent,
             0.01f,
-            "Offset 0x58 must contain TOTAL weight (per-cable × 2) so machine splits it correctly"
+            "Offset 0x58 must contain per-cable weight directly (NO doubling)"
         )
     }
 
@@ -357,6 +357,7 @@ class ProtocolBuilderTest {
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
             isJustLift = false,
+            useAutoStart = false,
             stopAtTop = false,
             warmupReps = 3
         )
@@ -390,6 +391,7 @@ class ProtocolBuilderTest {
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
             isJustLift = false,
+            useAutoStart = false,
             stopAtTop = false,
             warmupReps = 3
         )
@@ -402,9 +404,9 @@ class ProtocolBuilderTest {
         val totalWeight = buffer.getFloat(0x58) // What machine receives
         val effectiveWeight = buffer.getFloat(0x54)
 
-        // Machine receives 100 lbs total (45.36 kg) and splits to 50 lbs per cable
-        assertEquals(perCableKg * 2.0f, totalWeight, 0.01f,
-            "Machine should receive DOUBLED weight to split between cables")
+        // Machine receives per-cable weight directly (22.68 kg = 50 lbs)
+        assertEquals(perCableKg, totalWeight, 0.01f,
+            "Machine should receive per-cable weight directly (NO doubling)")
 
         // Effective weight is per-cable + 10kg offset
         assertEquals(perCableKg + 10.0f, effectiveWeight, 0.01f,
@@ -412,9 +414,9 @@ class ProtocolBuilderTest {
     }
 
     @Test
-    fun `test weight protocol - regression test for weight halving bug`() {
-        // REGRESSION TEST: Prevent the bug where entering 100 lbs gave only 50 lbs
-        // This was caused by sending per-cable weight directly instead of doubling it
+    fun `test weight protocol - regression test for weight doubling bug`() {
+        // REGRESSION TEST: Prevent the bug where entering 20 lbs gave 40 lbs resistance
+        // This was caused by doubling per-cable weight (fixed in commit b21d4c9)
 
         // Given: User enters 100 lbs per cable (45.36 kg)
         val perCableKg = 45.36f // 100 lbs
@@ -424,6 +426,7 @@ class ProtocolBuilderTest {
             weightPerCableKg = perCableKg,
             progressionRegressionKg = 0f,
             isJustLift = false,
+            useAutoStart = false,
             stopAtTop = false,
             warmupReps = 3
         )
@@ -431,21 +434,16 @@ class ProtocolBuilderTest {
         // When: Building program parameters
         val program = ProtocolBuilder.buildProgramParams(params)
 
-        // Then: Total weight must be DOUBLED (not the same as input)
+        // Then: Weight must NOT be doubled (should equal input)
         val buffer = ByteBuffer.wrap(program).order(ByteOrder.LITTLE_ENDIAN)
         val totalWeightSent = buffer.getFloat(0x58)
 
-        // CRITICAL: If this equals perCableKg, the bug has returned!
-        assertTrue(
-            totalWeightSent > perCableKg,
-            "BUG DETECTED: Total weight must be GREATER than per-cable weight (should be doubled)"
-        )
-
+        // CRITICAL: If this is doubled, the bug has returned!
         assertEquals(
-            perCableKg * 2.0f,
+            perCableKg,
             totalWeightSent,
             0.01f,
-            "Total weight at 0x58 must be DOUBLE the per-cable value"
+            "BUG DETECTED: Weight at 0x58 must equal per-cable value (NO doubling)"
         )
     }
 }

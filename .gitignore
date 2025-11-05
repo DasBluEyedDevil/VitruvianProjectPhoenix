@@ -26,3 +26,6 @@ CHANGELOG.md
 /nul
 /[removed]
 /scripts/
+.aider*
+/.devilmcp/
+/.kotlin/

@@ -231,6 +231,7 @@ class MainViewModel @Inject constructor(
     private var autoStopStopRequested = false
 
     private var autoStartJob: Job? = null
+    private var restTimerJob: Job? = null
 
     init {
         Timber.d("MainViewModel initialized")
@@ -673,6 +674,10 @@ class MainViewModel @Inject constructor(
 
     fun stopWorkout() {
         viewModelScope.launch {
+            // Cancel any running rest timer to prevent auto-restart
+            restTimerJob?.cancel()
+            restTimerJob = null
+
             // Stop hardware immediately
             bleRepository.stopWorkout()
             WorkoutForegroundService.stopWorkoutService(getApplication())
@@ -733,6 +738,15 @@ class MainViewModel @Inject constructor(
                 _workoutState.value = WorkoutState.Completed
                 repCounter.reset()
                 resetAutoStopState()
+                
+                // Auto-reset for Just Lift mode to enable immediate restart
+                if (isJustLift) {
+                    Timber.d("Just Lift mode: Auto-resetting to Idle after brief completion display")
+                    delay(1500) // Show completion state briefly
+                    resetForNewWorkout()
+                    enableHandleDetection() // Re-enable for next auto-start
+                    Timber.d("Just Lift mode: Ready for new workout - auto-start enabled")
+                }
             }
         }
     }
@@ -761,7 +775,10 @@ class MainViewModel @Inject constructor(
     }
 
     private fun startRestTimer() {
-        viewModelScope.launch {
+        // Cancel any existing rest timer
+        restTimerJob?.cancel()
+
+        restTimerJob = viewModelScope.launch {
             val routine = _loadedRoutine.value ?: return@launch
             val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return@launch
             val restDuration = currentExercise.restSeconds
@@ -774,7 +791,7 @@ class MainViewModel @Inject constructor(
                 } else {
                     "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
                 }
-                
+
                 _workoutState.value = WorkoutState.Resting(
                     restSecondsRemaining = i,
                     nextExerciseName = nextName,
@@ -784,12 +801,18 @@ class MainViewModel @Inject constructor(
                 )
                 delay(1000)
             }
-            
+
             startNextSetOrExercise()
         }
     }
 
     private fun startNextSetOrExercise() {
+        // Safety check: Don't restart if workout is already completed
+        if (_workoutState.value is WorkoutState.Completed) {
+            Timber.w("startNextSetOrExercise called but workout already completed - ignoring")
+            return
+        }
+
         val routine = _loadedRoutine.value ?: return
         val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return
 
@@ -822,18 +845,23 @@ class MainViewModel @Inject constructor(
                 )
                 startWorkout(skipCountdown = true)
             } else {
-                // Routine complete
+                // Routine complete - clear routine to prevent auto-restart
                 _workoutState.value = WorkoutState.Completed
+                _loadedRoutine.value = null  // CRITICAL: Clear routine to prevent infinite loop
                 _currentSetIndex.value = 0
                 _currentExerciseIndex.value = 0
                 repCounter.reset()
                 resetAutoStopState()
+                Timber.d("Routine completed successfully")
             }
         }
     }
 
     fun skipRest() {
         if (_workoutState.value is WorkoutState.Resting) {
+            // Cancel the rest timer
+            restTimerJob?.cancel()
+            restTimerJob = null
             startNextSetOrExercise()
         }
     }

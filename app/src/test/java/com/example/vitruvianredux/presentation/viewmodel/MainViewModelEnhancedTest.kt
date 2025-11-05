@@ -9,9 +9,10 @@ import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
 import com.google.common.truth.Truth.assertThat
 import io.mockk.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -33,6 +34,8 @@ import org.junit.Assert.assertTrue
 @ExperimentalCoroutinesApi
 @RunWith(RobolectricTestRunner::class)
 class MainViewModelEnhancedTest {
+
+    private val testDispatcher = UnconfinedTestDispatcher()
 
     private lateinit var application: Application
     private lateinit var bleRepository: BleRepository
@@ -93,6 +96,9 @@ class MainViewModelEnhancedTest {
 
     @Before
     fun setup() {
+        // Set up test dispatcher for coroutines
+        Dispatchers.setMain(testDispatcher)
+
         // Mock Android components
         application = mockk(relaxed = true)
         every { application.applicationContext } returns application
@@ -109,6 +115,7 @@ class MainViewModelEnhancedTest {
         every { bleRepository.monitorData } returns emptyFlow()
         every { bleRepository.repEvents } returns emptyFlow()
         every { bleRepository.scannedDevices } returns emptyFlow()
+        every { bleRepository.handleState } returns MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
 
         // Setup default flows for WorkoutRepository
         every { workoutRepository.getRecentSessions(any()) } returns flowOf(emptyList())
@@ -134,6 +141,7 @@ class MainViewModelEnhancedTest {
 
     @After
     fun tearDown() {
+        Dispatchers.resetMain()
         clearAllMocks()
     }
 

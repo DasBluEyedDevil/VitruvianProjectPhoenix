@@ -22,6 +22,10 @@ val SecondaryPurple = Color(0xFF9965F4)         // Deeper purple
 val TertiaryPurple = Color(0xFFE0BBF7)          // Light purple for highlights
 val PurpleAccent = Color(0xFF7E57C2)            // Accent purple for buttons
 
+// TopAppBar Colors (darker for better contrast)
+val TopAppBarDark = Color(0xFF1A0E26)           // Very dark purple for dark mode header
+val TopAppBarLight = Color(0xFF4A2F8A)          // Darker purple for light mode header
+
 // Text Colors
 val TextPrimary = Color(0xFFFFFFFF)             // Pure white text
 val TextSecondary = Color(0xFFE0E0E0)           // Light grey text
