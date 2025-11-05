@@ -439,10 +439,10 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun stopWorkout(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            // Send stop command (init command stops current workout)
-            bleManager?.sendCommand(ProtocolBuilder.buildInitCommand())?.getOrThrow()
+            // Send stop command to release resistance
+            bleManager?.sendCommand(ProtocolBuilder.buildStopCommand())?.getOrThrow()
 
-            Timber.d("Workout stopped")
+            Timber.d("Workout stopped - resistance released")
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to stop workout")
