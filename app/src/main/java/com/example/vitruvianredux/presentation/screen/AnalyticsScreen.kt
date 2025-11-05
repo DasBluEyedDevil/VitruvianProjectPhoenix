@@ -37,6 +37,8 @@ fun AnalyticsScreen(
 ) {
     val workoutHistory by viewModel.workoutHistory.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+    val connectionError by viewModel.connectionError.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -132,6 +134,18 @@ fun AnalyticsScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+        }
+
+        // Auto-connect UI overlays (same as other screens)
+        if (isAutoConnecting) {
+            com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+        }
+
+        connectionError?.let { error ->
+            com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+                message = error,
+                onDismiss = { viewModel.clearConnectionError() }
+            )
         }
     }
 }
