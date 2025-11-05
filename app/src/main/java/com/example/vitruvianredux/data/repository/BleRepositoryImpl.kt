@@ -56,7 +56,8 @@ interface BleRepository {
 
 @Singleton
 class BleRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val connectionLogger: com.example.vitruvianredux.data.logger.ConnectionLogger
 ) : BleRepository {
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -91,14 +92,17 @@ class BleRepositoryImpl @Inject constructor(
     override suspend fun startScanning(): Result<Unit> = withContext(Dispatchers.Main) {
         try {
             Timber.d("startScanning() called")
-            
+            connectionLogger.logScanStarted()
+
             if (bluetoothAdapter == null) {
                 Timber.e("Bluetooth adapter is null")
+                connectionLogger.logError("startScanning", null, null, "Bluetooth adapter is null")
                 return@withContext Result.failure(Exception("Bluetooth not available"))
             }
 
             if (!bluetoothAdapter.isEnabled) {
                 Timber.e("Bluetooth is disabled")
+                connectionLogger.logError("startScanning", null, null, "Bluetooth is disabled")
                 return@withContext Result.failure(Exception("Bluetooth is disabled"))
             }
 
@@ -158,8 +162,10 @@ class BleRepositoryImpl @Inject constructor(
             }
 
             Timber.d("Stopped BLE scanning")
+            connectionLogger.logScanStopped()
         } catch (e: Exception) {
             Timber.e(e, "Error stopping scan")
+            connectionLogger.logError("stopScanning", null, null, e.message ?: "Unknown error")
         }
     }
 
@@ -169,9 +175,10 @@ class BleRepositoryImpl @Inject constructor(
             val deviceName = result.device.name ?: "Unknown"
             val deviceAddress = result.device.address
             Timber.d("BLE device found: name='$deviceName', address=$deviceAddress, rssi=${result.rssi}")
-            
+
             // Only emit devices that match our filter
             if (deviceName.startsWith(BleConstants.DEVICE_NAME_PREFIX)) {
+                connectionLogger.logDeviceFound(deviceName, deviceAddress)
                 Timber.d("Device matches filter, adding to list")
                 val emitted = _scannedDevices.tryEmit(result)
                 Timber.d("tryEmit result: $emitted (subscribers: ${_scannedDevices.subscriptionCount.value})")
@@ -208,10 +215,13 @@ class BleRepositoryImpl @Inject constructor(
             val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
             if (device == null) {
                 Timber.e("Failed to get remote device for address: $deviceAddress")
+                connectionLogger.logConnectionFailed("Unknown", deviceAddress, "Device not found")
                 return@withContext Result.failure(Exception("Device not found"))
             }
 
-            Timber.d("Got remote device: ${device.name} ($deviceAddress)")
+            val deviceName = device.name ?: "Vitruvian"
+            Timber.d("Got remote device: $deviceName ($deviceAddress)")
+            connectionLogger.logConnectionStarted(deviceName, deviceAddress)
             _connectionState.value = ConnectionState.Connecting
             Timber.d("Connection state set to Connecting")
 
@@ -226,6 +236,7 @@ class BleRepositoryImpl @Inject constructor(
                         when (status) {
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Ready -> {
                                 Timber.d("Device ready! Setting state to Connected")
+                                connectionLogger.logConnectionSuccess(deviceName, deviceAddress)
                                 _connectionState.value = ConnectionState.Connected(
                                     deviceName = device.name ?: "Vitruvian",
                                     deviceAddress = device.address
@@ -233,10 +244,12 @@ class BleRepositoryImpl @Inject constructor(
                             }
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Disconnected -> {
                                 Timber.d("Device disconnected")
+                                connectionLogger.logDisconnected(deviceName, deviceAddress)
                                 _connectionState.value = ConnectionState.Disconnected
                             }
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Error -> {
                                 Timber.e("Connection error: ${status.message}")
+                                connectionLogger.logConnectionFailed(deviceName, deviceAddress, status.message)
                                 _connectionState.value = ConnectionState.Error(status.message)
                             }
                             else -> {
@@ -319,30 +332,46 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun sendInitSequence(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+
             Timber.d("=== Starting INIT sequence ===")
-            
+            connectionLogger.logInitStarted(deviceName ?: "Unknown", deviceAddress ?: "")
+
             // Send initial command
             Timber.d("Sending init command (4 bytes)...")
+            connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, "4 bytes")
             bleManager?.sendCommand(ProtocolBuilder.buildInitCommand())?.getOrThrow()
             delay(200) // Longer delay - web app waits 50ms minimum, we'll be safer
-            
+
             Timber.d("Init command sent, waiting before preset...")
 
             // Send init preset
             Timber.d("Sending init preset (34 bytes)...")
+            connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, "34 bytes")
             bleManager?.sendCommand(ProtocolBuilder.buildInitPreset())?.getOrThrow()
             delay(200)
 
             Timber.d("=== INIT sequence completed successfully ===")
+            connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")
             Result.success(Unit)
         } catch (e: Exception) {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
             Timber.e(e, "Failed to send init sequence")
+            connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", e.message ?: "Unknown error")
             Result.failure(e)
         }
     }
 
     override suspend fun startWorkout(params: WorkoutParameters): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+
             // MATCH WEB APP EXACTLY:
             // - Program modes (Old School, Pump, TUT): Send ONLY program params (96 bytes)
             // - Echo mode: Send ONLY echo control (40 bytes)
@@ -352,6 +381,7 @@ class BleRepositoryImpl @Inject constructor(
                 is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
                     // Echo mode: Send ONLY echo control frame (web app: device.js line 328)
                     Timber.d("Echo mode: sending ONLY echo control frame (40 bytes)")
+                    connectionLogger.logCommandSent("START_WORKOUT_ECHO", deviceName, deviceAddress, "40 bytes, mode=${params.workoutType.displayName}")
                     val echoFrame = ProtocolBuilder.buildEchoControl(
                         level = params.workoutType.level,
                         warmupReps = params.warmupReps,
@@ -365,6 +395,7 @@ class BleRepositoryImpl @Inject constructor(
                 is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
                     // Program mode: Send ONLY program params (web app: device.js line 283)
                     Timber.d("Program mode: sending ONLY program params (96 bytes)")
+                    connectionLogger.logCommandSent("START_WORKOUT_PROGRAM", deviceName, deviceAddress, "96 bytes, mode=${params.workoutType.displayName}")
                     val programFrame = ProtocolBuilder.buildProgramParams(params)
                     bleManager?.sendCommand(programFrame)?.getOrThrow()
                     delay(100)
@@ -372,15 +403,21 @@ class BleRepositoryImpl @Inject constructor(
             }
 
             Timber.d("Workout command sent successfully!")
+            connectionLogger.logCommandSuccess("START_WORKOUT", deviceName, deviceAddress)
 
             // Start monitor polling for workout data (100ms interval)
             // Property polling already running as keep-alive from connection time
             Timber.d("Starting monitor polling for workout...")
+            connectionLogger.logPollingStarted("MONITOR", deviceName, deviceAddress)
             bleManager?.startMonitorPolling()
 
             Result.success(Unit)
         } catch (e: Exception) {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
             Timber.e(e, "Failed to start workout")
+            connectionLogger.logCommandFailed("START_WORKOUT", deviceName, deviceAddress, e.message ?: "Unknown error")
             Result.failure(e)
         }
     }
@@ -400,19 +437,30 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun setColorScheme(schemeIndex: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+
             val schemes = com.example.vitruvianredux.util.ColorSchemes.ALL
             if (schemeIndex !in schemes.indices) {
+                connectionLogger.logCommandFailed("SET_LED_COLOR", deviceName, deviceAddress, "Invalid color scheme index: $schemeIndex")
                 return@withContext Result.failure(Exception("Invalid color scheme index"))
             }
 
             val scheme = schemes[schemeIndex]
+            connectionLogger.logCommandSent("SET_LED_COLOR", deviceName, deviceAddress, "scheme=${scheme.name}")
             val colorFrame = ProtocolBuilder.buildColorScheme(scheme.brightness, scheme.colors)
             bleManager?.sendCommand(colorFrame)?.getOrThrow()
 
             Timber.d("Color scheme set to: ${scheme.name}")
+            connectionLogger.logCommandSuccess("SET_LED_COLOR", deviceName, deviceAddress)
             Result.success(Unit)
         } catch (e: Exception) {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
             Timber.e(e, "Failed to set color scheme")
+            connectionLogger.logCommandFailed("SET_LED_COLOR", deviceName, deviceAddress, e.message ?: "Unknown error")
             Result.failure(e)
         }
     }
