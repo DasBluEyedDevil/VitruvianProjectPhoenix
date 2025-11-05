@@ -26,3 +26,6 @@ CHANGELOG.md
 /nul
 /vitruvian-official.apk
 /scripts/
+.aider*
+/.devilmcp/
+/.kotlin/

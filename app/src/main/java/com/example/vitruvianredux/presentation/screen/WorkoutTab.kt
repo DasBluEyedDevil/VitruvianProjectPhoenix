@@ -2,7 +2,6 @@ package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -182,7 +181,7 @@ fun WorkoutTab(
                             val hasMoreExercises = loadedRoutine != null &&
                                 currentExerciseIndex < (loadedRoutine.exercises.size - 1)
 
-                            if (hasMoreExercises && loadedRoutine != null) {
+                            if (hasMoreExercises) {
                                 // Show next exercise preview
                                 val nextExercise = loadedRoutine.exercises[currentExerciseIndex + 1]
 
@@ -300,10 +299,13 @@ fun WorkoutTab(
                         totalExercises = loadedRoutine?.exercises?.size,
                         formatWeight = { weight -> formatWeight(weight, weightUnit) },
                         onSkipRest = onSkipRest,
-                        onEndWorkout = onCancelRoutine
+                        onEndWorkout = onStopWorkout
                     )
                 }
                 is WorkoutState.Active -> {
+                    // Show rep counter first (above video) so it's always visible
+                    RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
+
                     // Show current exercise details
                     CurrentExerciseCard(
                         loadedRoutine = loadedRoutine,
@@ -312,8 +314,6 @@ fun WorkoutTab(
                         exerciseRepository = exerciseRepository,
                         formatWeight = { weight -> formatWeight(weight, weightUnit) }
                     )
-
-                    RepCounterCard(repCount = repCount)
                 }
                 else -> {}
             }
@@ -591,8 +591,8 @@ fun WorkoutSetupDialog(
                 }
 
                 // Progression/Regression UI (only for certain modes)
-                val isProgramMode = workoutParameters.workoutType is WorkoutType.Program
-                val programMode = if (isProgramMode) (workoutParameters.workoutType as WorkoutType.Program).mode else null
+                val programMode = (workoutParameters.workoutType as? WorkoutType.Program)?.mode
+                val isProgramMode = programMode != null
                 if (isProgramMode && (programMode == ProgramMode.Pump ||
                     programMode == ProgramMode.OldSchool ||
                     programMode == ProgramMode.EccentricOnly ||
@@ -728,7 +728,6 @@ fun WorkoutSetupDialog(
         showDialog = showExercisePicker,
         onDismiss = { showExercisePicker = false },
         onExerciseSelected = { exercise ->
-            selectedExercise = exercise
             onUpdateParameters(workoutParameters.copy(selectedExerciseId = exercise.id))
         },
         exerciseRepository = exerciseRepository
@@ -743,7 +742,6 @@ fun WorkoutSetupDialog(
             onSelect = { mode, eccentricLoad ->
                 val workoutType = mode.toWorkoutType(eccentricLoad ?: EccentricLoad.LOAD_100)
                 onUpdateParameters(workoutParameters.copy(workoutType = workoutType))
-                showModeSubSelector = false
             }
         )
     }
@@ -818,7 +816,7 @@ fun CompactNumberPicker(
                             },
                             onDrag = { _, dragAmount ->
                                 accumulatedDrag -= dragAmount.y
-                                if (kotlin.math.abs(accumulatedDrag) >= 3f) {
+                                if (abs(accumulatedDrag) >= 3f) {
                                     val steps = (accumulatedDrag / 3f).toInt()
                                     val newValue = (value + steps).coerceIn(range)
                                     if (newValue != value) {
@@ -1454,7 +1452,7 @@ fun WorkoutParametersCard(
                         val hasMoreExercises = loadedRoutine != null &&
                             currentExerciseIndex < (loadedRoutine.exercises.size - 1)
 
-                        if (hasMoreExercises && loadedRoutine != null) {
+                        if (hasMoreExercises) {
                             // Show next exercise preview
                             val nextExercise = loadedRoutine.exercises[currentExerciseIndex + 1]
 
@@ -1689,7 +1687,7 @@ fun CurrentExerciseCard(
     val currentExercise = loadedRoutine?.exercises?.getOrNull(currentExerciseIndex)
 
     // Get exercise entity for video
-    var exerciseEntity by remember { mutableStateOf<com.example.vitruvianredux.data.local.ExerciseEntity?>(null) }
+    var exerciseEntity by remember { mutableStateOf<ExerciseEntity?>(null) }
     var videoEntity by remember { mutableStateOf<com.example.vitruvianredux.data.local.ExerciseVideoEntity?>(null) }
 
     // Load exercise and video data
@@ -1770,7 +1768,7 @@ fun CurrentExerciseCard(
 }
 
 @Composable
-fun RepCounterCard(repCount: RepCount) {
+fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1784,16 +1782,23 @@ fun RepCounterCard(repCount: RepCount) {
                 .padding(Spacing.large),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val countText = if (repCount.isWarmupComplete) {
+                repCount.workingReps.toString()
+            } else {
+                "${repCount.warmupReps} / ${workoutParameters.warmupReps}"
+            }
+            
+            val labelText = if (repCount.isWarmupComplete) "REPS" else "WARMUP"
+            
             Text(
-                "Reps",
+                text = labelText,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Single rep counter showing total reps (warmup + working)
             Text(
-                repCount.totalReps.toString(),
+                text = countText,
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
