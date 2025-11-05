@@ -650,8 +650,13 @@ class MainViewModel @Inject constructor(
             Timber.d("")
             Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
             Timber.d("")
+            Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
+            val startTime = System.currentTimeMillis()
 
             val result = bleRepository.startWorkout(params)
+
+            val commandLatency = System.currentTimeMillis() - startTime
+            Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
 
             if (result.isFailure) {
                 _workoutState.value = WorkoutState.Error(
@@ -662,6 +667,8 @@ class MainViewModel @Inject constructor(
             }
 
             _workoutState.value = WorkoutState.Active
+            val activeStateTime = System.currentTimeMillis()
+            Timber.d("?? TIMING: State changed to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
 
             WorkoutForegroundService.startWorkoutService(
                 getContext(),
@@ -723,9 +730,9 @@ class MainViewModel @Inject constructor(
      */
     private fun handleSetCompletion() {
         viewModelScope.launch {
-            Timber.d("═══════════════════════════════════════════════════")
+            Timber.d("???????????????????????????????????????????????????")
             Timber.d("HANDLE SET COMPLETION CALLED")
-            Timber.d("═══════════════════════════════════════════════════")
+            Timber.d("???????????????????????????????????????????????????")
 
             // Stop hardware
             bleRepository.stopWorkout()
@@ -773,15 +780,15 @@ class MainViewModel @Inject constructor(
             Timber.d("  hasMoreSets = $hasMoreSets")
             Timber.d("  hasMoreExercises = $hasMoreExercises")
             Timber.d("  shouldShowRestTimer = $shouldShowRestTimer")
-            Timber.d("═══════════════════════════════════════════════════")
+            Timber.d("???????????????????????????????????????????????????")
 
             // Show rest timer if there are more sets/exercises (regardless of autoplay preference)
             // Autoplay preference only controls whether we auto-advance after rest
             if (shouldShowRestTimer) {
-                Timber.d("✓ Starting rest timer...")
+                Timber.d("? Starting rest timer...")
                 startRestTimer()
             } else {
-                Timber.d("✗ No rest timer - marking as completed")
+                Timber.d("? No rest timer - marking as completed")
                 _workoutState.value = WorkoutState.Completed
                 repCounter.reset()
                 resetAutoStopState()
@@ -834,16 +841,16 @@ class MainViewModel @Inject constructor(
                 Timber.e("startRestTimer: No exercise at index ${_currentExerciseIndex.value}")
                 return@launch
             }
-            val restDuration = currentExercise.restSeconds
+            val restDuration = currentExercise.restSeconds.takeIf { it > 0 } ?: 90
             val autoplay = userPreferences.value.autoplayEnabled
 
-            Timber.d("═══════════════════════════════════════════════════")
+            Timber.d("???????????????????????????????????????????????????")
             Timber.d("REST TIMER STARTING")
             Timber.d("  Exercise: ${currentExercise.exercise.displayName}")
             Timber.d("  Rest duration: ${restDuration}s")
             Timber.d("  Autoplay enabled: $autoplay")
             Timber.d("  Current set: ${_currentSetIndex.value + 1}/${currentExercise.setReps.size}")
-            Timber.d("═══════════════════════════════════════════════════")
+            Timber.d("???????????????????????????????????????????????????")
 
             for (i in restDuration downTo 1) {
                 val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
@@ -897,9 +904,15 @@ class MainViewModel @Inject constructor(
     }
 
     private fun startNextSetOrExercise() {
-        // Safety check: Don't restart if workout is already completed
-        if (_workoutState.value is WorkoutState.Completed) {
+        // Enhanced state guard: Prevent race conditions by checking valid transition states
+        val currentState = _workoutState.value
+        if (currentState is WorkoutState.Completed) {
             Timber.w("startNextSetOrExercise called but workout already completed - ignoring")
+            return
+        }
+        // Only allow transition from Resting state - prevents race conditions if called multiple times
+        if (currentState !is WorkoutState.Resting) {
+            Timber.w("startNextSetOrExercise called in invalid state: $currentState - ignoring (expected Resting)")
             return
         }
 
@@ -912,7 +925,7 @@ class MainViewModel @Inject constructor(
             return
         }
 
-        Timber.d("═══════════════════════════════════════════════════")
+        Timber.d("???????????????????????????????????????????????????")
         Timber.d("START NEXT SET OR EXERCISE")
         Timber.d("  Current exercise: ${currentExercise.exercise.displayName}")
         Timber.d("  Current set index: ${_currentSetIndex.value}")
@@ -922,7 +935,7 @@ class MainViewModel @Inject constructor(
 
         if (_currentSetIndex.value < currentExercise.setReps.size - 1) {
             // More sets in current exercise
-            Timber.d("  → Moving to next set")
+            Timber.d("  ? Moving to next set")
             _currentSetIndex.value++
             val targetReps = currentExercise.setReps[_currentSetIndex.value]
             Timber.d("  New set index: ${_currentSetIndex.value}")
@@ -935,13 +948,13 @@ class MainViewModel @Inject constructor(
                 workoutType = workoutParameters.value.workoutType,
                 selectedExerciseId = workoutParameters.value.selectedExerciseId
             )
-            Timber.d("═══════════════════════════════════════════════════")
+            Timber.d("???????????????????????????????????????????????????")
             startWorkout(skipCountdown = true)
         } else {
             // Move to next exercise
             Timber.d("  No more sets in current exercise")
             if (_currentExerciseIndex.value < routine.exercises.size - 1) {
-                Timber.d("  → Moving to next exercise")
+                Timber.d("  ? Moving to next exercise")
                 _currentExerciseIndex.value++
                 _currentSetIndex.value = 0
                 // Update workout parameters for new exercise
@@ -955,11 +968,11 @@ class MainViewModel @Inject constructor(
                     progressionRegressionKg = nextExercise.progressionKg,
                     selectedExerciseId = nextExercise.exercise.id
                 )
-                Timber.d("═══════════════════════════════════════════════════")
+                Timber.d("???????????????????????????????????????????????????")
                 startWorkout(skipCountdown = true)
             } else {
                 // Routine complete - clear routine to prevent auto-restart
-                Timber.d("  → ROUTINE COMPLETE!")
+                Timber.d("  ? ROUTINE COMPLETE!")
                 Timber.d("  Clearing routine and resetting indices")
                 _workoutState.value = WorkoutState.Completed
                 _loadedRoutine.value = null  // CRITICAL: Clear routine to prevent infinite loop
@@ -967,18 +980,28 @@ class MainViewModel @Inject constructor(
                 _currentExerciseIndex.value = 0
                 repCounter.reset()
                 resetAutoStopState()
-                Timber.d("═══════════════════════════════════════════════════")
+                Timber.d("???????????????????????????????????????????????????")
                 Timber.d("Routine completed successfully")
             }
         }
     }
 
     fun skipRest() {
+        Timber.d("???????????????????????????????????????????????????")
+        Timber.d("SKIP REST CALLED")
+        Timber.d("  Current state: ${_workoutState.value}")
+        Timber.d("  Current exercise index: ${_currentExerciseIndex.value}")
+        Timber.d("  Current set index: ${_currentSetIndex.value}")
+        Timber.d("???????????????????????????????????????????????????")
+        
         if (_workoutState.value is WorkoutState.Resting) {
             // Cancel the rest timer
             restTimerJob?.cancel()
             restTimerJob = null
+            Timber.d("Rest timer cancelled, starting next set/exercise")
             startNextSetOrExercise()
+        } else {
+            Timber.w("skipRest called but state is not Resting: ${_workoutState.value}")
         }
     }
 
@@ -1225,7 +1248,7 @@ class MainViewModel @Inject constructor(
         val firstExercise = routine.exercises[0]
         val firstSetReps = firstExercise.setReps.firstOrNull() ?: 10
 
-        Timber.d("═══════════════════════════════════════════════════")
+        Timber.d("???????????????????????????????????????????????????")
         Timber.d("LOADING ROUTINE: ${routine.name}")
         Timber.d("  ID: ${routine.id}")
         Timber.d("  Total exercises: ${routine.exercises.size}")
@@ -1234,7 +1257,7 @@ class MainViewModel @Inject constructor(
         Timber.d("  Weight: ${firstExercise.weightPerCableKg}kg")
         Timber.d("  First set reps: $firstSetReps")
         Timber.d("  Setting isJustLift = false")
-        Timber.d("═══════════════════════════════════════════════════")
+        Timber.d("???????????????????????????????????????????????????")
 
         updateWorkoutParameters(
             WorkoutParameters(
