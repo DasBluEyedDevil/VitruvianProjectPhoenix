@@ -119,25 +119,64 @@ class ConnectionLogsViewModel @Inject constructor(
      */
     suspend fun exportLogsAsText(): String {
         val logs = connectionLogDao.getAllLogsForExport()
+
+        // Find system info and Vitruvian device info from logs
+        val systemInfo = logs.firstOrNull { it.eventType == "SYSTEM_INFO" }
+        val vitruvianInfo = logs.firstOrNull { it.eventType == "VITRUVIAN_DEVICE_INFO" }
+
         return buildString {
-            appendLine("=== Vitruvian Connection Logs ===")
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine("       VITRUVIAN CONNECTION DEBUG LOG EXPORT")
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine()
             appendLine("Generated: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
             appendLine("Total entries: ${logs.size}")
+            appendLine()
+
+            // Android device info
+            appendLine("─── Android Device Information ───")
+            if (systemInfo != null) {
+                appendLine(systemInfo.details ?: "Not available")
+            } else {
+                appendLine("Device info not logged")
+            }
+            appendLine()
+
+            // Vitruvian device info
+            appendLine("─── Vitruvian Trainer Information ───")
+            if (vitruvianInfo != null) {
+                appendLine(vitruvianInfo.details ?: "Not connected")
+            } else {
+                appendLine("No Vitruvian device connected during this session")
+            }
+            appendLine()
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine("                    EVENT LOG")
+            appendLine("═══════════════════════════════════════════════════════")
             appendLine()
 
             logs.forEach { log ->
                 val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date(log.timestamp))
                 appendLine("[$timestamp] [${log.level}] ${log.eventType}")
-                appendLine("  Device: ${log.deviceName ?: "N/A"} (${log.deviceAddress ?: "N/A"})")
+                if (log.deviceName != null || log.deviceAddress != null) {
+                    appendLine("  Device: ${log.deviceName ?: "N/A"} (${log.deviceAddress ?: "N/A"})")
+                }
                 appendLine("  Message: ${log.message}")
                 if (!log.details.isNullOrEmpty()) {
-                    appendLine("  Details: ${log.details}")
+                    // Indent multi-line details
+                    val indentedDetails = log.details.lines().joinToString("\n") { "    $it" }
+                    appendLine("  Details:")
+                    appendLine(indentedDetails)
                 }
                 if (!log.metadata.isNullOrEmpty()) {
                     appendLine("  Metadata: ${log.metadata}")
                 }
                 appendLine()
             }
+
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine("                  END OF LOG")
+            appendLine("═══════════════════════════════════════════════════════")
         }
     }
 

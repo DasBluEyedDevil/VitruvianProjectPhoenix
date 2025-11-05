@@ -2,6 +2,7 @@ package com.example.vitruvianredux.data.logger
 
 import com.example.vitruvianredux.data.local.ConnectionLogDao
 import com.example.vitruvianredux.data.local.ConnectionLogEntity
+import com.example.vitruvianredux.util.DeviceInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +24,19 @@ class ConnectionLogger @Inject constructor(
 ) {
     private val loggerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // Log device info once at startup
+    init {
+        loggerScope.launch {
+            log(
+                EventType.SYSTEM_INFO,
+                Level.INFO,
+                "App started",
+                details = DeviceInfo.getFormattedInfo(),
+                metadata = DeviceInfo.toJson()
+            )
+        }
+    }
+
     /**
      * Log levels matching standard logging practices
      */
@@ -34,6 +48,10 @@ class ConnectionLogger @Inject constructor(
      * Standard BLE event types for categorization
      */
     object EventType {
+        // System info
+        const val SYSTEM_INFO = "SYSTEM_INFO"
+        const val VITRUVIAN_DEVICE_INFO = "VITRUVIAN_DEVICE_INFO"
+
         // Connection events
         const val SCAN_STARTED = "SCAN_STARTED"
         const val SCAN_STOPPED = "SCAN_STOPPED"
@@ -159,8 +177,44 @@ class ConnectionLogger @Inject constructor(
             Level.INFO,
             "Successfully connected",
             deviceAddress = deviceAddress,
-            deviceName = deviceName
+            deviceName = deviceName,
+            details = buildString {
+                appendLine("Vitruvian Device: $deviceName")
+                appendLine("MAC Address: $deviceAddress")
+                appendLine()
+                appendLine("Android Device: ${DeviceInfo.getCompactInfo()}")
+            }
         )
+
+        // Also log Vitruvian device info separately for easy filtering
+        log(
+            EventType.VITRUVIAN_DEVICE_INFO,
+            Level.INFO,
+            "Connected to Vitruvian device",
+            deviceAddress = deviceAddress,
+            deviceName = deviceName,
+            details = buildString {
+                appendLine("Device Name: $deviceName")
+                appendLine("MAC Address: $deviceAddress")
+                appendLine("Model: ${extractVitruvianModel(deviceName)}")
+                appendLine()
+                appendLine("Note: Firmware version not available via BLE")
+                appendLine("To check firmware: Settings → About on Vitruvian touchscreen")
+            },
+            metadata = """{"deviceName":"$deviceName","address":"$deviceAddress","model":"${extractVitruvianModel(deviceName)}"}"""
+        )
+    }
+
+    /**
+     * Extract Vitruvian model from device name
+     * Device names typically follow pattern "Vee123" or "Vitruvian-XXX"
+     */
+    private fun extractVitruvianModel(deviceName: String): String {
+        return when {
+            deviceName.startsWith("Vee") -> "Vitruvian V1/V1+ (${deviceName})"
+            deviceName.startsWith("Vitruvian") -> deviceName
+            else -> "Unknown Model ($deviceName)"
+        }
     }
 
     fun logConnectionFailed(deviceName: String, deviceAddress: String, error: String) {
