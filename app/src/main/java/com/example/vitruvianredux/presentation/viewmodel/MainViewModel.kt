@@ -871,6 +871,16 @@ class MainViewModel @Inject constructor(
                 // Stay in resting state with 0 seconds remaining
                 // User will see "Start Next Set" button in UI
                 Timber.d("Autoplay disabled - staying in resting state")
+
+                // Recalculate next exercise info after loop ends
+                val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
+                val nextExercise = routine.exercises.getOrNull(_currentExerciseIndex.value + 1)
+                val nextName = if (isLastSet) {
+                    nextExercise?.exercise?.name ?: "Workout Complete"
+                } else {
+                    "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
+                }
+
                 _workoutState.value = WorkoutState.Resting(
                     restSecondsRemaining = 0,
                     nextExerciseName = nextName,
