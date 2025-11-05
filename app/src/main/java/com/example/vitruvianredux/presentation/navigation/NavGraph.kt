@@ -113,6 +113,8 @@ fun NavGraph(
         composable(NavigationRoutes.Settings.route) {
             val weightUnit by viewModel.weightUnit.collectAsState()
             val userPreferences by viewModel.userPreferences.collectAsState()
+            val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+            val connectionError by viewModel.connectionError.collectAsState()
             SettingsTab(
                 weightUnit = weightUnit,
                 autoplayEnabled = userPreferences.autoplayEnabled,
@@ -120,7 +122,10 @@ fun NavGraph(
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
                 onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
-                onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) }
+                onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
+                isAutoConnecting = isAutoConnecting,
+                connectionError = connectionError,
+                onClearConnectionError = { viewModel.clearConnectionError() }
             )
         }
 
