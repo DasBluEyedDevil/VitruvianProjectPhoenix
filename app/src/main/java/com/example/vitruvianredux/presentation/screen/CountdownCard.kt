@@ -41,9 +41,9 @@ fun CountdownCard(secondsRemaining: Int) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFF8FAFC),
-                        Color(0xFFF5F3FF),
-                        Color(0xFFEFF6FF)
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant
                     )
                 )
             )
