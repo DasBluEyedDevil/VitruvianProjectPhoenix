@@ -70,8 +70,8 @@ class ProtocolBuilderTest {
         assertEquals(96, program.size, "Program frame should be 96 bytes")
         assertEquals(0x04.toByte(), program[0], "First byte should be 0x04")
 
-        // Verify reps field (reps + 3 for non-Just Lift)
-        assertEquals(13.toByte(), program[0x04], "Reps should be 10 + 3 = 13")
+        // Verify reps field (reps + 3 warmup + 1 for counter compensation)
+        assertEquals(14.toByte(), program[0x04], "Reps should be 10 + 3 + 1 = 14")
     }
 
     @Test
@@ -135,7 +135,7 @@ class ProtocolBuilderTest {
         // Then: Program includes progression weight
         assertNotNull(program)
         assertEquals(96, program.size)
-        assertEquals(11.toByte(), program[0x04], "Reps should be 8 + 3 = 11")
+        assertEquals(12.toByte(), program[0x04], "Reps should be 8 + 3 + 1 = 12")
     }
 
     @Test
