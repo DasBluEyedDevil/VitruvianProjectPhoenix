@@ -302,12 +302,12 @@ fun EnhancedMainScreen(
             }
         }
     ) { padding ->
-        // Remove top padding to eliminate gap since nested screens have their own TopAppBars
+        // Use proper padding to account for TopAppBar and system bars (status bar, notch, etc.)
         val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
         val adjustedPadding = PaddingValues(
             start = padding.calculateLeftPadding(layoutDirection),
             end = padding.calculateRightPadding(layoutDirection),
-            top = 0.dp,
+            top = padding.calculateTopPadding(),
             bottom = padding.calculateBottomPadding()
         )
 
