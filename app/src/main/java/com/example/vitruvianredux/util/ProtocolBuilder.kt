@@ -50,8 +50,10 @@ object ProtocolBuilder {
         frame[3] = 0x00
 
         // Reps field at offset 0x04
-        // For Just Lift, use 0xFF; for others, use reps+3
-        frame[0x04] = if (params.isJustLift) 0xFF.toByte() else (params.reps + 3).toByte()
+        // For Just Lift, use 0xFF; for others, use reps+warmup+1
+        // The +1 compensates for completeCounter incrementing at START of concentric (not end)
+        // Without it, machine releases tension as you BEGIN the final rep
+        frame[0x04] = if (params.isJustLift) 0xFF.toByte() else (params.reps + 3 + 1).toByte()
 
         // Some constant values from the working capture
         frame[5] = 0x03
@@ -158,8 +160,10 @@ object ProtocolBuilder {
         // Warmup (0x04) and working reps (0x05)
         frame[0x04] = warmupReps.toByte()
 
-        // For Just Lift Echo mode, use 0xFF; otherwise use targetReps
-        frame[0x05] = if (isJustLift) 0xFF.toByte() else targetReps.toByte()
+        // For Just Lift Echo mode, use 0xFF; otherwise use targetReps+1
+        // The +1 compensates for completeCounter incrementing at START of concentric (not end)
+        // Without it, machine releases tension as you BEGIN the final rep
+        frame[0x05] = if (isJustLift) 0xFF.toByte() else (targetReps + 1).toByte()
 
         // Reserved at 0x06-0x07 (u16 = 0)
         buffer.putShort(0x06, 0)

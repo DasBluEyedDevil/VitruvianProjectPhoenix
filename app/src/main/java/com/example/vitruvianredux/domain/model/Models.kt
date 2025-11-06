@@ -55,6 +55,7 @@ sealed class ProgramMode(val modeValue: Int, val displayName: String) {
     object EccentricOnly : ProgramMode(6, "Eccentric Only")
     
     companion object {
+        @Suppress("unused")
         fun fromValue(value: Int): ProgramMode = when(value) {
             0 -> OldSchool
             2 -> Pump
@@ -103,6 +104,7 @@ sealed class WorkoutType {
         is Echo -> "Echo"
     }
     
+    @Suppress("unused")
     val modeValue: Int get() = when (this) {
         is Program -> mode.modeValue
         is Echo -> 10
@@ -163,7 +165,7 @@ data class WorkoutParameters(
     val progressionRegressionKg: Float = 0f,  // Only used for Program modes (not TUT/TUTBeast)
     val isJustLift: Boolean = false,
     val useAutoStart: Boolean = false, // true for Just Lift, false for others
-    val stopAtTop: Boolean = false,
+    val stopAtTop: Boolean = false,  // false = stop at bottom (extended), true = stop at top (contracted)
     val warmupReps: Int = 3,
     val selectedExerciseId: String? = null
 )
@@ -177,7 +179,8 @@ data class WorkoutMetric(
     val loadB: Float,
     val positionA: Int,
     val positionB: Int,
-    val ticks: Int = 0
+    val ticks: Int = 0,
+    val velocityA: Double = 0.0  // Velocity for handle detection (official app protocol)
 ) {
     val totalLoad: Float get() = loadA + loadB
 }
@@ -247,6 +250,7 @@ data class WorkoutSession(
 /**
  * Chart data point for visualization
  */
+@Suppress("unused")
 data class ChartDataPoint(
     val timestamp: Long,
     val totalLoad: Float,
@@ -260,8 +264,11 @@ data class ChartDataPoint(
  * Chart event markers
  */
 sealed class ChartEvent(val timestamp: Long, val label: String) {
+    @Suppress("unused")
     class RepStart(timestamp: Long, repNumber: Int) : ChartEvent(timestamp, "Rep $repNumber")
+    @Suppress("unused")
     class RepComplete(timestamp: Long, repNumber: Int) : ChartEvent(timestamp, "Rep $repNumber Complete")
+    @Suppress("unused")
     class WarmupComplete(timestamp: Long) : ChartEvent(timestamp, "Warmup Complete")
 }
 

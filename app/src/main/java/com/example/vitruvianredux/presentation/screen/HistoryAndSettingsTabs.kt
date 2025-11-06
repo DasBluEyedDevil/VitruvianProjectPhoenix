@@ -313,11 +313,16 @@ fun MetricItem(label: String, value: String) {
 fun SettingsTab(
     weightUnit: WeightUnit,
     autoplayEnabled: Boolean,
+    stopAtTop: Boolean,
     onWeightUnitChange: (WeightUnit) -> Unit,
     onAutoplayChange: (Boolean) -> Unit,
+    onStopAtTopChange: (Boolean) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
     onNavigateToConnectionLogs: () -> Unit = {},
+    isAutoConnecting: Boolean = false,
+    connectionError: String? = null,
+    onClearConnectionError: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
@@ -479,6 +484,36 @@ fun SettingsTab(
                     Switch(
                         checked = autoplayEnabled,
                         onCheckedChange = onAutoplayChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Stop At Top toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Stop At Top",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Release tension at contracted position instead of extended position",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = stopAtTop,
+                        onCheckedChange = onStopAtTopChange
                     )
                 }
             }
@@ -701,7 +736,6 @@ fun SettingsTab(
                 )
             }
         }
-    }
 
     if (showDeleteAllDialog) {
         AlertDialog(
@@ -725,6 +759,18 @@ fun SettingsTab(
                     Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        )
+    }
+
+    // Auto-connect UI overlays (same as other screens)
+    if (isAutoConnecting) {
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+    }
+
+    connectionError?.let { error ->
+        com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+            message = error,
+            onDismiss = onClearConnectionError
         )
     }
 }

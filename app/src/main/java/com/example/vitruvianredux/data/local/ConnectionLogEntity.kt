@@ -1,6 +1,7 @@
 package com.example.vitruvianredux.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -8,7 +9,10 @@ import androidx.room.PrimaryKey
  *
  * This helps diagnose connectivity issues by tracking all BLE events
  */
-@Entity(tableName = "connection_logs")
+@Entity(
+    tableName = "connection_logs",
+    indices = [Index(value = ["timestamp"])]
+)
 data class ConnectionLogEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
