@@ -36,12 +36,15 @@ import java.util.*
 @Composable
 fun ConnectionLogsScreen(
     onNavigateBack: () -> Unit,
+    mainViewModel: com.example.vitruvianredux.presentation.viewmodel.MainViewModel,
     viewModel: ConnectionLogsViewModel = hiltViewModel()
 ) {
     val filteredLogs by viewModel.filteredLogs.collectAsState()
     val logStats by viewModel.logStats.collectAsState()
     val selectedLevelFilter by viewModel.selectedLevelFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val isAutoConnecting by mainViewModel.isAutoConnecting.collectAsState()
+    val connectionError by mainViewModel.connectionError.collectAsState()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -240,6 +243,18 @@ fun ConnectionLogsScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    // Auto-connect UI overlays (same as other screens)
+    if (isAutoConnecting) {
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+    }
+
+    connectionError?.let { error ->
+        com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+            message = error,
+            onDismiss = { mainViewModel.clearConnectionError() }
         )
     }
 }
