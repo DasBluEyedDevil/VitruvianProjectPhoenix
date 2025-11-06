@@ -23,6 +23,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // Using debug keystore for signing release builds
+            // This allows the app to be installed without "invalid package" errors
+            // For open-source projects, this enables community builds without keystore management
+            val keystorePath = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            if (keystorePath.exists()) {
+                storeFile = keystorePath
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            } else {
+                logger.warn("Debug keystore not found at ${keystorePath}. Release builds will be unsigned.")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -30,6 +47,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isDebuggable = true
