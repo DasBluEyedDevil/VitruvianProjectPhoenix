@@ -60,6 +60,10 @@ class VitruvianBleManager(
     private var lastGoodPosA = 0
     private var lastGoodPosB = 0
 
+    // Velocity calculation for handle detection
+    private var lastPositionA = 0
+    private var lastTimestamp = 0L
+
     // State flows
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
@@ -79,27 +83,28 @@ class VitruvianBleManager(
     )
     val repEvents: SharedFlow<RepNotification> = _repEvents.asSharedFlow()
 
-    private val _statusMessages = MutableSharedFlow<String>(replay = 1)
-    val statusMessages: SharedFlow<String> = _statusMessages.asSharedFlow()
-
     private val _handleState = MutableStateFlow<HandleState>(HandleState.Released)
     val handleState: StateFlow<HandleState> = _handleState.asStateFlow()
 
-    // Baseline position tracking for handle grab detection
-    private var baselinePositionA: Int? = null
-    private var baselinePositionB: Int? = null
-    private var baselineSampleCount = 0
-    private val BASELINE_SAMPLES_NEEDED = 10 // Average first 10 samples to establish baseline
-    private val GRAB_THRESHOLD = 100 // Position must increase by 100+ units from baseline to be "grabbed"
+    // Just Lift detection parameters - Simple position-based
+    private val HANDLE_GRABBED_THRESHOLD = 8.0  // Position > 8.0 = handles grabbed
+    private val HANDLE_REST_THRESHOLD = 2.5     // Position < 2.5 = handles at rest
+    private val VELOCITY_THRESHOLD = 100.0      // Velocity > 100 units/s = significant movement
+
+    // Track position range for tuning (logged at workout end)
+    private var minPositionSeen = Double.MAX_VALUE
+    private var maxPositionSeen = Double.MIN_VALUE
 
     override fun log(priority: Int, message: String) {
         Timber.tag("VitruvianBLE").log(priority, message)
     }
 
+    @Deprecated("Override of deprecated base class method")
     override fun getMinLogPriority(): Int {
         return android.util.Log.DEBUG
     }
 
+    @Deprecated("Override of deprecated base class method")
     override fun getGattCallback(): BleManagerGattCallback {
         return VitruvianGattCallback()
     }
@@ -216,10 +221,10 @@ class VitruvianBleManager(
             // REQUEST MTU FIRST - Critical for large frames (96 bytes)!
             // Default MTU is 23 bytes, we need at least 100 bytes for program params
             requestMtu(247)
-                .with { device, mtu ->
+                .with { _, mtu ->
                     Timber.d("MTU successfully changed to $mtu bytes")
                 }
-                .fail { device, status ->
+                .fail { _, status ->
                     Timber.e("MTU request failed with status: $status (continuing anyway)")
                 }
                 .enqueue()
@@ -245,10 +250,10 @@ class VitruvianBleManager(
                 }
 
                 enableNotifications(characteristic)
-                    .done { device ->
+                    .done { _ ->
                         Timber.d("    -> Notifications active on ${characteristic.uuid}")
                     }
-                    .fail { device, status ->
+                    .fail { _, status ->
                         Timber.w("    -> Failed to enable notifications on ${characteristic.uuid}: status=$status")
                     }
                     .enqueue()
@@ -271,9 +276,13 @@ class VitruvianBleManager(
      * Called when workout starts
      */
     fun startMonitorPolling() {
-        // Reset baseline when starting monitor polling for auto-start detection
-        resetHandleBaseline()
-        
+        // Reset position tracking for new workout
+        minPositionSeen = Double.MAX_VALUE
+        maxPositionSeen = Double.MIN_VALUE
+
+        // Start with handles released; wait for actual grab detection from data
+        _handleState.value = HandleState.Released
+
         monitorPollingJob?.cancel()
         monitorPollingJob = pollingScope.launch {
             Timber.d("Starting monitor polling (100ms interval)")
@@ -282,7 +291,7 @@ class VitruvianBleManager(
                     monitorCharacteristic?.let { char ->
                         // MUST use .with() and .enqueue() together
                         readCharacteristic(char)
-                            .with { device, data ->
+                            .with { _, data ->
                                 Timber.d("Monitor read callback fired!")
                                 handleMonitorData(data)
                             }
@@ -308,7 +317,7 @@ class VitruvianBleManager(
                 try {
                     propertyCharacteristic?.let { char ->
                         readCharacteristic(char)
-                            .with { device, data ->
+                            .with { _, data ->
                                 Timber.v("Property data: ${data.value?.toHexString()}")
                             }
                             .enqueue()
@@ -325,9 +334,42 @@ class VitruvianBleManager(
      * Stop all polling
      */
     fun stopPolling() {
-        Timber.d("Stopping all polling")
+        val timestamp = System.currentTimeMillis()
+        Timber.d("STOP_DEBUG: [$timestamp] stopPolling() called")
+
+        // Log position range seen during workout for threshold tuning
+        if (minPositionSeen != Double.MAX_VALUE && maxPositionSeen != Double.MIN_VALUE) {
+            Timber.i("========== POSITION RANGE ANALYSIS ==========")
+            Timber.i("Min position seen: $minPositionSeen")
+            Timber.i("Max position seen: $maxPositionSeen")
+            Timber.i("Handle grabbed threshold: $HANDLE_GRABBED_THRESHOLD (pos > 8.0 = grabbed)")
+            Timber.i("Handle rest threshold: $HANDLE_REST_THRESHOLD (pos < 2.5 = at rest)")
+            Timber.i("Velocity threshold: $VELOCITY_THRESHOLD (vel > 100 = moving)")
+            Timber.i("===========================================")
+        }
+
+        val monitorJobState = monitorPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+        val propertyJobState = propertyPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+
+        Timber.d("STOP_DEBUG: Monitor polling job state BEFORE cancel: $monitorJobState")
+        Timber.d("STOP_DEBUG: Property polling job state BEFORE cancel: $propertyJobState")
+
         monitorPollingJob?.cancel()
         propertyPollingJob?.cancel()
+
+        val afterCancel = System.currentTimeMillis()
+        Timber.d("STOP_DEBUG: [$afterCancel] Jobs cancelled (took ${afterCancel - timestamp}ms)")
+        Timber.d("STOP_DEBUG: Monitor job cancelled: ${monitorPollingJob?.isCancelled}")
+        Timber.d("STOP_DEBUG: Property job cancelled: ${propertyPollingJob?.isCancelled}")
+    }
+
+    /**
+     * Enable Just Lift waiting mode - call this after workout completion
+     * to start watching for velocity spike indicating user grabbed handles for next exercise
+     */
+    fun enableJustLiftWaitingMode() {
+        Timber.i("Enabling Just Lift waiting mode - position hysteresis with velocity confirmation (vel>100)")
+        _handleState.value = HandleState.Released
     }
 
     /**
@@ -337,11 +379,13 @@ class VitruvianBleManager(
     @Suppress("DEPRECATION")
     fun sendCommand(data: ByteArray): Result<Unit> {
         return try {
+            val timestamp = System.currentTimeMillis()
             nusRxCharacteristic?.let { characteristic ->
                 // Log detailed hex dump for debugging
-                Timber.d("=== SENDING COMMAND ===")
-                Timber.d("Size: ${data.size} bytes")
-                Timber.d("Full hex: ${data.toHexString()}")
+                Timber.d("STOP_DEBUG: [$timestamp] === SENDING COMMAND ===")
+                Timber.d("STOP_DEBUG: Command size: ${data.size} bytes")
+                Timber.d("STOP_DEBUG: Full hex: ${data.joinToString(" ") { "0x%02X".format(it) }}")
+                Timber.d("STOP_DEBUG: Hex string: ${data.toHexString()}")
 
                 // Show first 64 bytes formatted for easy reading
                 if (data.size > 0) {
@@ -349,19 +393,23 @@ class VitruvianBleManager(
                     val formatted = preview.chunked(16) { bytes ->
                         bytes.joinToString(" ") { "%02x".format(it) }
                     }.joinToString("\n  ")
-                    Timber.d("First ${preview.size} bytes:\n  $formatted")
+                    Timber.d("STOP_DEBUG: First ${preview.size} bytes:\n  $formatted")
                 }
 
+                val beforeWrite = System.currentTimeMillis()
+                Timber.d("STOP_DEBUG: [$beforeWrite] About to write to characteristic ${characteristic.uuid}")
                 writeCharacteristic(characteristic, data)
                     // REMOVED .split() - Vitruvian protocol requires exact frame sizes!
                     // .split() was breaking 96-byte program params into chunks
                     .enqueue()
 
-                Timber.d("=== COMMAND SENT ===")
+                val afterWrite = System.currentTimeMillis()
+                Timber.d("STOP_DEBUG: [$afterWrite] Write enqueued (took ${afterWrite - beforeWrite}ms)")
+                Timber.d("STOP_DEBUG: === COMMAND SENT ===")
                 Result.success(Unit)
             } ?: Result.failure(Exception("NUS RX characteristic not available"))
         } catch (e: Exception) {
-            Timber.e(e, "Failed to send command")
+            Timber.e(e, "STOP_DEBUG: Failed to send command")
             Result.failure(e)
         }
     }
@@ -429,62 +477,47 @@ class VitruvianBleManager(
     }
 
     /**
-     * Handle monitor data notifications (real-time metrics)
+     * Analyze handle state using simple position-based hysteresis
+     * with velocity confirmation for Just Lift mode
      */
     private fun analyzeHandleState(metric: WorkoutMetric): HandleState {
-        // First, establish baseline position (resting position when handles hang freely)
-        if (baselineSampleCount < BASELINE_SAMPLES_NEEDED) {
-            if (baselinePositionA == null) {
-                baselinePositionA = metric.positionA
-                baselinePositionB = metric.positionB
-            } else {
-                // Running average
-                baselinePositionA = ((baselinePositionA!! * baselineSampleCount) + metric.positionA) / (baselineSampleCount + 1)
-                baselinePositionB = ((baselinePositionB!! * baselineSampleCount) + metric.positionB) / (baselineSampleCount + 1)
+        val posA = metric.positionA.toDouble()
+        val velocity = kotlin.math.abs(metric.velocityA)
+
+        // Track position range for post-workout tuning
+        minPositionSeen = minOf(minPositionSeen, posA)
+        maxPositionSeen = maxOf(maxPositionSeen, posA)
+
+        val currentState = _handleState.value
+
+        // Simple hysteresis with velocity check
+        return when (currentState) {
+            HandleState.Released, HandleState.Moving -> {
+                if (posA > HANDLE_GRABBED_THRESHOLD) {
+                    // Position indicates grabbed - check velocity to confirm user is actively moving
+                    val hasMovement = velocity > VELOCITY_THRESHOLD
+                    Timber.d("GRAB CHECK: pos=$posA > $HANDLE_GRABBED_THRESHOLD, vel=$velocity, moving=$hasMovement")
+                    if (hasMovement) {
+                        Timber.i("GRAB CONFIRMED: pos=$posA, vel=$velocity")
+                        HandleState.Grabbed
+                    } else {
+                        // Position extended but no significant movement yet
+                        HandleState.Moving
+                    }
+                } else {
+                    HandleState.Released
+                }
             }
-            baselineSampleCount++
-            Timber.d("Establishing baseline: sample $baselineSampleCount/$BASELINE_SAMPLES_NEEDED, baselineA=$baselinePositionA, baselineB=$baselinePositionB")
-            return HandleState.Released
+
+            HandleState.Grabbed -> {
+                if (posA < HANDLE_REST_THRESHOLD) {
+                    Timber.d("RELEASE DETECTED: pos=$posA < $HANDLE_REST_THRESHOLD")
+                    HandleState.Released
+                } else {
+                    HandleState.Grabbed
+                }
+            }
         }
-
-        // After baseline is established, detect if handles are lifted significantly above baseline
-        val deltaA = metric.positionA - (baselinePositionA ?: 0)
-        val deltaB = metric.positionB - (baselinePositionB ?: 0)
-        val isGrabbed = deltaA > GRAB_THRESHOLD || deltaB > GRAB_THRESHOLD
-
-        Timber.v("Handle state: posA=${metric.positionA} (Δ$deltaA), posB=${metric.positionB} (Δ$deltaB), grabbed=$isGrabbed")
-
-        // Log to ConnectionLogger when state changes or periodically
-        if (System.currentTimeMillis() % 50 == 0L || isGrabbed != (_handleState.value == HandleState.Grabbed)) {
-            connectionLogger?.logHandleDetection(
-                currentDeviceName,
-                currentDeviceAddress,
-                baselinePositionA,
-                baselinePositionB,
-                metric.positionA,
-                metric.positionB,
-                deltaA,
-                deltaB,
-                GRAB_THRESHOLD,
-                isGrabbed
-            )
-        }
-
-        return when {
-            isGrabbed -> HandleState.Grabbed
-            else -> HandleState.Released
-        }
-    }
-    
-    /**
-     * Reset baseline tracking (call when disconnecting or starting fresh)
-     */
-    fun resetHandleBaseline() {
-        baselinePositionA = null
-        baselinePositionB = null
-        baselineSampleCount = 0
-        _handleState.value = HandleState.Released
-        Timber.d("Handle baseline reset")
     }
 
     private fun handleMonitorData(data: Data) {
@@ -533,6 +566,22 @@ class VitruvianBleManager(
             val loadA = f4 / 100.0f
             val loadB = f7 / 100.0f
 
+            // Calculate velocity for handle detection (official app protocol)
+            val currentTime = System.currentTimeMillis()
+            val velocityA = if (lastTimestamp > 0L) {
+                val deltaTime = (currentTime - lastTimestamp) / 1000.0  // Convert to seconds
+                val deltaPos = positionA - lastPositionA
+                if (deltaTime > 0) {
+                    Math.abs(deltaPos / deltaTime)  // Absolute velocity
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            }
+            lastPositionA = positionA
+            lastTimestamp = currentTime
+
             // ENHANCED LOGGING FOR FORCE DISPLAY DEBUGGING
             // Always log first few, then reduce spam
             if (ticks < 1000 || ticks % 100 == 0) {
@@ -545,17 +594,19 @@ class VitruvianBleManager(
                 Timber.d("LoadB (kg): $loadB")
                 Timber.d("Total Load: ${loadA + loadB} kg")
                 Timber.d("PositionA: $positionA, PositionB: $positionB")
+                Timber.d("VelocityA: $velocityA")
                 Timber.d("Ticks: $ticks")
                 Timber.d("==========================")
             }
 
             val metric = WorkoutMetric(
-                timestamp = System.currentTimeMillis(),
+                timestamp = currentTime,
                 loadA = loadA,
                 loadB = loadB,
                 positionA = positionA,
                 positionB = positionB,
-                ticks = ticks
+                ticks = ticks,
+                velocityA = velocityA
             )
 
             // Log monitor data to ConnectionLogger (sampled)

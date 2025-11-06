@@ -128,6 +128,7 @@ class MainViewModel @Inject constructor(
             )
 
     // Personal Records
+    @Suppress("unused")
     val personalBests: StateFlow<List<com.example.vitruvianredux.data.local.PersonalRecordEntity>> =
         workoutRepository.getAllPersonalRecords()
             .stateIn(
@@ -205,6 +206,7 @@ class MainViewModel @Inject constructor(
 
     // Feature 1: Dialog state for workout setup
     private val _isWorkoutSetupDialogVisible = MutableStateFlow(false)
+    @Suppress("unused")
     val isWorkoutSetupDialogVisible: StateFlow<Boolean> = _isWorkoutSetupDialogVisible.asStateFlow()
 
     // Auto-connect UI state
@@ -236,6 +238,10 @@ class MainViewModel @Inject constructor(
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
+
+    // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
+    private var monitorDataCollectionJob: Job? = null
+    private var repEventsCollectionJob: Job? = null
 
     init {
         Timber.d("MainViewModel initialized")
@@ -277,7 +283,7 @@ class MainViewModel @Inject constructor(
         }
 
         // Collect monitor data (for position/load display only)
-        viewModelScope.launch {
+        monitorDataCollectionJob = viewModelScope.launch {
             Timber.d("Starting to collect monitor data...")
             bleRepository.monitorData.collect { metric ->
                 Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
@@ -287,7 +293,7 @@ class MainViewModel @Inject constructor(
         }
 
         // Collect rep notifications from machine (the CORRECT way to count reps!)
-        viewModelScope.launch {
+        repEventsCollectionJob = viewModelScope.launch {
             Timber.d("Starting to collect rep notifications...")
             bleRepository.repEvents.collect { repNotification ->
                 val state = _workoutState.value
@@ -370,16 +376,15 @@ class MainViewModel @Inject constructor(
             return
         }
 
-        Timber.d("Auto-start timer STARTING!")
+        Timber.d("Auto-start timer STARTING! (1.2 seconds)")
         autoStartJob = viewModelScope.launch {
-            for (i in 5 downTo 1) {
-                _autoStartCountdown.value = i
-                Timber.d("Auto-start countdown: $i")
-                delay(1000)
-            }
+            // Official app: 1.2 second hold timer with visible countdown
+            _autoStartCountdown.value = 1  // Show "1" during hold
+            delay(1200)  // Official app: 1200ms hold
             _autoStartCountdown.value = null
-            Timber.d("Auto-start countdown complete! Starting workout...")
-            startWorkout()
+            Timber.d("Auto-start hold complete (1.2s)! Starting workout...")
+            // Just Lift mode: Pass isJustLiftMode=true to ensure flag is preserved
+            startWorkout(isJustLiftMode = true)
         }
     }
 
@@ -604,17 +609,43 @@ class MainViewModel @Inject constructor(
         bleRepository.enableHandleDetection()
     }
 
-    fun startWorkout(skipCountdown: Boolean = false) {
-        Timber.d("??? startWorkout() CALLED! skipCountdown=$skipCountdown ???")
+    /**
+     * Prepare the ViewModel for Just Lift mode.
+     * If a previous workout was completed, reset the state to Idle so Just Lift can work.
+     * This is called when entering the JustLiftScreen with a completed workout.
+     */
+    fun prepareForJustLift() {
+        viewModelScope.launch {
+            if (_workoutState.value is WorkoutState.Completed) {
+                Timber.d("Preparing for Just Lift: Resetting completed workout state")
+                resetForNewWorkout()
+                _workoutState.value = WorkoutState.Idle
+                enableHandleDetection()
+                _workoutParameters.value = _workoutParameters.value.copy(
+                    isJustLift = true,
+                    useAutoStart = true
+                )
+                Timber.d("Just Lift ready: State=Idle, AutoStart=enabled")
+            }
+        }
+    }
+
+    fun startWorkout(skipCountdown: Boolean = false, isJustLiftMode: Boolean = false) {
+        Timber.d("$$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$$")
 
         // CRITICAL: Re-set rep event callback to ensure it's active for this workout
         // This fixes the issue where callback set in init block may not persist
 
 
         viewModelScope.launch {
-            _workoutState.value = WorkoutState.Initializing
-
-            val params = _workoutParameters.value
+            // Forcefully apply the isJustLift flag to ensure it's correct
+            val params = _workoutParameters.value.copy(
+                isJustLift = isJustLiftMode,
+                useAutoStart = if (isJustLiftMode) true else _workoutParameters.value.useAutoStart
+            )
+            // Update the state flow so the rest of the app is consistent
+            _workoutParameters.value = params
+            
             val workingTarget = if (params.isJustLift) 0 else params.reps
             repCounter.reset()
             repCounter.configure(
@@ -631,8 +662,8 @@ class MainViewModel @Inject constructor(
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
 
-            // Countdown (optional)
-            if (!skipCountdown) {
+            // Countdown (optional) - Skip countdown for Just Lift mode or if explicitly requested
+            if (!skipCountdown && !params.isJustLift) {
                 Timber.d("")
                 Timber.d(" STARTING COUNTDOWN")
                 Timber.d(" Mode: ${params.workoutType.displayName}")
@@ -644,7 +675,7 @@ class MainViewModel @Inject constructor(
                     delay(1000)
                 }
             } else {
-                Timber.d(" SKIPPING COUNTDOWN - Auto-advancing")
+                Timber.d(" SKIPPING COUNTDOWN - ${if (params.isJustLift) "Just Lift mode" else "Auto-advancing"}")
             }
 
             Timber.d("")
@@ -652,6 +683,9 @@ class MainViewModel @Inject constructor(
             Timber.d("")
             Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
             val startTime = System.currentTimeMillis()
+
+            // Set state to Active immediately before sending BLE command for instant UI response
+            _workoutState.value = WorkoutState.Active
 
             val result = bleRepository.startWorkout(params)
 
@@ -666,9 +700,8 @@ class MainViewModel @Inject constructor(
                 return@launch
             }
 
-            _workoutState.value = WorkoutState.Active
             val activeStateTime = System.currentTimeMillis()
-            Timber.d("?? TIMING: State changed to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
+            Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
 
             WorkoutForegroundService.startWorkoutService(
                 getContext(),
@@ -685,17 +718,38 @@ class MainViewModel @Inject constructor(
 
     fun stopWorkout() {
         viewModelScope.launch {
+            val timestamp = System.currentTimeMillis()
+            val currentState = _workoutState.value
+            
+            Timber.d("STOP_DEBUG: ============================================")
+            Timber.d("STOP_DEBUG: [$timestamp] stopWorkout() called from UI")
+            Timber.d("STOP_DEBUG: Current workout state: $currentState")
+            Timber.d("STOP_DEBUG: Current rep count: warmup=${_repCount.value.warmupReps}, working=${_repCount.value.workingReps}")
+            Timber.d("STOP_DEBUG: Loaded routine: ${_loadedRoutine.value?.name ?: "None"}")
+            Timber.d("STOP_DEBUG: ============================================")
+            
             // Cancel any running rest timer to prevent auto-restart
             restTimerJob?.cancel()
             restTimerJob = null
 
-            // Stop hardware immediately
+            // CRITICAL SAFETY: Stop all active polling and data collection
+            // This ensures the machine fully exits workout mode
+            val beforeRepoStop = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$beforeRepoStop] About to call bleRepository.stopWorkout()")
+            
+            // Stop hardware immediately (this will stop monitor/property polling in BLE layer)
             bleRepository.stopWorkout()
+            
+            val afterRepoStop = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$afterRepoStop] bleRepository.stopWorkout() completed (took ${afterRepoStop - beforeRepoStop}ms)")
+            
+            // Stop foreground service
             WorkoutForegroundService.stopWorkoutService(getApplication())
             _hapticEvents.emit(HapticEvent.WORKOUT_END)
 
             // Mark as completed - NO AUTOPLAY
             _workoutState.value = WorkoutState.Completed
+            Timber.d("STOP_DEBUG: Workout state changed to: ${_workoutState.value}")
 
             // Save current progress
             saveWorkoutSession()
@@ -704,7 +758,9 @@ class MainViewModel @Inject constructor(
             repCounter.reset()
             resetAutoStopState()
 
-            Timber.d("Workout stopped by user")
+            val finalTimestamp = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$finalTimestamp] stopWorkout() complete - Total time: ${finalTimestamp - timestamp}ms")
+            Timber.d("STOP_DEBUG: ============================================")
         }
     }
 
@@ -712,6 +768,7 @@ class MainViewModel @Inject constructor(
      * Test official app protocol - systematically try 9-byte commands on all characteristics
      * This is a diagnostic function to identify which characteristic triggers workout start
      */
+    @Suppress("unused")
     fun testOfficialAppProtocol() {
         viewModelScope.launch {
             try {
@@ -789,17 +846,22 @@ class MainViewModel @Inject constructor(
                 startRestTimer()
             } else {
                 Timber.d("? No rest timer - marking as completed")
-                _workoutState.value = WorkoutState.Completed
                 repCounter.reset()
                 resetAutoStopState()
 
                 // Auto-reset for Just Lift mode to enable immediate restart
                 if (isJustLift) {
-                    Timber.d("Just Lift mode: Auto-resetting to Idle after brief completion display")
-                    delay(1500) // Show completion state briefly
+                    Timber.d("Just Lift mode: Auto-resetting to Idle (no completion state)")
                     resetForNewWorkout()
+                    _workoutState.value = WorkoutState.Idle  // Explicitly set to Idle for Just Lift
+                    Timber.d("Just Lift mode: Re-enabling handle detection for next auto-start (useAutoStart=${_workoutParameters.value.useAutoStart})")
                     enableHandleDetection() // Re-enable for next auto-start
-                    Timber.d("Just Lift mode: Ready for new workout - auto-start enabled")
+
+                    // Enable velocity-based wake-up detection for next exercise
+                    bleRepository.enableJustLiftWaitingMode()
+                    Timber.d("Just Lift mode: Velocity wake-up detection enabled - ready for next exercise")
+                } else {
+                    _workoutState.value = WorkoutState.Completed
                 }
             }
         }
@@ -1176,6 +1238,7 @@ class MainViewModel @Inject constructor(
     /**
      * Show the workout setup dialog
      */
+    @Suppress("unused")
     fun showWorkoutSetupDialog() {
         _isWorkoutSetupDialogVisible.value = true
     }
@@ -1183,6 +1246,7 @@ class MainViewModel @Inject constructor(
     /**
      * Hide the workout setup dialog
      */
+    @Suppress("unused")
     fun hideWorkoutSetupDialog() {
         _isWorkoutSetupDialogVisible.value = false
     }
@@ -1283,6 +1347,7 @@ class MainViewModel @Inject constructor(
      * Load a routine and immediately start the workout
      * Convenience method for one-click routine start from UI
      */
+    @Suppress("unused")
     fun startRoutineWorkout(routine: Routine) {
         loadRoutine(routine)
         startWorkout()
@@ -1291,6 +1356,7 @@ class MainViewModel @Inject constructor(
     /**
      * Move to next exercise in loaded routine
      */
+    @Suppress("unused")
     fun nextExercise() {
         val routine = _loadedRoutine.value ?: return
         val currentIndex = _currentExerciseIndex.value
@@ -1318,6 +1384,7 @@ class MainViewModel @Inject constructor(
     /**
      * Move to previous exercise in loaded routine
      */
+    @Suppress("unused")
     fun previousExercise() {
         val routine = _loadedRoutine.value ?: return
         val currentIndex = _currentExerciseIndex.value
@@ -1352,6 +1419,7 @@ class MainViewModel @Inject constructor(
     /**
      * Get current exercise from loaded routine
      */
+    @Suppress("unused")
     fun getCurrentExercise(): RoutineExercise? {
         val routine = _loadedRoutine.value ?: return null
         val index = _currentExerciseIndex.value
@@ -1415,7 +1483,7 @@ class MainViewModel @Inject constructor(
     }
 
     companion object {
-        private const val AUTO_STOP_DURATION_SECONDS = 5f
+        private const val AUTO_STOP_DURATION_SECONDS = 3f  // Official app: 3 seconds
     }
 }
 
@@ -1425,7 +1493,7 @@ class MainViewModel @Inject constructor(
 data class AutoStopUiState(
     val isActive: Boolean = false,
     val progress: Float = 0f,
-    val secondsRemaining: Int = 5
+    val secondsRemaining: Int = 3  // Official app: 3 seconds
 )
 
 /**
@@ -1436,5 +1504,4 @@ data class ScannedDevice(
     val address: String,
     val rssi: Int = 0
 )
-
 
