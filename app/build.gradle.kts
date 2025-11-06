@@ -27,10 +27,16 @@ android {
         create("release") {
             // Using debug keystore for signing release builds
             // This allows the app to be installed without "invalid package" errors
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            // For open-source projects, this enables community builds without keystore management
+            val keystorePath = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            if (keystorePath.exists()) {
+                storeFile = keystorePath
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            } else {
+                logger.warn("Debug keystore not found at ${keystorePath}. Release builds will be unsigned.")
+            }
         }
     }
 
