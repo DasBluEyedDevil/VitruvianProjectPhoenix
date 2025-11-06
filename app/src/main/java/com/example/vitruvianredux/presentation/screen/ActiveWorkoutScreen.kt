@@ -50,10 +50,17 @@ fun ActiveWorkoutScreen(
     }
 
     // Watch for workout completion and navigate back
-    LaunchedEffect(workoutState) {
-        if (workoutState is WorkoutState.Completed) {
-            delay(2000)
-            navController.navigateUp()
+    // For Just Lift, navigate back when state becomes Idle (after auto-reset)
+    LaunchedEffect(workoutState, workoutParameters) {
+        when {
+            workoutState is WorkoutState.Completed -> {
+                delay(2000)
+                navController.navigateUp()
+            }
+            workoutState is WorkoutState.Idle && workoutParameters.isJustLift -> {
+                // Just Lift completed and reset to Idle - navigate back to Just Lift screen
+                navController.navigateUp()
+            }
         }
     }
 
@@ -127,7 +134,6 @@ fun ActiveWorkoutScreen(
                 )
             },
             onStopWorkout = { viewModel.stopWorkout() },
-            onCancelRoutine = { viewModel.cancelRoutine() },
             onSkipRest = { viewModel.skipRest() },
             onResetForNewWorkout = { viewModel.resetForNewWorkout() },
             onStartNextExercise = { viewModel.advanceToNextExercise() },

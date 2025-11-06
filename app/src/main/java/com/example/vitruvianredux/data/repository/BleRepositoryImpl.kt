@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -52,6 +51,7 @@ interface BleRepository {
     suspend fun setColorScheme(schemeIndex: Int): Result<Unit>
     suspend fun testOfficialAppProtocol(): Result<Unit>
     fun enableHandleDetection() // Start monitor polling for auto-start detection
+    fun enableJustLiftWaitingMode() // Enable position-based handle detection for next exercise
 }
 
 @Singleton
@@ -253,9 +253,6 @@ class BleRepositoryImpl @Inject constructor(
                                 connectionLogger.logConnectionFailed(deviceName, deviceAddress, status.message)
                                 _connectionState.value = ConnectionState.Error(status.message)
                             }
-                            else -> {
-                                Timber.d("Other connection status: $status")
-                            }
                         }
                     }
                 }
@@ -439,13 +436,51 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun stopWorkout(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            // Send stop command to release resistance
-            bleManager?.sendCommand(ProtocolBuilder.buildStopCommand())?.getOrThrow()
+            val timestamp = System.currentTimeMillis()
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
 
-            Timber.d("Workout stopped - resistance released")
+            Timber.d("STOP_DEBUG: ============================================")
+            Timber.d("STOP_DEBUG: stopWorkout() called at timestamp: $timestamp")
+            Timber.d("STOP_DEBUG: ============================================")
+
+            // CRITICAL SAFETY: Stop all polling BEFORE sending INIT command
+            // This ensures the machine fully exits workout mode
+            val beforePollingStop = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$beforePollingStop] BEFORE stopping polling jobs")
+            Timber.d("STOP_DEBUG: Cancelling polling jobs...")
+            connectionLogger.logPollingStopped("ALL", deviceName, deviceAddress)
+            bleManager?.stopPolling()
+            val afterPollingStop = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
+
+            // Send INIT command to stop workout and release resistance
+            // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
+            // The device interprets 0x0A contextually based on current state
+            val initCommand = ProtocolBuilder.buildInitCommand()
+            val beforeInitSend = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$beforeInitSend] BEFORE sending INIT command")
+            Timber.d("STOP_DEBUG: INIT command bytes: ${initCommand.joinToString(" ") { "0x%02X".format(it) }}")
+            Timber.d("STOP_DEBUG: INIT command size: ${initCommand.size} bytes")
+            Timber.d("STOP_DEBUG: Sending INIT command to release tension...")
+            connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, initCommand)
+            bleManager?.sendCommand(initCommand)?.getOrThrow()
+            val afterInitSend = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending INIT command (took ${afterInitSend - beforeInitSend}ms)")
+            Timber.d("STOP_DEBUG: INIT command sent successfully")
+
+            val finalTimestamp = System.currentTimeMillis()
+            Timber.d("STOP_DEBUG: [$finalTimestamp] Workout stopped - Total stopWorkout() time: ${finalTimestamp - timestamp}ms")
+            Timber.d("STOP_DEBUG: ============================================")
+            connectionLogger.logCommandSuccess("STOP_WORKOUT", deviceName, deviceAddress)
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to stop workout")
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+            Timber.e(e, "STOP_DEBUG: FAILED to stop workout")
+            connectionLogger.logCommandFailed("STOP_WORKOUT", deviceName, deviceAddress, e.message ?: "Unknown error")
             Result.failure(e)
         }
     }
@@ -500,6 +535,11 @@ class BleRepositoryImpl @Inject constructor(
     override fun enableHandleDetection() {
         Timber.d("Enabling handle detection - starting monitor polling for auto-start")
         bleManager?.startMonitorPolling()
+    }
+
+    override fun enableJustLiftWaitingMode() {
+        Timber.d("Enabling Just Lift waiting mode - position-based handle detection")
+        bleManager?.enableJustLiftWaitingMode()
     }
 }
 
