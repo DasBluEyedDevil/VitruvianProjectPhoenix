@@ -151,6 +151,20 @@ app/src/main/java/com/example/vitruvianredux/
 - Kotlin: Latest stable
 - Gradle: 8.x
 
+### Building Signed Release APK
+
+The app now includes automatic APK signing for release builds to prevent "App not installed as package appears to be invalid" errors:
+
+```bash
+# Build signed release APK
+./gradlew assembleRelease
+
+# Output location
+app/build/outputs/apk/release/app-release.apk
+```
+
+**Note:** The release builds use Android's debug keystore for signing. For production releases, configure a proper release keystore in `app/build.gradle.kts`.
+
 ### Permissions Required
 
 - `BLUETOOTH_SCAN` - For scanning BLE devices (Android 12+)
@@ -327,9 +341,12 @@ For issues, questions, or contributions:
 
 ---
 
-**Status:** Alpha - Active Development  
-**Version:** 0.1.0-alpha  
-**Last Updated:** November 4, 2025
+**Status:** Beta - Active Development  
+**Version:** 0.2.0-beta  
+**Last Updated:** November 6, 2025
+
+### Recent Fixes (Beta 2+)
+- ✅ **APK Signing:** Fixed "App not installed as package appears to be invalid" error by adding proper signing configuration for release builds
 
 ## 🚀 Current Status
 
