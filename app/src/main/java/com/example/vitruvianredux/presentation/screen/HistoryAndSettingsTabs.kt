@@ -687,7 +687,6 @@ fun SettingsTab(
                 )
             }
         }
-    }
 
     // App Info Section
     Card(
@@ -736,6 +735,7 @@ fun SettingsTab(
                 )
             }
         }
+    }
 
     if (showDeleteAllDialog) {
         AlertDialog(
