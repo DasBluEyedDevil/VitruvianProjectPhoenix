@@ -84,6 +84,8 @@ fun DailyRoutinesScreen(
             RoutinesTab(
                 routines = routines,
                 exerciseRepository = exerciseRepository,
+                personalRecordRepository = viewModel.personalRecordRepository,
+                formatWeight = viewModel::formatWeight,
                 weightUnit = weightUnit,
                 kgToDisplay = viewModel::kgToDisplay,
                 displayToKg = viewModel::displayToKg,
