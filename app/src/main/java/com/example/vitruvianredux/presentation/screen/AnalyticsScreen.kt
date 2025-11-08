@@ -332,7 +332,7 @@ fun PersonalRecordCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Max: ${formatWeight(pr.weightPerCableKg * 2, weightUnit)}",
+                        "${formatWeight(pr.weightPerCableKg, weightUnit)} per cable",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -465,9 +465,9 @@ fun TrendsTab(
                             icon = Icons.Default.Check
                         )
                         StatItem(
-                            label = "Max Weight",
+                            label = "Max Per Cable",
                             value = formatWeight(
-                                personalRecords.maxOfOrNull { it.weightPerCableKg * 2 } ?: 0f,
+                                personalRecords.maxOfOrNull { it.weightPerCableKg } ?: 0f,
                                 weightUnit
                             ),
                             icon = Icons.Default.Star
@@ -581,7 +581,7 @@ fun ExerciseProgressionCard(
                     // PR details
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            formatWeight(pr.weightPerCableKg * 2, weightUnit),
+                            "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
                             color = if (index == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
