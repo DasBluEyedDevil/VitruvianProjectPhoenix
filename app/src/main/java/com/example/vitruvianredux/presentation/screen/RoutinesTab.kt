@@ -109,12 +109,23 @@ fun RoutinesTab(
                             },
                             onDelete = { onDeleteRoutine(routine.id) },
                             onDuplicate = {
+                                // Generate new IDs explicitly and create deep copies
+                                val newRoutineId = java.util.UUID.randomUUID().toString()
+                                val newExercises = routine.exercises.map { exercise ->
+                                    exercise.copy(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        // Deep copy the Exercise object to avoid any shared references
+                                        exercise = exercise.exercise.copy()
+                                    )
+                                }
+
                                 val duplicated = routine.copy(
-                                    id = java.util.UUID.randomUUID().toString(),
+                                    id = newRoutineId,
                                     name = "${routine.name} (Copy)",
                                     createdAt = System.currentTimeMillis(),
                                     useCount = 0,
-                                    lastUsed = null
+                                    lastUsed = null,
+                                    exercises = newExercises
                                 )
                                 onSaveRoutine(duplicated)
                             }
