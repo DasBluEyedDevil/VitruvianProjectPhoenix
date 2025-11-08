@@ -34,6 +34,7 @@ import timber.log.Timber
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.ceil
 
@@ -248,8 +249,8 @@ class MainViewModel @Inject constructor(
 
     // Auto-stop tracking for Just Lift
     private var autoStopStartTime: Long? = null
-    private var autoStopTriggered = false
-    private var autoStopStopRequested = false
+    private val autoStopTriggered = AtomicBoolean(false)
+    private val autoStopStopRequested = AtomicBoolean(false)
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
@@ -432,13 +433,12 @@ class MainViewModel @Inject constructor(
     }
 
     private fun requestAutoStop() {
-        if (autoStopStopRequested) return
-        autoStopStopRequested = true
+        if (autoStopStopRequested.getAndSet(true)) return
         triggerAutoStop()
     }
 
     private fun triggerAutoStop() {
-        autoStopTriggered = true
+        autoStopTriggered.set(true)
         if (_workoutParameters.value.isJustLift) {
             _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
         } else {
@@ -485,7 +485,7 @@ class MainViewModel @Inject constructor(
 
     private fun resetAutoStopTimer() {
         autoStopStartTime = null
-        if (!autoStopTriggered) {
+        if (!autoStopTriggered.get()) {
             _autoStopState.value = AutoStopUiState()
         }
     }
@@ -576,10 +576,12 @@ class MainViewModel @Inject constructor(
                                     if (connected == true) {
                                         onConnected()
                                     } else {
+                                        _pendingConnectionCallback = null  // Clear callback on failure
                                         _connectionError.value = "Connection failed"
                                         onFailed()
                                     }
                                 } else {
+                                    _pendingConnectionCallback = null  // Clear callback on failure
                                     _isAutoConnecting.value = false
                                     _connectionError.value = "No device found"
                                     onFailed()
@@ -589,6 +591,7 @@ class MainViewModel @Inject constructor(
 
                     if (found == null) {
                         // Timeout
+                        _pendingConnectionCallback = null  // Clear callback on timeout
                         stopScanning()
                         _isAutoConnecting.value = false
                         _connectionError.value = "Scan timeout - no device found"
@@ -671,7 +674,7 @@ class MainViewModel @Inject constructor(
             )
             _repCount.value = repCounter.getRepCount()
             resetAutoStopState()
-            autoStopStopRequested = false
+            autoStopStopRequested.set(false)
 
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
@@ -1111,8 +1114,8 @@ class MainViewModel @Inject constructor(
 
     private fun resetAutoStopState() {
         autoStopStartTime = null
-        autoStopTriggered = false
-        autoStopStopRequested = false
+        autoStopTriggered.set(false)
+        autoStopStopRequested.set(false)
         _autoStopState.value = AutoStopUiState()
     }
 
@@ -1513,6 +1516,17 @@ class MainViewModel @Inject constructor(
                     loadRoutine(routine)
                 }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Timber.d("MainViewModel clearing - cancelling collection jobs")
+
+        // Cancel collection jobs to prevent memory leaks
+        monitorDataCollectionJob?.cancel()
+        repEventsCollectionJob?.cancel()
+        autoStartJob?.cancel()
+        restTimerJob?.cancel()
     }
 
     companion object {
