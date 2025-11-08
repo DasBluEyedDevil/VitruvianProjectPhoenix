@@ -34,6 +34,8 @@ import java.util.*
 fun RoutinesTab(
     routines: List<Routine>,
     exerciseRepository: ExerciseRepository,
+    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
     weightUnit: WeightUnit,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
@@ -166,6 +168,8 @@ fun RoutinesTab(
                 routineToEdit = null
             },
             exerciseRepository = exerciseRepository,
+            personalRecordRepository = personalRecordRepository,
+            formatWeight = formatWeight,
             weightUnit = weightUnit,
             kgToDisplay = kgToDisplay,
             displayToKg = displayToKg,

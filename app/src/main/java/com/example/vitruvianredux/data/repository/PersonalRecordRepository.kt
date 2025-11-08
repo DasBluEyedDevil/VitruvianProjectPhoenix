@@ -39,10 +39,31 @@ class PersonalRecordRepository @Inject constructor(
     }
 
     /**
+     * Get the best PR for an exercise across all modes
+     */
+    suspend fun getBestPR(exerciseId: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getBestPR(exerciseId)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get best PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
      * Get all personal records
      */
     fun getAllPRs(): Flow<List<PersonalRecord>> {
         return personalRecordDao.getAllPRs().map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
+    }
+
+    /**
+     * Get all personal records grouped by exercise (for analytics)
+     */
+    fun getAllPRsGrouped(): Flow<List<PersonalRecord>> {
+        return personalRecordDao.getAllPRsGrouped().map { entities ->
             entities.map { it.toPersonalRecord() }
         }
     }
