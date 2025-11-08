@@ -80,7 +80,8 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         exercise: RoutineExercise,
         unit: WeightUnit,
         toDisplay: (Float, WeightUnit) -> Float,
-        toKg: (Float, WeightUnit) -> Float
+        toKg: (Float, WeightUnit) -> Float,
+        prWeightKg: Float? = null  // Optional PR weight to use as default
     ) {
         if (_initialized.value && originalExercise.id == exercise.id) {
             return
@@ -100,6 +101,9 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
 
         _setMode.value = if (exercise.duration != null) SetMode.DURATION else SetMode.REPS
 
+        // Use PR weight as default if available, otherwise use 15kg
+        val defaultWeightKg = prWeightKg ?: 15f
+
         val initialSets = exercise.setReps.mapIndexed { index, reps ->
             val perSetWeightKg = exercise.setWeightsPerCableKg.getOrNull(index) ?: exercise.weightPerCableKg
             SetConfiguration(
@@ -111,9 +115,9 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             )
         }.ifEmpty {
             listOf(
-                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 1, reps = 10, weightPerCable = kgToDisplay(15f, weightUnit)),
-                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 2, reps = 10, weightPerCable = kgToDisplay(15f, weightUnit)),
-                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 3, reps = 10, weightPerCable = kgToDisplay(15f, weightUnit))
+                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 1, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit)),
+                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 2, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit)),
+                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 3, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit))
             )
         }
         _sets.value = initialSets
