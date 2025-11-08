@@ -241,6 +241,10 @@ class MainViewModel @Inject constructor(
     )
     val hapticEvents: SharedFlow<HapticEvent> = _hapticEvents.asSharedFlow()
 
+    // Connection loss detection (Issue #43)
+    private val _connectionLostDuringWorkout = MutableStateFlow(false)
+    val connectionLostDuringWorkout: StateFlow<Boolean> = _connectionLostDuringWorkout.asStateFlow()
+
     // Current workout tracking
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
@@ -374,6 +378,33 @@ class MainViewModel @Inject constructor(
                         }
                         else -> { /* Do nothing */ }
                     }
+                }
+            }
+        }
+
+        // Monitor connection state for loss detection during workouts (Issue #43)
+        viewModelScope.launch {
+            connectionState.collect { connState ->
+                val currentWorkoutState = _workoutState.value
+
+                // Check if we lost connection during an active workout
+                val isWorkoutActive = currentWorkoutState is WorkoutState.Active ||
+                        currentWorkoutState is WorkoutState.Countdown ||
+                        currentWorkoutState is WorkoutState.Resting ||
+                        currentWorkoutState is WorkoutState.Initializing
+
+                val isDisconnected = connState is ConnectionState.Disconnected ||
+                        connState is ConnectionState.Error
+
+                if (isWorkoutActive && isDisconnected) {
+                    Timber.e("⚠️ CONNECTION LOST DURING WORKOUT! State: $currentWorkoutState, Connection: $connState")
+                    _connectionLostDuringWorkout.value = true
+
+                    // Emit haptic alert for connection loss
+                    _hapticEvents.emit(HapticEvent.ERROR)
+                } else if (!isWorkoutActive && _connectionLostDuringWorkout.value) {
+                    // Reset the flag when workout ends
+                    _connectionLostDuringWorkout.value = false
                 }
             }
         }
@@ -601,6 +632,10 @@ class MainViewModel @Inject constructor(
 
     fun clearConnectionError() {
         _connectionError.value = null
+    }
+
+    fun dismissConnectionLostAlert() {
+        _connectionLostDuringWorkout.value = false
     }
 
     // Device selection dialog removed in favor of auto-connect flow
