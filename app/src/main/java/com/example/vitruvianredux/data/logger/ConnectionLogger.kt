@@ -24,6 +24,9 @@ class ConnectionLogger @Inject constructor(
 ) {
     private val loggerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // Sample counter for monitor data logging (to avoid flooding)
+    @Volatile private var monitorDataSampleCounter = 0
+
     // Log device info once at startup
     init {
         loggerScope.launch {
@@ -409,7 +412,7 @@ class ConnectionLogger @Inject constructor(
         loadB: Float
     ) {
         // Only log every 10th sample to avoid flooding (100ms polling = log every 1 second)
-        if (System.currentTimeMillis() % 10 == 0L) {
+        if (monitorDataSampleCounter++ % 10 == 0) {
             log(
                 EventType.DATA_RECEIVED,
                 Level.DEBUG,
