@@ -26,6 +26,14 @@ import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
+import com.example.vitruvianredux.presentation.components.WeightProgressionChart
+import com.example.vitruvianredux.presentation.components.MuscleGroupDistributionChart
+import com.example.vitruvianredux.presentation.components.WorkoutModeDistributionChart
+import com.example.vitruvianredux.util.CsvExporter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Analytics screen with three tabs: History, Personal Bests, and Trends.
@@ -43,6 +51,11 @@ fun AnalyticsScreen(
     val connectionError by viewModel.connectionError.collectAsState()
 
     var selectedTab by remember { mutableStateOf(0) }
+    var showExportMenu by remember { mutableStateOf(false) }
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val backgroundGradient = if (themeMode == com.example.vitruvianredux.ui.theme.ThemeMode.DARK) {
         Brush.verticalGradient(
@@ -151,6 +164,178 @@ fun AnalyticsScreen(
                 onDismiss = { viewModel.clearConnectionError() }
             )
         }
+
+        // Export FAB
+        FloatingActionButton(
+            onClick = { showExportMenu = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.large),
+            containerColor = MaterialTheme.colorScheme.primary
+        ) {
+            Icon(Icons.Default.Share, contentDescription = "Export data")
+        }
+    }
+
+    // Export options dialog
+    if (showExportMenu) {
+        AlertDialog(
+            onDismissRequest = { showExportMenu = false },
+            title = { Text("Export Data") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
+                    Text("Choose what to export:", style = MaterialTheme.typography.bodyMedium)
+
+                    // Export Personal Records button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                // Fetch exercise names
+                                val exerciseNames = mutableMapOf<String, String>()
+                                personalRecords.forEach { pr ->
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val exercise = viewModel.exerciseRepository.getExerciseById(pr.exerciseId)
+                                            exercise?.let { exerciseNames[pr.exerciseId] = it.name }
+                                        } catch (e: Exception) {
+                                            exerciseNames[pr.exerciseId] = "Unknown Exercise"
+                                        }
+                                    }
+                                }
+
+                                val result = CsvExporter.exportPersonalRecords(
+                                    context,
+                                    personalRecords,
+                                    exerciseNames,
+                                    weightUnit,
+                                    viewModel::formatWeight
+                                )
+
+                                result.onSuccess { uri ->
+                                    CsvExporter.shareCSV(context, uri, "personal_records.csv")
+                                    exportMessage = "Personal records exported successfully"
+                                    showExportMenu = false
+                                }.onFailure {
+                                    exportMessage = "Failed to export personal records"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text("Export Personal Records")
+                    }
+
+                    // Export Workout History button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                // Fetch exercise names
+                                val exerciseNames = mutableMapOf<String, String>()
+                                workoutHistory.forEach { session ->
+                                    session.exerciseId?.let { exerciseId ->
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                val exercise = viewModel.exerciseRepository.getExerciseById(exerciseId)
+                                                exercise?.let { exerciseNames[exerciseId] = it.name }
+                                            } catch (e: Exception) {
+                                                exerciseNames[exerciseId] = "Unknown Exercise"
+                                            }
+                                        }
+                                    }
+                                }
+
+                                val result = CsvExporter.exportWorkoutHistory(
+                                    context,
+                                    workoutHistory,
+                                    exerciseNames,
+                                    weightUnit,
+                                    viewModel::formatWeight
+                                )
+
+                                result.onSuccess { uri ->
+                                    CsvExporter.shareCSV(context, uri, "workout_history.csv")
+                                    exportMessage = "Workout history exported successfully"
+                                    showExportMenu = false
+                                }.onFailure {
+                                    exportMessage = "Failed to export workout history"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text("Export Workout History")
+                    }
+
+                    // Export PR Progression button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                // Fetch exercise names
+                                val exerciseNames = mutableMapOf<String, String>()
+                                personalRecords.forEach { pr ->
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val exercise = viewModel.exerciseRepository.getExerciseById(pr.exerciseId)
+                                            exercise?.let { exerciseNames[pr.exerciseId] = it.name }
+                                        } catch (e: Exception) {
+                                            exerciseNames[pr.exerciseId] = "Unknown Exercise"
+                                        }
+                                    }
+                                }
+
+                                val result = CsvExporter.exportPRProgression(
+                                    context,
+                                    personalRecords,
+                                    exerciseNames,
+                                    weightUnit,
+                                    viewModel::formatWeight
+                                )
+
+                                result.onSuccess { uri ->
+                                    CsvExporter.shareCSV(context, uri, "pr_progression.csv")
+                                    exportMessage = "PR progression exported successfully"
+                                    showExportMenu = false
+                                }.onFailure {
+                                    exportMessage = "Failed to export PR progression"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text("Export PR Progression")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showExportMenu = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.medium
+        )
+    }
+
+    // Export success/error message
+    exportMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { exportMessage = null },
+            title = { Text("Export") },
+            text = { Text(message) },
+            confirmButton = {
+                Button(onClick = { exportMessage = null }) {
+                    Text("OK")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.medium
+        )
     }
 }
 
@@ -191,6 +376,29 @@ fun PersonalBestsTab(
         }
     }
 
+    // Calculate muscle group distribution
+    val muscleGroupCounts = remember { mutableStateMapOf<String, Int>() }
+    LaunchedEffect(prsByExercise) {
+        val counts = mutableMapOf<String, Int>()
+        prsByExercise.forEach { (exerciseId, _) ->
+            val exercise = withContext(Dispatchers.IO) {
+                try {
+                    exerciseRepository.getExerciseById(exerciseId)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            exercise?.muscleGroups?.split(",")?.forEach { group ->
+                val trimmedGroup = group.trim()
+                if (trimmedGroup.isNotBlank()) {
+                    counts[trimmedGroup] = counts.getOrDefault(trimmedGroup, 0) + 1
+                }
+            }
+        }
+        muscleGroupCounts.clear()
+        muscleGroupCounts.putAll(counts)
+    }
+
     LazyColumn(
         modifier = modifier.padding(Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
@@ -202,6 +410,88 @@ fun PersonalBestsTab(
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.small))
+        }
+
+        // Muscle Group Distribution Chart
+        if (prsByExercise.isNotEmpty() && muscleGroupCounts.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text(
+                                "Muscle Group Distribution",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        MuscleGroupDistributionChart(
+                            muscleGroupCounts = muscleGroupCounts,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            // Workout Mode Distribution Chart
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text(
+                                "PRs by Workout Mode",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        WorkoutModeDistributionChart(
+                            personalRecords = personalRecords,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
         }
 
         if (prsByExercise.isEmpty()) {
@@ -540,6 +830,8 @@ fun ExerciseProgressionCard(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
 ) {
+    var showChart by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -554,12 +846,40 @@ fun ExerciseProgressionCard(
                 .fillMaxWidth()
                 .padding(Spacing.medium)
         ) {
-            Text(
-                exerciseName,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    exerciseName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                // Toggle button for chart view
+                if (prs.size >= 2) {
+                    IconButton(onClick = { showChart = !showChart }) {
+                        Icon(
+                            if (showChart) Icons.Default.List else Icons.Default.Info,
+                            contentDescription = if (showChart) "Show list" else "Show chart",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Show chart or timeline based on toggle
+            if (showChart && prs.size >= 2) {
+                WeightProgressionChart(
+                    prs = prs,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(Spacing.medium))
+            }
 
             // Show progression timeline
             prs.forEachIndexed { index, pr ->
