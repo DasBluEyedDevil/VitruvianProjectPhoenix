@@ -38,6 +38,8 @@ fun RoutineBuilderDialog(
     onSave: (Routine) -> Unit,
     onDismiss: () -> Unit,
     exerciseRepository: ExerciseRepository,
+    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
     weightUnit: WeightUnit,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
@@ -262,6 +264,8 @@ fun RoutineBuilderDialog(
             kgToDisplay = kgToDisplay,
             displayToKg = displayToKg,
             exerciseRepository = exerciseRepository,
+            personalRecordRepository = personalRecordRepository,
+            formatWeight = formatWeight,
             onSave = { updatedExercise ->
                 exercises = exercises.toMutableList().apply {
                     if (index < size) {
