@@ -43,7 +43,7 @@ class MainViewModel @Inject constructor(
     private val bleRepository: BleRepository,
     private val workoutRepository: WorkoutRepository,
     val exerciseRepository: ExerciseRepository,
-    private val personalRecordRepository: PersonalRecordRepository,
+    val personalRecordRepository: PersonalRecordRepository,
     private val repCounter: RepCounterFromMachine,
     private val preferencesManager: PreferencesManager
 ) : AndroidViewModel(application) {

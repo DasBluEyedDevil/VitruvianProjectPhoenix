@@ -38,6 +38,8 @@ fun ExerciseEditBottomSheet(
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     exerciseRepository: ExerciseRepository,
+    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
     onSave: (RoutineExercise) -> Unit,
     onDismiss: () -> Unit,
     buttonText: String = "Save",
@@ -72,6 +74,33 @@ fun ExerciseEditBottomSheet(
         }
     }
     val preferredVideo = videos.firstOrNull { it.angle == "FRONT" } ?: videos.firstOrNull()
+
+    // Fetch PR for current exercise and mode
+    var currentPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
+    LaunchedEffect(exercise.exercise.id, selectedMode) {
+        exercise.exercise.id?.let { exerciseId ->
+            // Don't fetch PR for Echo mode
+            if (selectedMode !is WorkoutMode.Echo) {
+                try {
+                    val modeString = when (selectedMode) {
+                        is WorkoutMode.OldSchool -> "Old School"
+                        is WorkoutMode.Pump -> "Pump"
+                        is WorkoutMode.TUT -> "TUT"
+                        is WorkoutMode.TUTBeast -> "TUT Beast"
+                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
+                        else -> null
+                    }
+                    modeString?.let { mode ->
+                        currentPR = personalRecordRepository.getLatestPR(exerciseId, mode)
+                    }
+                } catch (_: Exception) {
+                    currentPR = null
+                }
+            } else {
+                currentPR = null
+            }
+        }
+    }
 
     val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
     val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
@@ -143,6 +172,56 @@ fun ExerciseEditBottomSheet(
                             videoUrl = video.videoUrl,
                             modifier = Modifier.fillMaxSize()
                         )
+                    }
+                }
+
+                // Personal Record Display
+                currentPR?.let { pr ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                            ) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = "Personal Record",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        "Personal Record",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable × ${pr.reps} reps",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Text(
+                                java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(pr.timestamp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
 
