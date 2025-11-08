@@ -54,7 +54,8 @@ class WorkoutRepository @Inject constructor(
                 isJustLift = session.isJustLift,
                 stopAtTop = session.stopAtTop,
                 eccentricLoad = session.eccentricLoad,
-                echoLevel = session.echoLevel
+                echoLevel = session.echoLevel,
+                exerciseId = session.exerciseId
             )
             workoutDao.insertSession(entity)
             Timber.d("Saved workout session: ${session.id}")
@@ -368,7 +369,8 @@ private fun WorkoutSessionEntity.toWorkoutSession() = WorkoutSession(
     isJustLift = isJustLift,
     stopAtTop = stopAtTop,
     eccentricLoad = eccentricLoad,
-    echoLevel = echoLevel
+    echoLevel = echoLevel,
+    exerciseId = exerciseId
 )
 
 private fun WorkoutMetricEntity.toWorkoutMetric() = WorkoutMetric(
