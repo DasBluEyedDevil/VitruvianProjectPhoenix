@@ -274,3 +274,13 @@ sealed class ChartEvent(val timestamp: Long, val label: String) {
     class WarmupComplete(timestamp: Long) : ChartEvent(timestamp, "Warmup Complete")
 }
 
+/**
+ * PR Celebration Event - Triggered when user achieves a new Personal Record
+ */
+data class PRCelebrationEvent(
+    val exerciseName: String,
+    val weightPerCableKg: Float,
+    val reps: Int,
+    val workoutMode: String
+)
+

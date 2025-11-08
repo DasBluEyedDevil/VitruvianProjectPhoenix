@@ -87,6 +87,10 @@ class MainViewModel @Inject constructor(
     private val _workoutHistory = MutableStateFlow<List<WorkoutSession>>(emptyList())
     val workoutHistory: StateFlow<List<WorkoutSession>> = _workoutHistory.asStateFlow()
 
+    // PR Celebration Events
+    private val _prCelebrationEvent = MutableSharedFlow<PRCelebrationEvent>()
+    val prCelebrationEvent: SharedFlow<PRCelebrationEvent> = _prCelebrationEvent.asSharedFlow()
+
     // User preferences
     val userPreferences: StateFlow<UserPreferences> = preferencesManager.preferencesFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserPreferences())
@@ -1170,7 +1174,22 @@ class MainViewModel @Inject constructor(
                 )
                 if (isNewPR) {
                     Timber.d("NEW PERSONAL RECORD! Exercise: $exerciseId, Weight: ${actualPerCableWeightKg}kg, Reps: $working")
-                    // TODO: Show PR celebration UI notification
+                    // Trigger PR celebration
+                    viewModelScope.launch {
+                        try {
+                            val exercise = exerciseRepository.getExerciseById(exerciseId)
+                            _prCelebrationEvent.emit(
+                                PRCelebrationEvent(
+                                    exerciseName = exercise?.name ?: "Unknown Exercise",
+                                    weightPerCableKg = actualPerCableWeightKg,
+                                    reps = working,
+                                    workoutMode = params.workoutType.displayName
+                                )
+                            )
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to trigger PR celebration")
+                        }
+                    }
                 }
             }
         }
