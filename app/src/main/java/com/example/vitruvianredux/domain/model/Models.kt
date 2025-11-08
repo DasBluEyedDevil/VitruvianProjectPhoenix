@@ -244,7 +244,9 @@ data class WorkoutSession(
     val stopAtTop: Boolean = false,
     // Echo mode configuration
     val eccentricLoad: Int = 100,  // Percentage (0, 50, 75, 100, 125, 150)
-    val echoLevel: Int = 2  // 1=Hard, 2=Harder, 3=Hardest, 4=Epic
+    val echoLevel: Int = 2,  // 1=Hard, 2=Harder, 3=Hardest, 4=Epic
+    // Exercise tracking
+    val exerciseId: String? = null  // Exercise library ID for PR tracking
 )
 
 /**
@@ -271,4 +273,14 @@ sealed class ChartEvent(val timestamp: Long, val label: String) {
     @Suppress("unused")
     class WarmupComplete(timestamp: Long) : ChartEvent(timestamp, "Warmup Complete")
 }
+
+/**
+ * PR Celebration Event - Triggered when user achieves a new Personal Record
+ */
+data class PRCelebrationEvent(
+    val exerciseName: String,
+    val weightPerCableKg: Float,
+    val reps: Int,
+    val workoutMode: String
+)
 
