@@ -45,23 +45,6 @@ fun ExerciseEditBottomSheet(
     buttonText: String = "Save",
     viewModel: ExerciseConfigViewModel = hiltViewModel()
 ) {
-    // Initialize the ViewModel with the exercise data.
-    // This will only run once for a given exercise ID, preventing state wipes on recomposition.
-    LaunchedEffect(exercise, weightUnit) {
-        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg)
-    }
-
-    // Collect state from the ViewModel
-    val exerciseType by viewModel.exerciseType.collectAsState()
-    val setMode by viewModel.setMode.collectAsState()
-    val sets by viewModel.sets.collectAsState()
-    val selectedMode by viewModel.selectedMode.collectAsState()
-    val weightChange by viewModel.weightChange.collectAsState()
-    val rest by viewModel.rest.collectAsState()
-    val notes by viewModel.notes.collectAsState()
-    val eccentricLoad by viewModel.eccentricLoad.collectAsState()
-    val echoLevel by viewModel.echoLevel.collectAsState()
-
     // UI-specific state that doesn't need to be in the ViewModel
     var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
     LaunchedEffect(exercise.exercise.id) {
@@ -75,7 +58,49 @@ fun ExerciseEditBottomSheet(
     }
     val preferredVideo = videos.firstOrNull { it.angle == "FRONT" } ?: videos.firstOrNull()
 
-    // Fetch PR for current exercise and mode
+    // Fetch initial PR for exercise (based on workout type from exercise config)
+    var initialPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
+    LaunchedEffect(exercise.exercise.id, exercise.workoutType) {
+        exercise.exercise.id?.let { exerciseId ->
+            val workoutMode = exercise.workoutType.toWorkoutMode()
+            if (workoutMode !is WorkoutMode.Echo) {
+                try {
+                    val modeString = when (workoutMode) {
+                        is WorkoutMode.OldSchool -> "Old School"
+                        is WorkoutMode.Pump -> "Pump"
+                        is WorkoutMode.TUT -> "TUT"
+                        is WorkoutMode.TUTBeast -> "TUT Beast"
+                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
+                        else -> null
+                    }
+                    modeString?.let { mode ->
+                        initialPR = personalRecordRepository.getLatestPR(exerciseId, mode)
+                    }
+                } catch (_: Exception) {
+                    initialPR = null
+                }
+            }
+        }
+    }
+
+    // Initialize the ViewModel with the exercise data and PR weight.
+    // This will only run once for a given exercise ID, preventing state wipes on recomposition.
+    LaunchedEffect(exercise, weightUnit, initialPR) {
+        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg, initialPR?.weightPerCableKg)
+    }
+
+    // Collect state from the ViewModel
+    val exerciseType by viewModel.exerciseType.collectAsState()
+    val setMode by viewModel.setMode.collectAsState()
+    val sets by viewModel.sets.collectAsState()
+    val selectedMode by viewModel.selectedMode.collectAsState()
+    val weightChange by viewModel.weightChange.collectAsState()
+    val rest by viewModel.rest.collectAsState()
+    val notes by viewModel.notes.collectAsState()
+    val eccentricLoad by viewModel.eccentricLoad.collectAsState()
+    val echoLevel by viewModel.echoLevel.collectAsState()
+
+    // Fetch current PR for selected mode (for display in PR card)
     var currentPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
     LaunchedEffect(exercise.exercise.id, selectedMode) {
         exercise.exercise.id?.let { exerciseId ->
