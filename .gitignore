@@ -28,3 +28,6 @@ CHANGELOG.md
 /.devilmcp/
 .aider*
 /.kotlin/
+
+# Test output files
+test_output.txt
