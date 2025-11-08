@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -36,6 +37,7 @@ fun AnalyticsScreen(
     themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
     val workoutHistory by viewModel.workoutHistory.collectAsState()
+    val personalRecords by viewModel.allPersonalRecords.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
@@ -122,13 +124,15 @@ fun AnalyticsScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 1 -> PersonalBestsTab(
-                    workoutHistory = workoutHistory,
+                    personalRecords = personalRecords,
+                    exerciseRepository = viewModel.exerciseRepository,
                     weightUnit = weightUnit,
                     formatWeight = viewModel::formatWeight,
                     modifier = Modifier.fillMaxSize()
                 )
                 2 -> TrendsTab(
-                    workoutHistory = workoutHistory,
+                    personalRecords = personalRecords,
+                    exerciseRepository = viewModel.exerciseRepository,
                     weightUnit = weightUnit,
                     formatWeight = viewModel::formatWeight,
                     modifier = Modifier.fillMaxSize()
@@ -155,16 +159,36 @@ fun AnalyticsScreen(
  */
 @Composable
 fun PersonalBestsTab(
-    workoutHistory: List<WorkoutSession>,
+    personalRecords: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    // Calculate personal bests from workout history
-    // Note: WorkoutSession doesn't have maxLoad or exerciseName fields
-    // This is a placeholder implementation until those fields are added
-    val personalBests = remember(workoutHistory) {
-        emptyList<Pair<String, WorkoutSession>>()
+    // Group PRs by exercise and get exercise names
+    val prsByExercise = remember(personalRecords) {
+        personalRecords.groupBy { it.exerciseId }
+            .mapValues { (_, prs) ->
+                // Get the best PR for this exercise (highest weight, then highest reps)
+                prs.maxWith(compareBy({ it.weightPerCableKg }, { it.reps }))
+            }
+            .toList()
+            .sortedByDescending { (_, pr) -> pr.weightPerCableKg }
+    }
+
+    // Fetch exercise names for display
+    val exerciseNames = remember { mutableStateMapOf<String, String>() }
+    LaunchedEffect(prsByExercise) {
+        prsByExercise.forEach { (exerciseId, _) ->
+            if (!exerciseNames.contains(exerciseId)) {
+                try {
+                    val exercise = exerciseRepository.getExerciseById(exerciseId)
+                    exerciseNames[exerciseId] = exercise?.name ?: "Unknown Exercise"
+                } catch (e: Exception) {
+                    exerciseNames[exerciseId] = "Unknown Exercise"
+                }
+            }
+        }
     }
 
     LazyColumn(
@@ -180,7 +204,7 @@ fun PersonalBestsTab(
             Spacer(modifier = Modifier.height(Spacing.small))
         }
 
-        if (personalBests.isEmpty()) {
+        if (prsByExercise.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier
@@ -218,12 +242,13 @@ fun PersonalBestsTab(
                 }
             }
         } else {
-            items(personalBests.size) { index ->
-                val (exerciseName, workout) = personalBests[index]
-                PersonalBestCard(
+            items(prsByExercise.size) { index ->
+                val (exerciseId, pr) = prsByExercise[index]
+                val exerciseName = exerciseNames[exerciseId] ?: "Loading..."
+                PersonalRecordCard(
                     rank = index + 1,
                     exerciseName = exerciseName,
-                    workout = workout,
+                    pr = pr,
                     weightUnit = weightUnit,
                     formatWeight = formatWeight
                 )
@@ -236,10 +261,10 @@ fun PersonalBestsTab(
  * Card showing a personal best record.
  */
 @Composable
-fun PersonalBestCard(
+fun PersonalRecordCard(
     rank: Int,
     exerciseName: String,
-    workout: WorkoutSession,
+    pr: com.example.vitruvianredux.domain.model.PersonalRecord,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
 ) {
@@ -307,15 +332,31 @@ fun PersonalBestCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Max: ${formatWeight(workout.weightPerCableKg * 2, weightUnit)}",
+                        "Max: ${formatWeight(pr.weightPerCableKg * 2, weightUnit)}",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Text(
-                        "${workout.totalReps} reps ? ${java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(workout.timestamp)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
+                    ) {
+                        Text(
+                            "${pr.reps} reps",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text("•", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            pr.workoutMode,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text("•", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(pr.timestamp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -343,18 +384,42 @@ fun PersonalBestCard(
  */
 @Composable
 fun TrendsTab(
-    workoutHistory: List<WorkoutSession>,
+    personalRecords: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
+    // Group PRs by exercise to show progression
+    val prsByExercise = remember(personalRecords) {
+        personalRecords.groupBy { it.exerciseId }
+            .mapValues { (_, prs) -> prs.sortedByDescending { it.timestamp } }
+            .filter { it.value.isNotEmpty() }
+    }
+
+    // Fetch exercise names for display
+    val exerciseNames = remember { mutableStateMapOf<String, String>() }
+    LaunchedEffect(prsByExercise) {
+        prsByExercise.keys.forEach { exerciseId ->
+            if (!exerciseNames.contains(exerciseId)) {
+                try {
+                    val exercise = exerciseRepository.getExerciseById(exerciseId)
+                    exerciseNames[exerciseId] = exercise?.name ?: "Unknown Exercise"
+                } catch (e: Exception) {
+                    exerciseNames[exerciseId] = "Unknown Exercise"
+                }
+            }
+        }
+    }
+
+
     LazyColumn(
         modifier = modifier.padding(Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
         item {
             Text(
-                "Workout Trends",
+                "PR Progression",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -378,7 +443,7 @@ fun TrendsTab(
                         .padding(Spacing.medium)
                 ) {
                     Text(
-                        "All-Time Stats",
+                        "Overall Stats",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -390,19 +455,19 @@ fun TrendsTab(
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         StatItem(
-                            label = "Total Workouts",
-                            value = workoutHistory.size.toString(),
+                            label = "Total PRs",
+                            value = personalRecords.size.toString(),
+                            icon = Icons.Default.Star
+                        )
+                        StatItem(
+                            label = "Exercises",
+                            value = prsByExercise.size.toString(),
                             icon = Icons.Default.Check
                         )
                         StatItem(
-                            label = "Total Reps",
-                            value = workoutHistory.sumOf { it.totalReps }.toString(),
-                            icon = Icons.Default.Refresh
-                        )
-                        StatItem(
-                            label = "Max Load",
+                            label = "Max Weight",
                             value = formatWeight(
-                                workoutHistory.maxOfOrNull { it.weightPerCableKg * 2 } ?: 0f,
+                                personalRecords.maxOfOrNull { it.weightPerCableKg * 2 } ?: 0f,
                                 weightUnit
                             ),
                             icon = Icons.Default.Star
@@ -412,40 +477,157 @@ fun TrendsTab(
             }
         }
 
-        // Placeholder for future charts
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-            ) {
-                Column(
+        if (prsByExercise.isEmpty()) {
+            item {
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(Spacing.large),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
                 ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.large),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        Text(
+                            "No PR history yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Complete workouts to track your progress over time",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            // Show PR progression by exercise
+            prsByExercise.forEach { (exerciseId, prs) ->
+                item {
+                    ExerciseProgressionCard(
+                        exerciseName = exerciseNames[exerciseId] ?: "Loading...",
+                        prs = prs,
+                        weightUnit = weightUnit,
+                        formatWeight = formatWeight
                     )
-                    Spacer(modifier = Modifier.height(Spacing.small))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Card showing PR progression for a specific exercise
+ */
+@Composable
+fun ExerciseProgressionCard(
+    exerciseName: String,
+    prs: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            Text(
+                exerciseName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Show progression timeline
+            prs.forEachIndexed { index, pr ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.extraSmall),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Timeline indicator
+                    Surface(
+                        color = if (index == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.size(8.dp)
+                    ) {}
+
+                    Spacer(modifier = Modifier.width(Spacing.small))
+
+                    // PR details
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            formatWeight(pr.weightPerCableKg * 2, weightUnit),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Normal,
+                            color = if (index == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                        Row {
+                            Text(
+                                "${pr.reps} reps • ${pr.workoutMode}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Date
                     Text(
-                        "Charts Coming Soon",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "Progress charts and detailed analytics will be added in a future update",
+                        java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(pr.timestamp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                // Show improvement arrow if not the oldest PR
+                if (index < prs.size - 1) {
+                    val currentWeight = pr.weightPerCableKg
+                    val previousWeight = prs[index + 1].weightPerCableKg
+                    val improvement = ((currentWeight - previousWeight) / previousWeight * 100).toInt()
+
+                    if (improvement > 0) {
+                        Row(
+                            modifier = Modifier.padding(start = 18.dp, top = 2.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.KeyboardArrowUp,
+                                contentDescription = "Improvement",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                "+$improvement%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF10B981),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }

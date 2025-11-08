@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
  * Room database for workout history
  *
  * Version history:
+ * - v15: Added exerciseId to workout_sessions for PR tracking
  * - v14: Added ConnectionLogEntity for Bluetooth connection debugging
  * - v13: Added eccentricLoad and echoLevel to workout_sessions for Echo mode persistence
  * - v12: Added setWeights, mode, eccentricLoad, echoLevel to routine_exercises
@@ -32,7 +33,7 @@ import androidx.room.TypeConverters
         ProgramDayEntity::class,
         ConnectionLogEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -30,10 +30,27 @@ interface PersonalRecordDao {
     fun getPRsForExercise(exerciseId: String): Flow<List<PersonalRecordEntity>>
 
     /**
+     * Get the best PR for an exercise across all modes (highest weight, then highest reps)
+     */
+    @Query("""
+        SELECT * FROM personal_records
+        WHERE exerciseId = :exerciseId
+        ORDER BY weightPerCableKg DESC, reps DESC
+        LIMIT 1
+    """)
+    suspend fun getBestPR(exerciseId: String): PersonalRecordEntity?
+
+    /**
      * Get all personal records
      */
     @Query("SELECT * FROM personal_records ORDER BY timestamp DESC")
     fun getAllPRs(): Flow<List<PersonalRecordEntity>>
+
+    /**
+     * Get all personal records grouped by exercise (for analytics)
+     */
+    @Query("SELECT * FROM personal_records ORDER BY exerciseId, workoutMode, timestamp DESC")
+    fun getAllPRsGrouped(): Flow<List<PersonalRecordEntity>>
 
     /**
      * Insert or update a personal record
