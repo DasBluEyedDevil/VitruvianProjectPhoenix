@@ -18,8 +18,9 @@ import java.util.*
  */
 object CsvExporter {
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    private val fileDateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+    // Create new instances per operation to ensure thread safety
+    private fun getDateFormat() = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    private fun getFileDateFormat() = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
 
     /**
      * Export personal records to CSV file
@@ -32,7 +33,7 @@ object CsvExporter {
         formatWeight: (Float, WeightUnit) -> String
     ): Result<Uri> {
         return try {
-            val timestamp = fileDateFormat.format(Date())
+            val timestamp = getFileDateFormat().format(Date())
             val fileName = "personal_records_$timestamp.csv"
             val file = File(context.cacheDir, fileName)
 
@@ -44,7 +45,7 @@ object CsvExporter {
                 personalRecords.forEach { pr ->
                     val exerciseName = exerciseNames[pr.exerciseId] ?: "Unknown Exercise"
                     val weight = formatWeight(pr.weightPerCableKg, weightUnit)
-                    val date = dateFormat.format(Date(pr.timestamp))
+                    val date = getDateFormat().format(Date(pr.timestamp))
 
                     writer.append("\"$exerciseName\",")
                     writer.append("$weight,")
@@ -80,7 +81,7 @@ object CsvExporter {
         formatWeight: (Float, WeightUnit) -> String
     ): Result<Uri> {
         return try {
-            val timestamp = fileDateFormat.format(Date())
+            val timestamp = getFileDateFormat().format(Date())
             val fileName = "workout_history_$timestamp.csv"
             val file = File(context.cacheDir, fileName)
 
@@ -91,7 +92,7 @@ object CsvExporter {
                 // Write data
                 workoutSessions.forEach { session ->
                     val exerciseName = session.exerciseId?.let { exerciseNames[it] } ?: "Unknown"
-                    val date = dateFormat.format(Date(session.timestamp))
+                    val date = getDateFormat().format(Date(session.timestamp))
                     val weight = formatWeight(session.weightPerCableKg, weightUnit)
                     val progression = formatWeight(session.progressionKg, weightUnit)
                     val durationMin = session.duration / 60000 // Convert ms to minutes
@@ -151,7 +152,7 @@ object CsvExporter {
         formatWeight: (Float, WeightUnit) -> String
     ): Result<Uri> {
         return try {
-            val timestamp = fileDateFormat.format(Date())
+            val timestamp = getFileDateFormat().format(Date())
             val fileName = "pr_progression_$timestamp.csv"
             val file = File(context.cacheDir, fileName)
 
@@ -168,7 +169,7 @@ object CsvExporter {
                     val sortedPRs = prs.sortedBy { it.timestamp }
 
                     sortedPRs.forEachIndexed { index, pr ->
-                        val date = dateFormat.format(Date(pr.timestamp))
+                        val date = getDateFormat().format(Date(pr.timestamp))
                         val weight = formatWeight(pr.weightPerCableKg, weightUnit)
 
                         // Calculate improvement from previous PR
