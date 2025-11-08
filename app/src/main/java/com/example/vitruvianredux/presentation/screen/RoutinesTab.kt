@@ -114,7 +114,10 @@ fun RoutinesTab(
                                     name = "${routine.name} (Copy)",
                                     createdAt = System.currentTimeMillis(),
                                     useCount = 0,
-                                    lastUsed = null
+                                    lastUsed = null,
+                                    exercises = routine.exercises.map {
+                                        it.copy(id = java.util.UUID.randomUUID().toString())
+                                    }
                                 )
                                 onSaveRoutine(duplicated)
                             }
