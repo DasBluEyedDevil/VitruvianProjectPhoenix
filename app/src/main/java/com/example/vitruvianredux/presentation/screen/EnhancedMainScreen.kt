@@ -41,6 +41,7 @@ fun EnhancedMainScreen(
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository = hiltViewModel<MainViewModel>().exerciseRepository
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
+    val connectionLostDuringWorkout by viewModel.connectionLostDuringWorkout.collectAsState()
 
     val themeViewModel: ThemeViewModel = hiltViewModel()
     val themeMode by themeViewModel.themeMode.collectAsState()
@@ -326,6 +327,22 @@ fun EnhancedMainScreen(
                 modifier = Modifier.padding(adjustedPadding)
             )
         }
+    }
+
+    // Show connection lost alert during workout (Issue #43)
+    if (connectionLostDuringWorkout) {
+        com.example.vitruvianredux.presentation.components.ConnectionLostDialog(
+            onReconnect = {
+                viewModel.dismissConnectionLostAlert()
+                viewModel.ensureConnection(
+                    onConnected = {},
+                    onFailed = {}
+                )
+            },
+            onDismiss = {
+                viewModel.dismissConnectionLostAlert()
+            }
+        )
     }
 }
 
