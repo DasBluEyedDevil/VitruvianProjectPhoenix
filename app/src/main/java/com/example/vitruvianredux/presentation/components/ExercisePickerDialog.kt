@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -106,10 +107,12 @@ fun ExercisePickerDialog(
     var searchQuery by remember { mutableStateOf("") }
     var selectedMuscleFilter by remember { mutableStateOf("All") }
     var selectedEquipmentFilter by remember { mutableStateOf("All") }
+    var showFavoritesOnly by remember { mutableStateOf(false) }
 
     // Get exercises from repository based on search and muscle filter
-    val allExercises by remember(searchQuery, selectedMuscleFilter) {
+    val allExercises by remember(searchQuery, selectedMuscleFilter, showFavoritesOnly) {
         when {
+            showFavoritesOnly -> exerciseRepository.getFavorites()
             searchQuery.isNotBlank() -> exerciseRepository.searchExercises(searchQuery)
             selectedMuscleFilter != "All" -> exerciseRepository.filterByMuscleGroup(selectedMuscleFilter)
             else -> exerciseRepository.getAllExercises()
@@ -171,6 +174,32 @@ fun ExercisePickerDialog(
                 },
                 singleLine = true
             )
+
+            // Favorites filter toggle
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Show Favorites Only",
+                    style = MaterialTheme.typography.labelMedium
+                )
+                Switch(
+                    checked = showFavoritesOnly,
+                    onCheckedChange = {
+                        showFavoritesOnly = it
+                        // Reset other filters when showing favorites
+                        if (it) {
+                            searchQuery = ""
+                            selectedMuscleFilter = "All"
+                            selectedEquipmentFilter = "All"
+                        }
+                    }
+                )
+            }
 
             // Muscle group filter chips
             Text(
@@ -312,6 +341,7 @@ private fun ExerciseListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
     // Load video thumbnail
     var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
     var isLoadingVideo by remember { mutableStateOf(true) }
@@ -388,21 +418,40 @@ private fun ExerciseListItem(
             )
         },
         trailingContent = {
-            // Show performance count only if exercise has been performed
-            if (exercise.timesPerformed > 0) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = MaterialTheme.shapes.small
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Show performance count only if exercise has been performed
+                if (exercise.timesPerformed > 0) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "Performed ${exercise.timesPerformed}x",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
+                // Favorite button
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            exerciseRepository.toggleFavorite(exercise.id)
+                        }
+                    }
                 ) {
-                    Text(
-                        text = "Performed ${exercise.timesPerformed}x",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    Icon(
+                        imageVector = if (exercise.isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
+                        contentDescription = if (exercise.isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (exercise.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            // No badge for exercises never performed (removed "NEW" tag)
         },
         modifier = modifier.clickable(onClick = onClick)
     )
