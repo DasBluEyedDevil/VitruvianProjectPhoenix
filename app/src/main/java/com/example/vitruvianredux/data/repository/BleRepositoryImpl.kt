@@ -319,6 +319,7 @@ class BleRepositoryImpl @Inject constructor(
         try {
             Timber.d("Disconnecting from device...")
             bleManager?.stopPolling()
+            bleManager?.cleanup()  // Clean up resources and cancel polling jobs
             bleManager?.disconnect()?.enqueue()
             bleManager = null
             _connectionState.value = ConnectionState.Disconnected
