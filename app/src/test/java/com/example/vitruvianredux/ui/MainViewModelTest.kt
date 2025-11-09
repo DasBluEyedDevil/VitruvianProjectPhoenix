@@ -87,13 +87,13 @@ class MainViewModelTest {
         val repCount = RepCount(
             warmupReps = 3,
             workingReps = 10,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             isWarmupComplete = true
         )
 
         assertEquals(3, repCount.warmupReps)
         assertEquals(10, repCount.workingReps)
-        assertEquals(13, repCount.totalReps)
+        assertEquals(10, repCount.totalReps)  // Total should exclude warm-up reps
         assertTrue(repCount.isWarmupComplete)
     }
 
@@ -193,7 +193,7 @@ class MainViewModelTest {
             weightPerCableKg = 15.0f,
             progressionKg = 0f,
             duration = 300000L,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 10,
             isJustLift = false,

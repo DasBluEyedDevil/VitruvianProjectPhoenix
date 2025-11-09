@@ -1182,7 +1182,7 @@ class MainViewModel @Inject constructor(
             weightPerCableKg = actualPerCableWeightKg, // Store per-cable weight
             progressionKg = params.progressionRegressionKg,
             duration = duration,
-            totalReps = warmup + working,
+            totalReps = working,  // Exclude warm-up reps from total count
             warmupReps = warmup,
             workingReps = working,
             isJustLift = params.isJustLift,

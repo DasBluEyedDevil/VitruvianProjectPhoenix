@@ -191,7 +191,7 @@ data class WorkoutMetric(
 data class RepCount(
     val warmupReps: Int = 0,
     val workingReps: Int = 0,
-    val totalReps: Int = warmupReps + workingReps,
+    val totalReps: Int = workingReps,  // Exclude warm-up reps from total count
     val isWarmupComplete: Boolean = false
 )
 

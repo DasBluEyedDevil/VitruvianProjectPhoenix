@@ -221,7 +221,7 @@ class RepCounterFromMachine {
     }
 
     fun getRepCount(): RepCount {
-        val total = warmupReps + workingReps
+        val total = workingReps  // Exclude warm-up reps from total count
         return RepCount(
             warmupReps = warmupReps,
             workingReps = workingReps,
