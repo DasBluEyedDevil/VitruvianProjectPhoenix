@@ -121,9 +121,27 @@ fun RoutinesTab(
                                     )
                                 }
 
+                                // Smart duplicate naming: extract base name and find next copy number
+                                val baseName = routine.name.replace(Regex(""" \(Copy( \d+)?\)$"""), "")
+                                val copyPattern = Regex("""^${Regex.escape(baseName)} \(Copy( (\d+))?\)$""")
+                                val existingCopyNumbers = routines
+                                    .mapNotNull { r ->
+                                        when {
+                                            r.name == baseName -> 0 // Original has number 0
+                                            r.name == "$baseName (Copy)" -> 1 // First copy is 1
+                                            else -> copyPattern.find(r.name)?.groups?.get(2)?.value?.toIntOrNull()
+                                        }
+                                    }
+                                val nextCopyNumber = (existingCopyNumbers.maxOrNull() ?: 0) + 1
+                                val newName = if (nextCopyNumber == 1) {
+                                    "$baseName (Copy)"
+                                } else {
+                                    "$baseName (Copy $nextCopyNumber)"
+                                }
+
                                 val duplicated = routine.copy(
                                     id = newRoutineId,
-                                    name = "${routine.name} (Copy)",
+                                    name = newName,
                                     createdAt = System.currentTimeMillis(),
                                     useCount = 0,
                                     lastUsed = null,
