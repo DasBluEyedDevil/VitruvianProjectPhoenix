@@ -223,7 +223,8 @@ enum class HapticEvent {
     WARMUP_COMPLETE,
     WORKOUT_COMPLETE,
     WORKOUT_START,
-    WORKOUT_END
+    WORKOUT_END,
+    ERROR
 }
 
 /**

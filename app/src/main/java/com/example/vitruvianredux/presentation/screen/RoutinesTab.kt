@@ -111,15 +111,41 @@ fun RoutinesTab(
                             },
                             onDelete = { onDeleteRoutine(routine.id) },
                             onDuplicate = {
+                                // Generate new IDs explicitly and create deep copies
+                                val newRoutineId = java.util.UUID.randomUUID().toString()
+                                val newExercises = routine.exercises.map { exercise ->
+                                    exercise.copy(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        // Deep copy the Exercise object to avoid any shared references
+                                        exercise = exercise.exercise.copy()
+                                    )
+                                }
+
+                                // Smart duplicate naming: extract base name and find next copy number
+                                val baseName = routine.name.replace(Regex(""" \(Copy( \d+)?\)$"""), "")
+                                val copyPattern = Regex("""^${Regex.escape(baseName)} \(Copy( (\d+))?\)$""")
+                                val existingCopyNumbers = routines
+                                    .mapNotNull { r ->
+                                        when {
+                                            r.name == baseName -> 0 // Original has number 0
+                                            r.name == "$baseName (Copy)" -> 1 // First copy is 1
+                                            else -> copyPattern.find(r.name)?.groups?.get(2)?.value?.toIntOrNull()
+                                        }
+                                    }
+                                val nextCopyNumber = (existingCopyNumbers.maxOrNull() ?: 0) + 1
+                                val newName = if (nextCopyNumber == 1) {
+                                    "$baseName (Copy)"
+                                } else {
+                                    "$baseName (Copy $nextCopyNumber)"
+                                }
+
                                 val duplicated = routine.copy(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = "${routine.name} (Copy)",
+                                    id = newRoutineId,
+                                    name = newName,
                                     createdAt = System.currentTimeMillis(),
                                     useCount = 0,
                                     lastUsed = null,
-                                    exercises = routine.exercises.map {
-                                        it.copy(id = java.util.UUID.randomUUID().toString())
-                                    }
+                                    exercises = newExercises
                                 )
                                 onSaveRoutine(duplicated)
                             }
@@ -254,8 +280,33 @@ fun RoutineCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Exercise list with set/rep configuration
+                val exercisesToShow = routine.exercises.take(4)
+                val remainingCount = (routine.exercises.size - exercisesToShow.size).coerceAtLeast(0)
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    exercisesToShow.forEach { routineExercise ->
+                        Text(
+                            text = "${routineExercise.exercise.name} - ${formatSetReps(routineExercise.setReps)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (remainingCount > 0) {
+                        Text(
+                            text = "+ $remainingCount more",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
                 Text(
-                    text = "${routine.exercises.size} exercises ? ${formatEstimatedDuration(routine)}",
+                    text = "${routine.exercises.size} exercises • ${formatEstimatedDuration(routine)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -337,6 +388,29 @@ fun StatItem(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+private fun formatSetReps(setReps: List<Int>): String {
+    if (setReps.isEmpty()) return "0 sets"
+
+    // Group consecutive identical reps
+    val groups = mutableListOf<Pair<Int, Int>>() // Pair of (count, reps)
+    var currentReps = setReps[0]
+    var currentCount = 1
+
+    for (i in 1 until setReps.size) {
+        if (setReps[i] == currentReps) {
+            currentCount++
+        } else {
+            groups.add(Pair(currentCount, currentReps))
+            currentReps = setReps[i]
+            currentCount = 1
+        }
+    }
+    groups.add(Pair(currentCount, currentReps))
+
+    // Format as "3×10, 2×8"
+    return groups.joinToString(", ") { (count, reps) -> "${count}×${reps}" }
 }
 
 private fun formatDate(timestamp: Long): String {
