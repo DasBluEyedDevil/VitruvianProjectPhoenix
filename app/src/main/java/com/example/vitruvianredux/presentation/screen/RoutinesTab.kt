@@ -128,9 +128,6 @@ fun RoutinesTab(
                                     useCount = 0,
                                     lastUsed = null,
                                     exercises = newExercises
-                                    exercises = routine.exercises.map {
-                                        it.copy(id = java.util.UUID.randomUUID().toString())
-                                    }
                                 )
                                 onSaveRoutine(duplicated)
                             }
@@ -265,8 +262,33 @@ fun RoutineCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Exercise list with set/rep configuration
+                val exercisesToShow = routine.exercises.take(4)
+                val remainingCount = (routine.exercises.size - exercisesToShow.size).coerceAtLeast(0)
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    exercisesToShow.forEach { routineExercise ->
+                        Text(
+                            text = "${routineExercise.exercise.name} - ${formatSetReps(routineExercise.setReps)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (remainingCount > 0) {
+                        Text(
+                            text = "+ $remainingCount more",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
                 Text(
-                    text = "${routine.exercises.size} exercises ? ${formatEstimatedDuration(routine)}",
+                    text = "${routine.exercises.size} exercises • ${formatEstimatedDuration(routine)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -348,6 +370,29 @@ fun StatItem(label: String, value: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+private fun formatSetReps(setReps: List<Int>): String {
+    if (setReps.isEmpty()) return "0 sets"
+
+    // Group consecutive identical reps
+    val groups = mutableListOf<Pair<Int, Int>>() // Pair of (count, reps)
+    var currentReps = setReps[0]
+    var currentCount = 1
+
+    for (i in 1 until setReps.size) {
+        if (setReps[i] == currentReps) {
+            currentCount++
+        } else {
+            groups.add(Pair(currentCount, currentReps))
+            currentReps = setReps[i]
+            currentCount = 1
+        }
+    }
+    groups.add(Pair(currentCount, currentReps))
+
+    // Format as "3×10, 2×8"
+    return groups.joinToString(", ") { (count, reps) -> "${count}×${reps}" }
 }
 
 private fun formatDate(timestamp: Long): String {

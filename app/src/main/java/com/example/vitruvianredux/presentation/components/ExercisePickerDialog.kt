@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.core.net.toUri
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,7 @@ import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.launch
 
 /**
  * Map display equipment names back to database values for filtering
@@ -643,7 +645,7 @@ fun VideoPlayer(
 
                     // Set video URI (no controls - just loop like a GIF)
                     try {
-                        setVideoURI(Uri.parse(videoUrl))
+                        setVideoURI(videoUrl.toUri())
                         
                         // Set up listeners
                         setOnPreparedListener { mp ->
