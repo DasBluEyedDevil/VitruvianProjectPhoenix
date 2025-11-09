@@ -96,7 +96,7 @@ class OfflineFunctionalityTest {
             weightPerCableKg = 15.0f,
             progressionKg = 0f,
             duration = 5000L,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 10,
             isJustLift = false,
@@ -160,7 +160,7 @@ class OfflineFunctionalityTest {
                 weightPerCableKg = 15.0f + index * 2.5f,
                 progressionKg = 0f,
                 duration = 300000L + index * 60000L,
-                totalReps = 13 + index,
+                totalReps = 10 + index,  // Exclude warm-up reps from total count
                 warmupReps = 3,
                 workingReps = 10 + index,
                 isJustLift = false,
@@ -236,7 +236,7 @@ class OfflineFunctionalityTest {
             weightPerCableKg = 20.0f,
             progressionKg = 0f,
             duration = 450000L,
-            totalReps = 18,
+            totalReps = 15,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 15,
             isJustLift = false,
@@ -258,14 +258,14 @@ class OfflineFunctionalityTest {
         val repCount = RepCount(
             warmupReps = 3,
             workingReps = 10,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             isWarmupComplete = true
         )
 
         // When: Calculating rep progress locally
         val warmupProgress = repCount.warmupReps / 3.0f
         val workingProgress = repCount.workingReps / 10.0f
-        val totalProgress = repCount.totalReps / 13.0f
+        val totalProgress = repCount.totalReps / 10.0f  // Total now excludes warm-up reps
 
         // Then: All calculations are local
         assertEquals(1.0f, warmupProgress, 0.01f, "Warmup progress calculated locally")
@@ -316,7 +316,7 @@ class OfflineFunctionalityTest {
                 weightPerCableKg = 15.0f + index * 0.5f,
                 progressionKg = 0f,
                 duration = 300000L,
-                totalReps = 13,
+                totalReps = 10,  // Exclude warm-up reps from total count
                 warmupReps = 3,
                 workingReps = 10,
                 isJustLift = false,
@@ -404,7 +404,7 @@ class OfflineFunctionalityTest {
                 weightPerCableKg = 18.0f,
                 progressionKg = 2.5f,
                 duration = 360000L,
-                totalReps = 15,
+                totalReps = 12,  // Exclude warm-up reps from total count
                 warmupReps = 3,
                 workingReps = 12,
                 isJustLift = false,
@@ -438,7 +438,7 @@ class OfflineFunctionalityTest {
             weightPerCableKg = 20.0f,
             progressionKg = 0f,
             duration = 450000L,
-            totalReps = 18,
+            totalReps = 15,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 15,
             isJustLift = false,

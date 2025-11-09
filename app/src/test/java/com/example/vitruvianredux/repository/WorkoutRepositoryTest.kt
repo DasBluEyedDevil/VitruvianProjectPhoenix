@@ -51,7 +51,7 @@ class WorkoutRepositoryTest {
             weightPerCableKg = 15.0f,
             progressionKg = 0f,
             duration = 300000L,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 10,
             isJustLift = false,
@@ -196,7 +196,7 @@ class WorkoutRepositoryTest {
             weightPerCableKg = 20.0f,
             progressionKg = 2.5f,
             duration = 600000L,
-            totalReps = 18,
+            totalReps = 15,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 15,
             isJustLift = false,
@@ -264,7 +264,7 @@ class WorkoutRepositoryTest {
             weightPerCableKg = 15.0f,
             progressionKg = 0f,
             duration = 300000L,
-            totalReps = reps + 3,
+            totalReps = reps,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = reps,
             isJustLift = false,
