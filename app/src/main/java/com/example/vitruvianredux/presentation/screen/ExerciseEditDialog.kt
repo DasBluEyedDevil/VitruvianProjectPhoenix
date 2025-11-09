@@ -38,15 +38,55 @@ fun ExerciseEditBottomSheet(
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     exerciseRepository: ExerciseRepository,
+    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
     onSave: (RoutineExercise) -> Unit,
     onDismiss: () -> Unit,
     buttonText: String = "Save",
     viewModel: ExerciseConfigViewModel = hiltViewModel()
 ) {
-    // Initialize the ViewModel with the exercise data.
+    // UI-specific state that doesn't need to be in the ViewModel
+    var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
+    LaunchedEffect(exercise.exercise.id) {
+        exercise.exercise.id?.let { exerciseId ->
+            try {
+                videos = exerciseRepository.getVideos(exerciseId)
+            } catch (_: Exception) {
+                // Handle error
+            }
+        }
+    }
+    val preferredVideo = videos.firstOrNull { it.angle == "FRONT" } ?: videos.firstOrNull()
+
+    // Fetch initial PR for exercise (based on workout type from exercise config)
+    var initialPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
+    LaunchedEffect(exercise.exercise.id, exercise.workoutType) {
+        exercise.exercise.id?.let { exerciseId ->
+            val workoutMode = exercise.workoutType.toWorkoutMode()
+            if (workoutMode !is WorkoutMode.Echo) {
+                try {
+                    val modeString = when (workoutMode) {
+                        is WorkoutMode.OldSchool -> "Old School"
+                        is WorkoutMode.Pump -> "Pump"
+                        is WorkoutMode.TUT -> "TUT"
+                        is WorkoutMode.TUTBeast -> "TUT Beast"
+                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
+                        else -> null
+                    }
+                    modeString?.let { mode ->
+                        initialPR = personalRecordRepository.getLatestPR(exerciseId, mode)
+                    }
+                } catch (_: Exception) {
+                    initialPR = null
+                }
+            }
+        }
+    }
+
+    // Initialize the ViewModel with the exercise data and PR weight.
     // This will only run once for a given exercise ID, preventing state wipes on recomposition.
-    LaunchedEffect(exercise, weightUnit) {
-        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg)
+    LaunchedEffect(exercise, weightUnit, initialPR) {
+        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg, initialPR?.weightPerCableKg)
     }
 
     // Collect state from the ViewModel
@@ -60,18 +100,32 @@ fun ExerciseEditBottomSheet(
     val eccentricLoad by viewModel.eccentricLoad.collectAsState()
     val echoLevel by viewModel.echoLevel.collectAsState()
 
-    // UI-specific state that doesn't need to be in the ViewModel
-    var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
-    LaunchedEffect(exercise.exercise.id) {
+    // Fetch current PR for selected mode (for display in PR card)
+    var currentPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
+    LaunchedEffect(exercise.exercise.id, selectedMode) {
         exercise.exercise.id?.let { exerciseId ->
-            try {
-                videos = exerciseRepository.getVideos(exerciseId)
-            } catch (_: Exception) {
-                // Handle error
+            // Don't fetch PR for Echo mode
+            if (selectedMode !is WorkoutMode.Echo) {
+                try {
+                    val modeString = when (selectedMode) {
+                        is WorkoutMode.OldSchool -> "Old School"
+                        is WorkoutMode.Pump -> "Pump"
+                        is WorkoutMode.TUT -> "TUT"
+                        is WorkoutMode.TUTBeast -> "TUT Beast"
+                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
+                        else -> null
+                    }
+                    modeString?.let { mode ->
+                        currentPR = personalRecordRepository.getLatestPR(exerciseId, mode)
+                    }
+                } catch (_: Exception) {
+                    currentPR = null
+                }
+            } else {
+                currentPR = null
             }
         }
     }
-    val preferredVideo = videos.firstOrNull { it.angle == "FRONT" } ?: videos.firstOrNull()
 
     val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
     val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
@@ -143,6 +197,56 @@ fun ExerciseEditBottomSheet(
                             videoUrl = video.videoUrl,
                             modifier = Modifier.fillMaxSize()
                         )
+                    }
+                }
+
+                // Personal Record Display
+                currentPR?.let { pr ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                            ) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = "Personal Record",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        "Personal Record",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable × ${pr.reps} reps",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Text(
+                                java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(pr.timestamp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
 

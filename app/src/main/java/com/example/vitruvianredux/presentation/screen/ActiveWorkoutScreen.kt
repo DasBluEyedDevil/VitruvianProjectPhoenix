@@ -40,6 +40,14 @@ fun ActiveWorkoutScreen(
     // State for confirmation dialog
     var showExitConfirmation by remember { mutableStateOf(false) }
 
+    // PR Celebration state
+    var prCelebrationEvent by remember { mutableStateOf<PRCelebrationEvent?>(null) }
+    LaunchedEffect(Unit) {
+        viewModel.prCelebrationEvent.collect { event ->
+            prCelebrationEvent = event
+        }
+    }
+
     // Dynamic title based on workout type
     val screenTitle = remember(loadedRoutine, workoutParameters.isJustLift) {
         when {
@@ -182,6 +190,16 @@ fun ActiveWorkoutScreen(
         com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
             message = error,
             onDismiss = { viewModel.clearConnectionError() }
+        )
+    }
+
+    // PR Celebration Dialog
+    prCelebrationEvent?.let { event ->
+        com.example.vitruvianredux.presentation.components.PRCelebrationDialog(
+            show = true,
+            exerciseName = event.exerciseName,
+            weight = "${viewModel.formatWeight(event.weightPerCableKg, weightUnit)}/cable × ${event.reps} reps",
+            onDismiss = { prCelebrationEvent = null }
         )
     }
 }

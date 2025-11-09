@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.data.repository.PersonalRecordRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
@@ -33,6 +34,7 @@ import timber.log.Timber
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.ceil
 
@@ -42,6 +44,7 @@ class MainViewModel @Inject constructor(
     private val bleRepository: BleRepository,
     private val workoutRepository: WorkoutRepository,
     val exerciseRepository: ExerciseRepository,
+    val personalRecordRepository: PersonalRecordRepository,
     private val repCounter: RepCounterFromMachine,
     private val preferencesManager: PreferencesManager
 ) : AndroidViewModel(application) {
@@ -84,6 +87,10 @@ class MainViewModel @Inject constructor(
 
     private val _workoutHistory = MutableStateFlow<List<WorkoutSession>>(emptyList())
     val workoutHistory: StateFlow<List<WorkoutSession>> = _workoutHistory.asStateFlow()
+
+    // PR Celebration Events
+    private val _prCelebrationEvent = MutableSharedFlow<PRCelebrationEvent>()
+    val prCelebrationEvent: SharedFlow<PRCelebrationEvent> = _prCelebrationEvent.asSharedFlow()
 
     // User preferences
     val userPreferences: StateFlow<UserPreferences> = preferencesManager.preferencesFlow
@@ -142,6 +149,15 @@ class MainViewModel @Inject constructor(
     // All workout sessions for stats calculation
     val allWorkoutSessions: StateFlow<List<WorkoutSession>> =
         workoutRepository.getAllSessions()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
+
+    // All personal records for analytics
+    val allPersonalRecords: StateFlow<List<PersonalRecord>> =
+        personalRecordRepository.getAllPRsGrouped()
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
@@ -226,6 +242,10 @@ class MainViewModel @Inject constructor(
     )
     val hapticEvents: SharedFlow<HapticEvent> = _hapticEvents.asSharedFlow()
 
+    // Connection loss detection (Issue #43)
+    private val _connectionLostDuringWorkout = MutableStateFlow(false)
+    val connectionLostDuringWorkout: StateFlow<Boolean> = _connectionLostDuringWorkout.asStateFlow()
+
     // Current workout tracking
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
@@ -233,8 +253,8 @@ class MainViewModel @Inject constructor(
 
     // Auto-stop tracking for Just Lift
     private var autoStopStartTime: Long? = null
-    private var autoStopTriggered = false
-    private var autoStopStopRequested = false
+    private val autoStopTriggered = AtomicBoolean(false)
+    private val autoStopStopRequested = AtomicBoolean(false)
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
@@ -362,6 +382,33 @@ class MainViewModel @Inject constructor(
                 }
             }
         }
+
+        // Monitor connection state for loss detection during workouts (Issue #43)
+        viewModelScope.launch {
+            connectionState.collect { connState ->
+                val currentWorkoutState = _workoutState.value
+
+                // Check if we lost connection during an active workout
+                val isWorkoutActive = currentWorkoutState is WorkoutState.Active ||
+                        currentWorkoutState is WorkoutState.Countdown ||
+                        currentWorkoutState is WorkoutState.Resting ||
+                        currentWorkoutState is WorkoutState.Initializing
+
+                val isDisconnected = connState is ConnectionState.Disconnected ||
+                        connState is ConnectionState.Error
+
+                if (isWorkoutActive && isDisconnected) {
+                    Timber.e("⚠️ CONNECTION LOST DURING WORKOUT! State: $currentWorkoutState, Connection: $connState")
+                    _connectionLostDuringWorkout.value = true
+
+                    // Emit haptic alert for connection loss
+                    _hapticEvents.emit(HapticEvent.ERROR)
+                } else if (!isWorkoutActive && _connectionLostDuringWorkout.value) {
+                    // Reset the flag when workout ends
+                    _connectionLostDuringWorkout.value = false
+                }
+            }
+        }
     }
 
     private fun cancelAutoStartTimer() {
@@ -417,13 +464,12 @@ class MainViewModel @Inject constructor(
     }
 
     private fun requestAutoStop() {
-        if (autoStopStopRequested) return
-        autoStopStopRequested = true
+        if (autoStopStopRequested.getAndSet(true)) return
         triggerAutoStop()
     }
 
     private fun triggerAutoStop() {
-        autoStopTriggered = true
+        autoStopTriggered.set(true)
         if (_workoutParameters.value.isJustLift) {
             _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
         } else {
@@ -470,7 +516,7 @@ class MainViewModel @Inject constructor(
 
     private fun resetAutoStopTimer() {
         autoStopStartTime = null
-        if (!autoStopTriggered) {
+        if (!autoStopTriggered.get()) {
             _autoStopState.value = AutoStopUiState()
         }
     }
@@ -561,10 +607,12 @@ class MainViewModel @Inject constructor(
                                     if (connected == true) {
                                         onConnected()
                                     } else {
+                                        _pendingConnectionCallback = null  // Clear callback on failure
                                         _connectionError.value = "Connection failed"
                                         onFailed()
                                     }
                                 } else {
+                                    _pendingConnectionCallback = null  // Clear callback on failure
                                     _isAutoConnecting.value = false
                                     _connectionError.value = "No device found"
                                     onFailed()
@@ -574,6 +622,7 @@ class MainViewModel @Inject constructor(
 
                     if (found == null) {
                         // Timeout
+                        _pendingConnectionCallback = null  // Clear callback on timeout
                         stopScanning()
                         _isAutoConnecting.value = false
                         _connectionError.value = "Scan timeout - no device found"
@@ -586,6 +635,10 @@ class MainViewModel @Inject constructor(
 
     fun clearConnectionError() {
         _connectionError.value = null
+    }
+
+    fun dismissConnectionLostAlert() {
+        _connectionLostDuringWorkout.value = false
     }
 
     // Device selection dialog removed in favor of auto-connect flow
@@ -656,7 +709,7 @@ class MainViewModel @Inject constructor(
             )
             _repCount.value = repCounter.getRepCount()
             resetAutoStopState()
-            autoStopStopRequested = false
+            autoStopStopRequested.set(false)
 
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
@@ -1096,8 +1149,8 @@ class MainViewModel @Inject constructor(
 
     private fun resetAutoStopState() {
         autoStopStartTime = null
-        autoStopTriggered = false
-        autoStopStopRequested = false
+        autoStopTriggered.set(false)
+        autoStopStopRequested.set(false)
         _autoStopState.value = AutoStopUiState()
     }
 
@@ -1135,7 +1188,8 @@ class MainViewModel @Inject constructor(
             isJustLift = params.isJustLift,
             stopAtTop = params.stopAtTop,
             eccentricLoad = eccentricLoad,
-            echoLevel = echoLevel
+            echoLevel = echoLevel,
+            exerciseId = params.selectedExerciseId
         )
 
         workoutRepository.saveSession(session)
@@ -1146,8 +1200,10 @@ class MainViewModel @Inject constructor(
 
         // Track personal record if exercise is selected
         params.selectedExerciseId?.let { exerciseId ->
-            // Only track PRs for completed working sets (not warmups, not just lift)
-            if (working > 0 && !params.isJustLift) {
+            // Only track PRs for completed working sets (not warmups, not just lift, not echo mode)
+            // Echo mode is excluded because it uses adaptive weight (machine calculates)
+            val isEchoMode = params.workoutType is WorkoutType.Echo
+            if (working > 0 && !params.isJustLift && !isEchoMode) {
                 val isNewPR = workoutRepository.updatePersonalRecordIfNeeded(
                     exerciseId = exerciseId,
                     weightPerCableKg = actualPerCableWeightKg,
@@ -1156,7 +1212,22 @@ class MainViewModel @Inject constructor(
                 )
                 if (isNewPR) {
                     Timber.d("NEW PERSONAL RECORD! Exercise: $exerciseId, Weight: ${actualPerCableWeightKg}kg, Reps: $working")
-                    // TODO: Show PR celebration UI notification
+                    // Trigger PR celebration
+                    viewModelScope.launch {
+                        try {
+                            val exercise = exerciseRepository.getExerciseById(exerciseId)
+                            _prCelebrationEvent.emit(
+                                PRCelebrationEvent(
+                                    exerciseName = exercise?.name ?: "Unknown Exercise",
+                                    weightPerCableKg = actualPerCableWeightKg,
+                                    reps = working,
+                                    workoutMode = params.workoutType.displayName
+                                )
+                            )
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to trigger PR celebration")
+                        }
+                    }
                 }
             }
         }
@@ -1480,6 +1551,17 @@ class MainViewModel @Inject constructor(
                     loadRoutine(routine)
                 }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        Timber.d("MainViewModel clearing - cancelling collection jobs")
+
+        // Cancel collection jobs to prevent memory leaks
+        monitorDataCollectionJob?.cancel()
+        repEventsCollectionJob?.cancel()
+        autoStartJob?.cancel()
+        restTimerJob?.cancel()
     }
 
     companion object {

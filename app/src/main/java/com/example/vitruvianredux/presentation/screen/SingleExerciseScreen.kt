@@ -98,6 +98,8 @@ fun SingleExerciseScreen(
                     kgToDisplay = viewModel::kgToDisplay,
                     displayToKg = viewModel::displayToKg,
                     exerciseRepository = exerciseRepository,
+                    personalRecordRepository = viewModel.personalRecordRepository,
+                    formatWeight = viewModel::formatWeight,
                     buttonText = "Start Workout",
                     onSave = { configuredExercise ->
                         // Create a temporary single-exercise routine for proper multi-set support
