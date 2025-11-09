@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
+import kotlinx.coroutines.launch
 import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
