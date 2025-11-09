@@ -27,9 +27,6 @@
     <!-- REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward all system notifications to BLE device! -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Internet permission for loading exercise video thumbnails -->
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <!-- Bluetooth LE feature -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
