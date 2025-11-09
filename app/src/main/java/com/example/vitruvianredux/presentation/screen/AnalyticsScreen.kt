@@ -95,13 +95,13 @@ fun AnalyticsScreen(
                         Box(
                             modifier = Modifier
                                 .tabIndicatorOffset(currentTab)
-                                .height(4.dp)
-                                .shadow(2.dp, RoundedCornerShape(2.dp))
+                                .height(6.dp)
+                                .shadow(2.dp, RoundedCornerShape(3.dp))
                                 .background(
                                     Brush.linearGradient(
                                         colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
                                     ),
-                                    RoundedCornerShape(2.dp)
+                                    RoundedCornerShape(3.dp)
                                 )
                         )
                     }
@@ -111,19 +111,19 @@ fun AnalyticsScreen(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     text = { Text("History") },
-                    icon = { Icon(Icons.Default.List, contentDescription = null) }
+                    icon = { Icon(Icons.Default.List, contentDescription = "Workout history") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     text = { Text("Personal Bests") },
-                    icon = { Icon(Icons.Default.Star, contentDescription = null) }
+                    icon = { Icon(Icons.Default.Star, contentDescription = "Personal records") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     text = { Text("Trends") },
-                    icon = { Icon(Icons.Default.Info, contentDescription = null) }
+                    icon = { Icon(Icons.Default.Info, contentDescription = "Workout trends") }
                 )
             }
 
