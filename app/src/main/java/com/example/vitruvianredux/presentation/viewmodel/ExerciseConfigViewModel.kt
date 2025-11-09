@@ -123,7 +123,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         _sets.value = initialSets
 
         _selectedMode.value = exercise.workoutType.toWorkoutMode()
-        _weightChange.value = 0
+        _weightChange.value = kgToDisplay(exercise.progressionKg, weightUnit).toInt()
         _rest.value = exercise.restSeconds.coerceIn(0, 300)
         _notes.value = exercise.notes
         _eccentricLoad.value = exercise.eccentricLoad
