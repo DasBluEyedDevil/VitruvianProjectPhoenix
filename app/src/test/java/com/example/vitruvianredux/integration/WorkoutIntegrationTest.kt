@@ -115,7 +115,7 @@ class WorkoutIntegrationTest {
             weightPerCableKg = 15.0f,
             progressionKg = 0f,
             duration = 5000L,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 10,
             isJustLift = false,
@@ -287,7 +287,7 @@ class WorkoutIntegrationTest {
                 weightPerCableKg = 15.0f + index * 2.5f,
                 progressionKg = 0f,
                 duration = 300000L + index * 60000L,
-                totalReps = 13 + index,
+                totalReps = 10 + index,  // Exclude warm-up reps from total count
                 warmupReps = 3,
                 workingReps = 10 + index,
                 isJustLift = false,
@@ -365,7 +365,7 @@ class WorkoutIntegrationTest {
                 weightPerCableKg = 15.0f,
                 progressionKg = 0f,
                 duration = 300000L,
-                totalReps = 13,
+                totalReps = 10,  // Exclude warm-up reps from total count
                 warmupReps = 3,
                 workingReps = 10,
                 isJustLift = false,
@@ -423,7 +423,7 @@ class WorkoutIntegrationTest {
             weightPerCableKg = 20.0f,
             progressionKg = 0f,
             duration = 450000L,
-            totalReps = 18,
+            totalReps = 15,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 15,
             isJustLift = false,
@@ -514,7 +514,7 @@ class WorkoutIntegrationTest {
             weightPerCableKg = 15.0f,
             progressionKg = 0f,
             duration = 300000L,
-            totalReps = 13,
+            totalReps = 10,  // Exclude warm-up reps from total count
             warmupReps = 3,
             workingReps = 10,
             isJustLift = false,
