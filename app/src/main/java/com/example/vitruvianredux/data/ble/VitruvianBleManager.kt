@@ -8,6 +8,7 @@ import com.example.vitruvianredux.util.BleConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -32,7 +33,7 @@ import java.nio.ByteOrder
 class VitruvianBleManager(
     context: Context,
     private val connectionLogger: com.example.vitruvianredux.data.logger.ConnectionLogger? = null
-) : BleManager(context) {
+) : BleManager(context.applicationContext) {  // Always use application context to prevent leaks
 
     private var currentDeviceName: String? = null
     private var currentDeviceAddress: String? = null
@@ -52,17 +53,17 @@ class VitruvianBleManager(
     private val workoutCmdCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
 
     // Monitor polling - MUST be on Main dispatcher for Nordic BLE library
-    private val pollingScope = CoroutineScope(Dispatchers.Main)
+    private val pollingScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var monitorPollingJob: Job? = null
     private var propertyPollingJob: Job? = null
-    
-    // Last good positions for filtering spikes
-    private var lastGoodPosA = 0
-    private var lastGoodPosB = 0
 
-    // Velocity calculation for handle detection
-    private var lastPositionA = 0
-    private var lastTimestamp = 0L
+    // Last good positions for filtering spikes (volatile for thread safety)
+    @Volatile private var lastGoodPosA = 0
+    @Volatile private var lastGoodPosB = 0
+
+    // Velocity calculation for handle detection (volatile for thread safety)
+    @Volatile private var lastPositionA = 0
+    @Volatile private var lastTimestamp = 0L
 
     // State flows
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
@@ -679,6 +680,16 @@ class VitruvianBleManager(
         return value?.joinToString(" ") { "%02X".format(it) } ?: "null"
     }
 
+    /**
+     * Clean up resources and cancel all polling jobs
+     * Should be called when the BleManager is no longer needed
+     */
+    fun cleanup() {
+        Timber.d("Cleaning up BleManager resources")
+        monitorPollingJob?.cancel()
+        propertyPollingJob?.cancel()
+        pollingScope.coroutineContext[Job]?.cancel()
+    }
 
 }
 
