@@ -146,7 +146,7 @@ fun AnalyticsScreen(
                         weightUnit = weightUnit,
                         formatWeight = viewModel::formatWeight,
                         onDeleteWorkout = { viewModel.deleteWorkout(it) },
-                        onRefresh = { viewModel.refreshWorkoutHistory() },
+                        onRefresh = { /* Workout history refreshes automatically via StateFlow */ },
                         modifier = Modifier.fillMaxSize()
                     )
                     1 -> PersonalBestsTab(
