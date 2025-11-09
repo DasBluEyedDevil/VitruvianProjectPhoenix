@@ -1,34 +1,28 @@
-Starting a Gradle Daemon, 1 incompatible Daemon could not be reused, use --status for details
-> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:preBuild UP-TO-DATE
-> Task :app:preDebugBuild UP-TO-DATE
-> Task :app:generateDebugBuildConfig UP-TO-DATE
-> Task :app:checkDebugAarMetadata UP-TO-DATE
-> Task :app:processDebugNavigationResources UP-TO-DATE
-> Task :app:compileDebugNavigationResources UP-TO-DATE
-> Task :app:generateDebugResValues UP-TO-DATE
-> Task :app:mapDebugSourceSetPaths UP-TO-DATE
-> Task :app:generateDebugResources UP-TO-DATE
-> Task :app:mergeDebugResources UP-TO-DATE
-> Task :app:packageDebugResources UP-TO-DATE
-> Task :app:parseDebugLocalResources UP-TO-DATE
-> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
-> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:clean FAILED
 
-> Task :app:processDebugMainManifest
-C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\src\main\AndroidManifest.xml:31:5-67 Warning:
-	Element uses-permission#android.permission.INTERNET at AndroidManifest.xml:31:5-67 duplicated with element declared at AndroidManifest.xml:22:5-67
+FAILURE: Build failed with an exception.
 
-> Task :app:processDebugManifest
-> Task :app:processDebugManifestForPackage
-> Task :app:processDebugResources
-> Task :app:kspDebugKotlin
+* What went wrong:
+Execution failed for task ':app:clean'.
+> java.io.IOException: Unable to delete directory 'C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build'
+    Failed to delete some children. This might happen because a process has files open or has its working directory set in the target directory.
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebug\migrated-jars\androidx.navigation.compose.lint.NavigationComposeIssueRegistry-598b224f0ce2f9f2..jar
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebug\migrated-jars
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebug
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebugAndroidTest\migrated-jars\androidx.navigation.common.lint.NavigationCommonIssueRegistry-5daa12651be0734e..jar
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebugAndroidTest\migrated-jars
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebugAndroidTest
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebugUnitTest\migrated-jars\androidx.navigation.runtime.lint.NavigationRuntimeIssueRegistry-a8fea42aedb9bdb3..jar
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebugUnitTest\migrated-jars
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache\lintAnalyzeDebugUnitTest
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates\lint-cache
+    - C:\Users\dasbl\AndroidStudioProjects\VitruvianRedux\app\build\intermediates
 
-> Task :app:compileDebugKotlin
-w: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:107:18 This declaration overrides a deprecated member but is not marked as deprecated itself. Please add the '@Deprecated' annotation or suppress the diagnostic.
-w: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/AnalyticsScreen.kt:99:49 'val Icons.Filled.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.List.
-w: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/ConnectionLogsScreen.kt:61:44 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
-w: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/ExerciseLibraryViewModel.kt:76:11 This declaration needs opt-in. Its usage should be marked with '@kotlinx.coroutines.ExperimentalCoroutinesApi' or '@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)'
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
 
-BUILD SUCCESSFUL in 17s
-18 actionable tasks: 6 executed, 12 up-to-date
+BUILD FAILED in 3s
+1 actionable task: 1 executed
