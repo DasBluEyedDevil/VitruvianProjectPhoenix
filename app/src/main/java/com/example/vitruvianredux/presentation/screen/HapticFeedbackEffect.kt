@@ -82,6 +82,10 @@ private fun performHapticFeedback(haptic: HapticFeedback, event: HapticEvent) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 Timber.d("Haptic feedback: workout end")
             }
+            HapticEvent.ERROR -> {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Timber.e("Haptic feedback: ERROR")
+            }
         }
     } catch (e: Exception) {
         Timber.w(e, "Failed to perform haptic feedback")
@@ -121,6 +125,11 @@ private fun performAudioCue(toneGenerator: ToneGenerator?, event: HapticEvent) {
                 // Medium beep for workout end (150ms)
                 playTone(toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
                 Timber.d("Audio cue: workout end")
+            }
+            HapticEvent.ERROR -> {
+                // Error tone (400ms)
+                playTone(toneGenerator, ToneGenerator.TONE_SUP_ERROR, 400)
+                Timber.e("Audio cue: ERROR")
             }
         }
     } catch (e: Exception) {
