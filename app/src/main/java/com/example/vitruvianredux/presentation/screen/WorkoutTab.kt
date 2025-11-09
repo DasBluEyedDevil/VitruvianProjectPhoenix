@@ -1384,14 +1384,14 @@ fun CurrentExerciseCard(
                 Text(
                     text = "$repsText @ $weightText - ${currentExercise.workoutType.displayName}",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             } else {
                 // Just Lift mode - show basic details
                 Text(
                     text = "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.workoutType.displayName}",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
