@@ -7,6 +7,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -50,12 +52,18 @@ fun AnalyticsScreen(
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(0) }
+    // Pager state for swipe gestures
+    val pagerState = rememberPagerState(pageCount = { 3 })
     var showExportMenu by remember { mutableStateOf(false) }
     var exportMessage by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Sync pager with tab selection
+    LaunchedEffect(pagerState.currentPage) {
+        // Update occurs when user swipes
+    }
 
     val backgroundGradient = if (themeMode == com.example.vitruvianredux.ui.theme.ThemeMode.DARK) {
         Brush.verticalGradient(
@@ -84,13 +92,13 @@ fun AnalyticsScreen(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            // Tab Row with gradient indicator
+            // Tab Row with gradient indicator and swipe support
             TabRow(
-                selectedTabIndex = selectedTab,
+                selectedTabIndex = pagerState.currentPage,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary,
                 indicator = { tabPositions ->
-                    val currentTab = tabPositions.getOrNull(selectedTab)
+                    val currentTab = tabPositions.getOrNull(pagerState.currentPage)
                     if (currentTab != null) {
                         Box(
                             modifier = Modifier
@@ -108,48 +116,54 @@ fun AnalyticsScreen(
                 }
             ) {
                 Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    selected = pagerState.currentPage == 0,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
                     text = { Text("History") },
                     icon = { Icon(Icons.Default.List, contentDescription = "Workout history") }
                 )
                 Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    selected = pagerState.currentPage == 1,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     text = { Text("Personal Bests") },
                     icon = { Icon(Icons.Default.Star, contentDescription = "Personal records") }
                 )
                 Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
+                    selected = pagerState.currentPage == 2,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
                     text = { Text("Trends") },
                     icon = { Icon(Icons.Default.Info, contentDescription = "Workout trends") }
                 )
             }
 
-            // Tab Content
-            when (selectedTab) {
-                0 -> HistoryTab(
-                    workoutHistory = workoutHistory,
-                    weightUnit = weightUnit,
-                    formatWeight = viewModel::formatWeight,
-                    onDeleteWorkout = { viewModel.deleteWorkout(it) },
-                    modifier = Modifier.fillMaxSize()
-                )
-                1 -> PersonalBestsTab(
-                    personalRecords = personalRecords,
-                    exerciseRepository = viewModel.exerciseRepository,
-                    weightUnit = weightUnit,
-                    formatWeight = viewModel::formatWeight,
-                    modifier = Modifier.fillMaxSize()
-                )
-                2 -> TrendsTab(
-                    personalRecords = personalRecords,
-                    exerciseRepository = viewModel.exerciseRepository,
-                    weightUnit = weightUnit,
-                    formatWeight = viewModel::formatWeight,
-                    modifier = Modifier.fillMaxSize()
-                )
+            // Tab Content with Swipe Support
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0 -> HistoryTab(
+                        workoutHistory = workoutHistory,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        onDeleteWorkout = { viewModel.deleteWorkout(it) },
+                        onRefresh = { viewModel.refreshWorkoutHistory() },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    1 -> PersonalBestsTab(
+                        personalRecords = personalRecords,
+                        exerciseRepository = viewModel.exerciseRepository,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    2 -> TrendsTab(
+                        personalRecords = personalRecords,
+                        exerciseRepository = viewModel.exerciseRepository,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
 
