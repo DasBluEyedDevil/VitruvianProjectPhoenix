@@ -4,6 +4,9 @@ import android.os.Build
 import android.widget.NumberPicker
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,65 +43,110 @@ fun CompactNumberPicker(
             )
         }
 
-        // Native Android NumberPicker wrapped in AndroidView
-        // IMPORTANT: NumberPicker only supports non-negative minValue, so we use offset approach for negative ranges
-        val offset = if (range.first < 0) -range.first else 0
-        val pickerRange = (range.first + offset)..(range.last + offset)
+        // Row with -/+ buttons and number picker
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Decrease button
+            IconButton(
+                onClick = {
+                    val newValue = (value - 1).coerceIn(range)
+                    onValueChange(newValue)
+                },
+                enabled = value > range.first,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Remove,
+                    contentDescription = "Decrease $label",
+                    tint = if (value > range.first)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+            }
 
-        // Get the theme-aware text color
-        val textColor = MaterialTheme.colorScheme.onSurface
+            // Native Android NumberPicker wrapped in AndroidView
+            // IMPORTANT: NumberPicker only supports non-negative minValue, so we use offset approach for negative ranges
+            val offset = if (range.first < 0) -range.first else 0
+            val pickerRange = (range.first + offset)..(range.last + offset)
 
-        // Use isDarkTheme as key for API 28 and below to force recreation on theme change
-        val isDarkTheme = isSystemInDarkTheme()
+            // Get the theme-aware text color
+            val textColor = MaterialTheme.colorScheme.onSurface
 
-        // For API 28 and below, use key() to force recreation on theme change
-        // For API 29+, use setTextColor() in update block
-        key(if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) isDarkTheme else null) {
-            AndroidView(
-                factory = { context ->
-                NumberPicker(context).apply {
-                    // Use offset range that starts at 0 or positive number
-                    minValue = pickerRange.first
-                    maxValue = pickerRange.last
-                    this.value = (value + offset).coerceIn(pickerRange)
-                    wrapSelectorWheel = false // Prevents wrapping around
+            // Use isDarkTheme as key for API 28 and below to force recreation on theme change
+            val isDarkTheme = isSystemInDarkTheme()
 
-                    // Always use displayedValues to show actual range values with suffix
-                    val displayValues = (range.first..range.last).map {
-                        if (suffix.isNotEmpty()) "$it $suffix" else "$it"
-                    }.toTypedArray()
-                    this.displayedValues = displayValues
+            // For API 28 and below, use key() to force recreation on theme change
+            // For API 29+, use setTextColor() in update block
+            key(if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) isDarkTheme else null) {
+                AndroidView(
+                    factory = { context ->
+                    NumberPicker(context).apply {
+                        // Use offset range that starts at 0 or positive number
+                        minValue = pickerRange.first
+                        maxValue = pickerRange.last
+                        this.value = (value + offset).coerceIn(pickerRange)
+                        wrapSelectorWheel = false // Prevents wrapping around
 
-                    setOnValueChangedListener { _, _, newPickerVal ->
-                        // Convert picker value back to actual value by removing offset
-                        val actualValue = newPickerVal - offset
-                        onValueChange(actualValue)
+                        // Always use displayedValues to show actual range values with suffix
+                        val displayValues = (range.first..range.last).map {
+                            if (suffix.isNotEmpty()) "$it $suffix" else "$it"
+                        }.toTypedArray()
+                        this.displayedValues = displayValues
+
+                        setOnValueChangedListener { _, _, newPickerVal ->
+                            // Convert picker value back to actual value by removing offset
+                            val actualValue = newPickerVal - offset
+                            onValueChange(actualValue)
+                        }
+
+                        // Set text color for API 29+ (Android Q and above)
+                        // NumberPicker gained setTextColor() method in API 29
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            setTextColor(textColor.toArgb())
+                        }
+                    }
+                },
+                update = { picker ->
+                    // Update picker when value changes externally (convert to picker value with offset)
+                    val pickerValue = value + offset
+                    if (picker.value != pickerValue) {
+                        picker.value = pickerValue.coerceIn(pickerRange)
                     }
 
-                    // Set text color for API 29+ (Android Q and above)
-                    // NumberPicker gained setTextColor() method in API 29
+                    // Update text color for API 29+ on theme changes
+                    // For API 28 and below, key() forces recreation so this isn't needed
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        setTextColor(textColor.toArgb())
+                        picker.setTextColor(textColor.toArgb())
                     }
-                }
-            },
-            update = { picker ->
-                // Update picker when value changes externally (convert to picker value with offset)
-                val pickerValue = value + offset
-                if (picker.value != pickerValue) {
-                    picker.value = pickerValue.coerceIn(pickerRange)
-                }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(120.dp)
+                )
+            }
 
-                // Update text color for API 29+ on theme changes
-                // For API 28 and below, key() forces recreation so this isn't needed
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    picker.setTextColor(textColor.toArgb())
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-            )
+            // Increase button
+            IconButton(
+                onClick = {
+                    val newValue = (value + 1).coerceIn(range)
+                    onValueChange(newValue)
+                },
+                enabled = value < range.last,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Increase $label",
+                    tint = if (value < range.last)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                )
+            }
         }
     }
 }

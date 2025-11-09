@@ -19,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
+import kotlinx.coroutines.launch
 import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
@@ -38,19 +40,51 @@ fun HistoryTab(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     onDeleteWorkout: (String) -> Unit,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var isRefreshing by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(Spacing.medium)
     ) {
-        Text(
-            "Workout History",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        // Header with refresh button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Workout History",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            IconButton(
+                onClick = {
+                    isRefreshing = true
+                    onRefresh()
+                    // Reset after a short delay
+                    kotlinx.coroutines.MainScope().launch {
+                        kotlinx.coroutines.delay(1000)
+                        isRefreshing = false
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh workout history",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = if (isRefreshing) {
+                        Modifier.rotate(360f)
+                    } else {
+                        Modifier
+                    }
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(Spacing.medium))
 
         if (workoutHistory.isEmpty()) {
@@ -687,7 +721,6 @@ fun SettingsTab(
                 )
             }
         }
-    }
 
     // App Info Section
     Card(
@@ -736,6 +769,7 @@ fun SettingsTab(
                 )
             }
         }
+    }
 
     if (showDeleteAllDialog) {
         AlertDialog(

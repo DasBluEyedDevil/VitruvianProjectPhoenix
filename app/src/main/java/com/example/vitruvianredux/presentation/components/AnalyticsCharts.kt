@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.toColorInt
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.github.mikephil.charting.charts.LineChart
@@ -48,7 +49,7 @@ fun WeightProgressionChart(
                     setDrawGridLines(true)
                     granularity = 1f
                     this.textColor = textColor
-                    gridColor = gridColor
+                    this.gridColor = gridColor
                     valueFormatter = object : ValueFormatter() {
                         private val dateFormat = SimpleDateFormat("MMM d", Locale.getDefault())
                         override fun getFormattedValue(value: Float): String {
@@ -61,7 +62,7 @@ fun WeightProgressionChart(
                 axisLeft.apply {
                     setDrawGridLines(true)
                     this.textColor = textColor
-                    gridColor = gridColor
+                    this.gridColor = gridColor
                     axisMinimum = 0f
                 }
 
@@ -92,8 +93,8 @@ fun WeightProgressionChart(
 
             // Create dataset
             val dataSet = LineDataSet(entries, "Weight Per Cable (${weightUnit.name})").apply {
-                color = Color.parseColor("#9333EA") // Purple
-                setCircleColor(Color.parseColor("#9333EA"))
+                color = "#9333EA".toColorInt() // Purple
+                setCircleColor("#9333EA".toColorInt())
                 lineWidth = 3f
                 circleRadius = 5f
                 setDrawCircleHole(false)
@@ -102,7 +103,7 @@ fun WeightProgressionChart(
                 setDrawValues(true)
                 mode = LineDataSet.Mode.CUBIC_BEZIER
                 setDrawFilled(true)
-                fillColor = Color.parseColor("#9333EA")
+                fillColor = "#9333EA".toColorInt()
                 fillAlpha = 50
 
                 // Custom value formatter to show weight in correct unit
@@ -178,14 +179,14 @@ fun MuscleGroupDistributionChart(
 
             // Define colors for muscle groups
             val colors = listOf(
-                Color.parseColor("#9333EA"), // Purple
-                Color.parseColor("#3B82F6"), // Blue
-                Color.parseColor("#10B981"), // Green
-                Color.parseColor("#F59E0B"), // Orange
-                Color.parseColor("#EF4444"), // Red
-                Color.parseColor("#8B5CF6"), // Violet
-                Color.parseColor("#EC4899"), // Pink
-                Color.parseColor("#14B8A6")  // Teal
+                "#9333EA".toColorInt(), // Purple
+                "#3B82F6".toColorInt(), // Blue
+                "#10B981".toColorInt(), // Green
+                "#F59E0B".toColorInt(), // Orange
+                "#EF4444".toColorInt(), // Red
+                "#8B5CF6".toColorInt(), // Violet
+                "#EC4899".toColorInt(), // Pink
+                "#14B8A6".toColorInt()  // Teal
             )
 
             val dataSet = PieDataSet(entries, "").apply {
@@ -239,7 +240,7 @@ fun WorkoutModeDistributionChart(
                 // Configure Y axis
                 axisLeft.apply {
                     this.textColor = textColor
-                    gridColor = gridColor
+                    this.gridColor = gridColor
                     axisMinimum = 0f
                 }
 
@@ -269,7 +270,7 @@ fun WorkoutModeDistributionChart(
             }
 
             val dataSet = BarDataSet(entries, "PRs by Mode").apply {
-                color = Color.parseColor("#9333EA")
+                color = "#9333EA".toColorInt()
                 valueTextSize = 12f
                 valueTextColor = textColor
             }
