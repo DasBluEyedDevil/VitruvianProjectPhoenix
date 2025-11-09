@@ -1,5 +1,9 @@
 package com.example.vitruvianredux.presentation.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -42,7 +46,33 @@ fun NavGraph(
         }
 
         // Just Lift screen - quick workout configuration
-        composable(NavigationRoutes.JustLift.route) {
+        composable(
+            route = NavigationRoutes.JustLift.route,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
             JustLiftScreen(
                 navController = navController,
                 viewModel = viewModel,
@@ -70,7 +100,33 @@ fun NavGraph(
         }
 
         // Active Workout screen - shows workout controls during active workout
-        composable(NavigationRoutes.ActiveWorkout.route) {
+        composable(
+            route = NavigationRoutes.ActiveWorkout.route,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(300)
+                ) + fadeIn(animationSpec = tween(300))
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(300)
+                ) + fadeOut(animationSpec = tween(300))
+            },
+            popEnterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(300)
+                ) + fadeIn(animationSpec = tween(300))
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(300)
+                ) + fadeOut(animationSpec = tween(300))
+            }
+        ) {
             ActiveWorkoutScreen(
                 navController = navController,
                 viewModel = viewModel,
@@ -102,7 +158,11 @@ fun NavGraph(
         }
 
         // Analytics screen - history, PRs, trends
-        composable(NavigationRoutes.Analytics.route) {
+        composable(
+            route = NavigationRoutes.Analytics.route,
+            enterTransition = { fadeIn(animationSpec = tween(200)) },
+            exitTransition = { fadeOut(animationSpec = tween(200)) }
+        ) {
             AnalyticsScreen(
                 viewModel = viewModel,
                 themeMode = themeMode
@@ -110,7 +170,11 @@ fun NavGraph(
         }
 
         // Settings screen
-        composable(NavigationRoutes.Settings.route) {
+        composable(
+            route = NavigationRoutes.Settings.route,
+            enterTransition = { fadeIn(animationSpec = tween(200)) },
+            exitTransition = { fadeOut(animationSpec = tween(200)) }
+        ) {
             val weightUnit by viewModel.weightUnit.collectAsState()
             val userPreferences by viewModel.userPreferences.collectAsState()
             val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()

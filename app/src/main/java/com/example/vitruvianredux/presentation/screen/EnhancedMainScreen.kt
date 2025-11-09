@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -105,7 +106,7 @@ fun EnhancedMainScreen(
                     actionIconContentColor = TextPrimary
                 ),
                 actions = {
-                    // Connection status icon (Bluetooth)
+                    // Connection status icon (Bluetooth) with text label
                     IconButton(
                         onClick = {
                             if (connectionState is ConnectionState.Connected) {
@@ -117,25 +118,57 @@ fun EnhancedMainScreen(
                                 )
                             }
                         },
-                        modifier = Modifier.size(48.dp) // Ensure 48dp touch target
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp) // Ensure 48dp touch target
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Bluetooth,
-                            contentDescription = when (connectionState) {
-                                is ConnectionState.Connected -> "Connected to machine. Tap to disconnect"
-                                is ConnectionState.Connecting -> "Connecting to machine"
-                                is ConnectionState.Disconnected -> "Disconnected. Tap to connect"
-                                is ConnectionState.Scanning -> "Scanning for machine"
-                                is ConnectionState.Error -> "Connection error. Tap to retry"
-                            },
-                            tint = when (connectionState) {
-                                is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
-                                is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
-                                is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
-                                is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
-                                is ConnectionState.Error -> Color(0xFFEF4444) // red-500
-                            }
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = when (connectionState) {
+                                    is ConnectionState.Connected -> Icons.Default.Bluetooth
+                                    is ConnectionState.Connecting -> Icons.Default.BluetoothSearching
+                                    is ConnectionState.Disconnected -> Icons.Default.BluetoothDisabled
+                                    is ConnectionState.Scanning -> Icons.Default.BluetoothSearching
+                                    is ConnectionState.Error -> Icons.Default.BluetoothDisabled
+                                },
+                                contentDescription = when (connectionState) {
+                                    is ConnectionState.Connected -> "Connected to machine. Tap to disconnect"
+                                    is ConnectionState.Connecting -> "Connecting to machine"
+                                    is ConnectionState.Disconnected -> "Disconnected. Tap to connect"
+                                    is ConnectionState.Scanning -> "Scanning for machine"
+                                    is ConnectionState.Error -> "Connection error. Tap to retry"
+                                },
+                                tint = when (connectionState) {
+                                    is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
+                                    is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
+                                    is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
+                                    is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
+                                    is ConnectionState.Error -> Color(0xFFEF4444) // red-500
+                                },
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = when (connectionState) {
+                                    is ConnectionState.Connected -> "Connected"
+                                    is ConnectionState.Connecting -> "Connecting"
+                                    is ConnectionState.Disconnected -> "Disconnected"
+                                    is ConnectionState.Scanning -> "Scanning"
+                                    is ConnectionState.Error -> "Error"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                color = when (connectionState) {
+                                    is ConnectionState.Connected -> Color(0xFF22C55E)
+                                    is ConnectionState.Connecting -> Color(0xFFFBBF24)
+                                    is ConnectionState.Disconnected -> Color(0xFFEF4444)
+                                    is ConnectionState.Scanning -> Color(0xFF3B82F6)
+                                    is ConnectionState.Error -> Color(0xFFEF4444)
+                                },
+                                maxLines = 1
+                            )
+                        }
                     }
 
                     // Theme toggle
@@ -171,8 +204,11 @@ fun EnhancedMainScreen(
                             }
                         ) {
                             Icon(
-                                Icons.Default.BarChart,
-                                "Analytics",
+                                imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
+                                    Icons.Filled.BarChart
+                                else
+                                    Icons.Outlined.BarChart,
+                                contentDescription = "Analytics",
                                 modifier = Modifier.size(24.dp),
                                 tint = if (currentRoute == NavigationRoutes.Analytics.route)
                                     MaterialTheme.colorScheme.primary
@@ -182,7 +218,7 @@ fun EnhancedMainScreen(
                         }
                         Text(
                             "Analytics",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            style = MaterialTheme.typography.labelSmall,
                             color = if (currentRoute == NavigationRoutes.Analytics.route)
                                 MaterialTheme.colorScheme.primary
                             else
@@ -224,8 +260,11 @@ fun EnhancedMainScreen(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.Home,
-                                    "Workouts",
+                                    imageVector = if (currentRoute == NavigationRoutes.Home.route)
+                                        Icons.Filled.Home
+                                    else
+                                        Icons.Outlined.Home,
+                                    contentDescription = "Workouts",
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Text(
@@ -266,8 +305,11 @@ fun EnhancedMainScreen(
                             }
                         ) {
                             Icon(
-                                Icons.Default.Settings,
-                                "Settings",
+                                imageVector = if (currentRoute == NavigationRoutes.Settings.route)
+                                    Icons.Filled.Settings
+                                else
+                                    Icons.Outlined.Settings,
+                                contentDescription = "Settings",
                                 modifier = Modifier.size(24.dp),
                                 tint = if (currentRoute == NavigationRoutes.Settings.route)
                                     MaterialTheme.colorScheme.primary
@@ -277,7 +319,7 @@ fun EnhancedMainScreen(
                         }
                         Text(
                             "Settings",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            style = MaterialTheme.typography.labelSmall,
                             color = if (currentRoute == NavigationRoutes.Settings.route)
                                 MaterialTheme.colorScheme.primary
                             else
