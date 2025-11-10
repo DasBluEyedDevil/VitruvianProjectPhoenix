@@ -71,7 +71,7 @@ fun CountdownCard(secondsRemaining: Int) {
                     text = "$secondsRemaining",
                     style = MaterialTheme.typography.displayLarge.copy(fontSize = 96.sp),
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
