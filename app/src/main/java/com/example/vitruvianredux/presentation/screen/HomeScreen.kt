@@ -110,6 +110,7 @@ fun HomeScreen(
                     routines = routines,
                     weightUnit = weightUnit,
                     formatWeight = viewModel::formatWeight,
+                    kgToDisplay = viewModel::kgToDisplay,
                     onStartRoutine = { routineId ->
                         viewModel.ensureConnection(
                             onConnected = {
@@ -302,6 +303,7 @@ fun HomeActiveProgramCard(
     routines: List<com.example.vitruvianredux.domain.model.Routine>,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
+    kgToDisplay: (Float, WeightUnit) -> Float,
     onStartRoutine: (String) -> Unit
 ) {
     val today = LocalDate.now().dayOfWeek
@@ -333,12 +335,24 @@ fun HomeActiveProgramCard(
                 todayRoutine?.let { routine ->
                     // Show all exercises with simple format: "Exercise Name | X Reps | X lbs | Mode"
                     routine.exercises.forEach { exercise ->
-                        // Get first set reps (for display)
-                        val repsText = "${exercise.setReps.firstOrNull() ?: 10} Reps"
+                        // Display all set reps (e.g., "10, 10, 12")
+                        val repsText = exercise.setReps.joinToString(", ")
 
-                        // Format weight in user's preferred unit
-                        val weightKg = exercise.weightPerCableKg
-                        val weightDisplay = formatWeight(weightKg, weightUnit)
+                        // Display individual set weights if they differ, otherwise show single weight
+                        val weightDisplay = if (exercise.setWeightsPerCableKg.isNotEmpty()) {
+                            val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit) }
+                            val minWeight = displayWeights.minOrNull() ?: 0f
+                            val maxWeight = displayWeights.maxOrNull() ?: 0f
+                            val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+
+                            if (minWeight == maxWeight) {
+                                "%.1f %s".format(minWeight, weightSuffix)
+                            } else {
+                                "%.1f-%.1f %s".format(minWeight, maxWeight, weightSuffix)
+                            }
+                        } else {
+                            formatWeight(exercise.weightPerCableKg, weightUnit)
+                        }
 
                         // Get mode display name
                         val modeText = exercise.workoutType.displayName
