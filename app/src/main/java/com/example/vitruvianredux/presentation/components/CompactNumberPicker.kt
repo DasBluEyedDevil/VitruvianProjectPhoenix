@@ -103,10 +103,24 @@ fun CompactNumberPicker(
                             onValueChange(actualValue)
                         }
 
-                        // Set text color for API 29+ (Android Q and above)
-                        // NumberPicker gained setTextColor() method in API 29
+                        // Set text color for all Android versions
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            // API 29+: Use official setTextColor() method
                             setTextColor(textColor.toArgb())
+                        } else {
+                            // API 28 and below (including Fire OS): Use reflection to access EditText children
+                            try {
+                                val count = childCount
+                                for (i in 0 until count) {
+                                    val child = getChildAt(i)
+                                    if (child is android.widget.EditText) {
+                                        child.setTextColor(textColor.toArgb())
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // Fallback: If reflection fails, log but continue
+                                android.util.Log.w("CompactNumberPicker", "Failed to set text color via reflection", e)
+                            }
                         }
                     }
                 },
@@ -117,10 +131,13 @@ fun CompactNumberPicker(
                         picker.value = pickerValue.coerceIn(pickerRange)
                     }
 
-                    // Update text color for API 29+ on theme changes
-                    // For API 28 and below, key() forces recreation so this isn't needed
+                    // Update text color on theme changes
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // API 29+: Use official setTextColor() method
                         picker.setTextColor(textColor.toArgb())
+                    } else {
+                        // API 28 and below: key() forces recreation on theme change
+                        // So we don't need to update color here - it's set in factory
                     }
                 },
                 modifier = Modifier
