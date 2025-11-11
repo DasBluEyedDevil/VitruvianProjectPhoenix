@@ -143,7 +143,7 @@ fun ActiveWorkoutScreen(
                     onFailed = { /* Error shown via StateFlow */ }
                 )
             },
-            onStopWorkout = { viewModel.stopWorkout() },
+            onStopWorkout = { showExitConfirmation = true },
             onSkipRest = { viewModel.skipRest() },
             onProceedFromSummary = { viewModel.proceedFromSummary() },
             onResetForNewWorkout = { viewModel.resetForNewWorkout() },
