@@ -146,6 +146,7 @@ fun AnalyticsScreen(
                         weightUnit = weightUnit,
                         formatWeight = viewModel::formatWeight,
                         onDeleteWorkout = { viewModel.deleteWorkout(it) },
+                        exerciseRepository = viewModel.exerciseRepository,
                         onRefresh = { /* Workout history refreshes automatically via StateFlow */ },
                         modifier = Modifier.fillMaxSize()
                     )
