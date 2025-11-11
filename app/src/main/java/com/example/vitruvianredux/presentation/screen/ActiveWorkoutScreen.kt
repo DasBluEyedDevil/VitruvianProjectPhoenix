@@ -58,6 +58,9 @@ fun ActiveWorkoutScreen(
         }
     }
 
+    // Haptic and audio feedback effect
+    HapticFeedbackEffect(hapticEvents = hapticEvents)
+
     // Watch for workout completion and navigate back
     // For Just Lift, navigate back when state becomes Idle (after auto-reset)
     LaunchedEffect(workoutState, workoutParameters) {
