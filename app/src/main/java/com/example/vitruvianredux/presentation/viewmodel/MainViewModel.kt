@@ -423,13 +423,17 @@ class MainViewModel @Inject constructor(
             return
         }
 
-        Timber.d("Auto-start timer STARTING! (1.2 seconds)")
+        Timber.d("Auto-start timer STARTING! (3 seconds)")
         autoStartJob = viewModelScope.launch {
-            // Official app: 1.2 second hold timer with visible countdown
-            _autoStartCountdown.value = 1  // Show "1" during hold
-            delay(1200)  // Official app: 1200ms hold
+            // User preference: 3 second hold timer with visible countdown
+            _autoStartCountdown.value = 3
+            delay(1000)
+            _autoStartCountdown.value = 2
+            delay(1000)
+            _autoStartCountdown.value = 1
+            delay(1000)
             _autoStartCountdown.value = null
-            Timber.d("Auto-start hold complete (1.2s)! Starting workout...")
+            Timber.d("Auto-start hold complete (3s)! Starting workout...")
             // Just Lift mode: Pass isJustLiftMode=true to ensure flag is preserved
             startWorkout(isJustLiftMode = true)
         }
