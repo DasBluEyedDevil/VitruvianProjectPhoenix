@@ -107,6 +107,10 @@ class MainViewModel @Inject constructor(
         .map { it.stopAtTop }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val enableVideoPlayback: StateFlow<Boolean> = userPreferences
+        .map { it.enableVideoPlayback }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     // Feature 4: Routine Management
     private val _routines = MutableStateFlow<List<Routine>>(emptyList())
     val routines: StateFlow<List<Routine>> = _routines.asStateFlow()
@@ -1383,6 +1387,12 @@ class MainViewModel @Inject constructor(
     fun setStopAtTop(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.setStopAtTop(enabled)
+        }
+    }
+
+    fun setEnableVideoPlayback(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setEnableVideoPlayback(enabled)
         }
     }
 
