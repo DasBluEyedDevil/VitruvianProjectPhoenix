@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
@@ -156,12 +157,14 @@ fun ExercisePickerDialog(
                 .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
                 .padding(horizontal = 16.dp)
         ) {
-            // Title
-            Text(
-                text = "Select Exercise",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            // Title (only show in bottom sheet mode, not in fullscreen mode where TopAppBar has the title)
+            if (!fullScreen) {
+                Text(
+                    text = "Select Exercise",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
 
             // Search field
             OutlinedTextField(
@@ -316,11 +319,30 @@ fun ExercisePickerDialog(
                 usePlatformDefaultWidth = false
             )
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                PickerContent()
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Select Exercise") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surface
+            ) { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues)) {
+                    PickerContent()
+                }
             }
         }
     } else {
