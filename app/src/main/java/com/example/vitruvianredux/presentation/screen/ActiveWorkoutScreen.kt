@@ -28,6 +28,7 @@ fun ActiveWorkoutScreen(
     val currentMetric by viewModel.currentMetric.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val repCount by viewModel.repCount.collectAsState()
+    val repRanges by viewModel.repRanges.collectAsState()
     val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val loadedRoutine by viewModel.loadedRoutine.collectAsState()
@@ -56,6 +57,9 @@ fun ActiveWorkoutScreen(
             else -> "Single Exercise"
         }
     }
+
+    // Haptic and audio feedback effect
+    HapticFeedbackEffect(hapticEvents = hapticEvents)
 
     // Watch for workout completion and navigate back
     // For Just Lift, navigate back when state becomes Idle (after auto-reset)
@@ -123,6 +127,7 @@ fun ActiveWorkoutScreen(
             currentMetric = currentMetric,
             workoutParameters = workoutParameters,
             repCount = repCount,
+            repRanges = repRanges,
             autoStopState = autoStopState,
             weightUnit = weightUnit,
             exerciseRepository = exerciseRepository,
@@ -141,8 +146,9 @@ fun ActiveWorkoutScreen(
                     onFailed = { /* Error shown via StateFlow */ }
                 )
             },
-            onStopWorkout = { viewModel.stopWorkout() },
+            onStopWorkout = { showExitConfirmation = true },
             onSkipRest = { viewModel.skipRest() },
+            onProceedFromSummary = { viewModel.proceedFromSummary() },
             onResetForNewWorkout = { viewModel.resetForNewWorkout() },
             onStartNextExercise = { viewModel.advanceToNextExercise() },
             onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
