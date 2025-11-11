@@ -357,6 +357,7 @@ fun SettingsTab(
     isAutoConnecting: Boolean = false,
     connectionError: String? = null,
     onClearConnectionError: () -> Unit = {},
+    onCancelAutoConnecting: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
@@ -798,7 +799,9 @@ fun SettingsTab(
 
     // Auto-connect UI overlays (same as other screens)
     if (isAutoConnecting) {
-        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+            onCancel = onCancelAutoConnecting
+        )
     }
 
     connectionError?.let { error ->
