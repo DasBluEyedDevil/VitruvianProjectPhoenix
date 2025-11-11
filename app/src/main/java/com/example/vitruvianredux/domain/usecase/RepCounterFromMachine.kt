@@ -11,6 +11,11 @@ import kotlin.math.max
  * This is a direct port of the logic used by the reference web application. Rather than trying to
  * infer reps from position data, we track the counters supplied by the hardware (u16 values) and
  * supplement them with light position tracking for range calibration and auto-stop support.
+ *
+ * Rep Counting Logic (matches official app):
+ * - Reps are counted when topCounter increments (at peak contraction/top of movement)
+ * - This provides intuitive feedback - rep counts when you "complete" the concentric phase
+ * - For the final rep, completeCounter is used to ensure full eccentric phase before release
  */
 class RepCounterFromMachine {
 
@@ -81,18 +86,49 @@ class RepCounterFromMachine {
             if (topDelta > 0) {
                 recordTopPosition(posA, posB)
 
-                // SAFETY FIX: Stop at top position AFTER completing target reps
-                // This ensures full tension through both concentric and eccentric of final rep
-                // Changed from (workingTarget - 1) to (workingTarget) so we don't release early
-                if (stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
-                    shouldStop = true
+                // Count the rep at TOP of movement (matches official app behavior)
+                // This is when the user reaches peak contraction - the intuitive moment for counting
+                val totalReps = warmupReps + workingReps + 1
+                if (totalReps <= warmupTarget) {
+                    warmupReps++
                     onRepEvent?.invoke(
                         RepEvent(
-                            type = RepType.WORKOUT_COMPLETE,
+                            type = RepType.WARMUP_COMPLETED,
                             warmupCount = warmupReps,
                             workingCount = workingReps
                         )
                     )
+                    if (warmupReps == warmupTarget) {
+                        onRepEvent?.invoke(
+                            RepEvent(
+                                type = RepType.WARMUP_COMPLETE,
+                                warmupCount = warmupReps,
+                                workingCount = workingReps
+                            )
+                        )
+                    }
+                } else {
+                    workingReps++
+                    onRepEvent?.invoke(
+                        RepEvent(
+                            type = RepType.WORKING_COMPLETED,
+                            warmupCount = warmupReps,
+                            workingCount = workingReps
+                        )
+                    )
+
+                    // If "Stop At Top" is enabled and target reached, stop NOW (at peak contraction)
+                    // This is safer as it ensures user completes the full eccentric phase of final rep
+                    if (stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
+                        shouldStop = true
+                        onRepEvent?.invoke(
+                            RepEvent(
+                                type = RepType.WORKOUT_COMPLETE,
+                                warmupCount = warmupReps,
+                                workingCount = workingReps
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -110,49 +146,21 @@ class RepCounterFromMachine {
 
         lastCompleteCounter = completeCounter
 
+        // Record bottom position (used for range calibration)
         recordBottomPosition(posA, posB)
 
-        val totalReps = warmupReps + workingReps + 1
-        if (totalReps <= warmupTarget) {
-            warmupReps++
+        // If "Stop At Top" is disabled, stop at BOTTOM after completing target
+        // This preserves the old behavior for users who prefer it
+        // Note: Rep was already counted when topCounter fired
+        if (!stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
+            shouldStop = true
             onRepEvent?.invoke(
                 RepEvent(
-                    type = RepType.WARMUP_COMPLETED,
+                    type = RepType.WORKOUT_COMPLETE,
                     warmupCount = warmupReps,
                     workingCount = workingReps
                 )
             )
-            if (warmupReps == warmupTarget) {
-                onRepEvent?.invoke(
-                    RepEvent(
-                        type = RepType.WARMUP_COMPLETE,
-                        warmupCount = warmupReps,
-                        workingCount = workingReps
-                    )
-                )
-            }
-        } else {
-            workingReps++
-            onRepEvent?.invoke(
-                RepEvent(
-                    type = RepType.WORKING_COMPLETED,
-                    warmupCount = warmupReps,
-                    workingCount = workingReps
-                )
-            )
-
-            // Only stop at bottom if stopAtTop is disabled
-            // Most users should use stopAtTop (safer) but this preserves old behavior for those who want it
-            if (!stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
-                shouldStop = true
-                onRepEvent?.invoke(
-                    RepEvent(
-                        type = RepType.WORKOUT_COMPLETE,
-                        warmupCount = warmupReps,
-                        workingCount = workingReps
-                    )
-                )
-            }
         }
     }
 
