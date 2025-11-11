@@ -3,6 +3,7 @@ package com.example.vitruvianredux.data.logger
 import com.example.vitruvianredux.data.local.ConnectionLogDao
 import com.example.vitruvianredux.data.local.ConnectionLogEntity
 import com.example.vitruvianredux.util.DeviceInfo
+import com.example.vitruvianredux.util.HardwareDetection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -209,14 +210,23 @@ class ConnectionLogger @Inject constructor(
     }
 
     /**
-     * Extract Vitruvian model from device name
+     * Extract Vitruvian model from device name using hardware detection
      * Device names typically follow pattern "Vee123" or "Vitruvian-XXX"
      */
     private fun extractVitruvianModel(deviceName: String): String {
-        return when {
-            deviceName.startsWith("Vee") -> "Vitruvian V1/V1+ (${deviceName})"
-            deviceName.startsWith("Vitruvian") -> deviceName
-            else -> "Unknown Model ($deviceName)"
+        val model = HardwareDetection.detectModel(deviceName)
+        val capabilities = model.capabilities
+
+        return buildString {
+            append("${model.displayName} [${model.modelNumber}]")
+            appendLine()
+            append("  • Eccentric Mode: ${if (capabilities.supportsEccentricMode) "Supported" else "Not Supported"}")
+            appendLine()
+            append("  • Max Resistance: ${capabilities.maxResistanceKg} kg")
+            if (capabilities.notes.isNotEmpty()) {
+                appendLine()
+                append("  • Note: ${capabilities.notes}")
+            }
         }
     }
 
