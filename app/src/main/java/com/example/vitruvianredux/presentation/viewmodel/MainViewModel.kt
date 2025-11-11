@@ -76,6 +76,9 @@ class MainViewModel @Inject constructor(
     private val _repCount = MutableStateFlow(RepCount())
     val repCount: StateFlow<RepCount> = _repCount.asStateFlow()
 
+    private val _repRanges = MutableStateFlow<com.example.vitruvianredux.domain.usecase.RepRanges?>(null)
+    val repRanges: StateFlow<com.example.vitruvianredux.domain.usecase.RepRanges?> = _repRanges.asStateFlow()
+
     private val _autoStopState = MutableStateFlow(AutoStopUiState())
     val autoStopState: StateFlow<AutoStopUiState> = _autoStopState.asStateFlow()
 
@@ -460,6 +463,8 @@ class MainViewModel @Inject constructor(
             posA = currentPositions?.positionA ?: 0,
             posB = currentPositions?.positionB ?: 0
         )
+        // Update rep ranges for position bars visualization
+        _repRanges.value = repCounter.getRepRanges()
         // All other logic (UI update, haptics, auto-stop) handled in onRepEvent callback
     }
 
@@ -1300,6 +1305,7 @@ class MainViewModel @Inject constructor(
     fun resetForNewWorkout() {
         _workoutState.value = WorkoutState.Idle
         _repCount.value = RepCount()
+        _repRanges.value = null
         _currentSetIndex.value = 0
         resetAutoStopState()
         Timber.d("Reset for new workout - state returned to Idle")
