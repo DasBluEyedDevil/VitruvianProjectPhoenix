@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.local.ProgramDayEntity
 import com.example.vitruvianredux.data.local.WeeklyProgramEntity
@@ -161,6 +163,26 @@ fun ProgramBuilderScreen(
             )
         }
     ) { padding ->
+        // Track scroll state to show scroll indicator
+        val listState = rememberLazyListState()
+
+        // Determine if we can scroll down (more content below)
+        val canScrollDown by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+                val totalItems = layoutInfo.totalItemsCount
+
+                // Can scroll if there are items and the last visible item is not the last item
+                // or if the last item is partially visible
+                totalItems > 0 && (
+                    lastVisibleItem == null ||
+                    lastVisibleItem.index < totalItems - 1 ||
+                    lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset
+                )
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -175,6 +197,7 @@ fun ProgramBuilderScreen(
                 )
         ) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -241,6 +264,37 @@ fun ProgramBuilderScreen(
                     }
                 }
             }
+            }
+
+            // Scroll indicator - gradient fade at bottom when more content is available
+            if (canScrollDown) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color(0xFFEFF6FF).copy(alpha = 0.7f),
+                                    Color(0xFFEFF6FF)
+                                )
+                            )
+                        )
+                        .zIndex(1f)
+                ) {
+                    // Optional: Add a subtle down arrow icon
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Scroll down for more",
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 8.dp)
+                            .size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     }
