@@ -248,7 +248,9 @@ fun ConnectionLogsScreen(
 
     // Auto-connect UI overlays (same as other screens)
     if (isAutoConnecting) {
-        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+            onCancel = { mainViewModel.cancelAutoConnecting() }
+        )
     }
 
     connectionError?.let { error ->

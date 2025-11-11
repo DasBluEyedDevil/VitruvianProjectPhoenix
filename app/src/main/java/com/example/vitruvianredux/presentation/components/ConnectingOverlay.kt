@@ -6,6 +6,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,10 +16,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 /**
- * Full-screen overlay showing "Connecting..." with animation
+ * Full-screen overlay showing "Connecting..." with animation and cancel option
  */
 @Composable
-fun ConnectingOverlay() {
+fun ConnectingOverlay(
+    onCancel: () -> Unit = {}
+) {
     Dialog(
         onDismissRequest = { /* Non-dismissible */ },
         properties = DialogProperties(
@@ -55,6 +58,12 @@ fun ConnectingOverlay() {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    TextButton(
+                        onClick = onCancel,
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             }
         }

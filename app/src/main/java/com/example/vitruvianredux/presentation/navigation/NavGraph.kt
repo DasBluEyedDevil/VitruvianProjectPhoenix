@@ -191,7 +191,8 @@ fun NavGraph(
                 onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
-                onClearConnectionError = { viewModel.clearConnectionError() }
+                onClearConnectionError = { viewModel.clearConnectionError() },
+                onCancelAutoConnecting = { viewModel.cancelAutoConnecting() }
             )
         }
 

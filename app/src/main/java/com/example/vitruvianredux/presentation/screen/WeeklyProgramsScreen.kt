@@ -228,7 +228,9 @@ fun WeeklyProgramsScreen(
 
             // Auto-connect UI overlays
             if (isAutoConnecting) {
-                com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+                com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+                    onCancel = { viewModel.cancelAutoConnecting() }
+                )
             }
 
             connectionError?.let { error ->

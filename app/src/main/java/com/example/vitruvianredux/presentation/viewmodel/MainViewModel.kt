@@ -646,6 +646,25 @@ class MainViewModel @Inject constructor(
         _connectionError.value = null
     }
 
+    /**
+     * Cancel the auto-connection process.
+     * This stops scanning, clears pending callbacks, and hides the connecting overlay.
+     */
+    fun cancelAutoConnecting() {
+        viewModelScope.launch {
+            Timber.d("User cancelled auto-connection")
+            _isAutoConnecting.value = false
+            _pendingConnectionCallback = null
+            stopScanning()
+
+            // If we're in the middle of connecting, disconnect
+            val currentState = connectionState.value
+            if (currentState is ConnectionState.Connecting) {
+                bleRepository.disconnect()
+            }
+        }
+    }
+
     fun dismissConnectionLostAlert() {
         _connectionLostDuringWorkout.value = false
     }
