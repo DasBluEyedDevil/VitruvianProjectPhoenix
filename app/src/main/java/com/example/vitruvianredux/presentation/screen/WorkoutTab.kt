@@ -1511,23 +1511,74 @@ fun LiveMetricsCard(
 
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Position indicator
+            // Cable Position Bars - showing individual cable positions
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Range of Motion",
+                    "Cable Positions",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = Spacing.extraSmall)
                 )
-                LinearProgressIndicator(
-                    progress = { (maxPosition / 1000f).coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .padding(top = Spacing.extraSmall)
-                        .height(8.dp)
-                )
+
+                // Cable A Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "A",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(20.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                    Text(
+                        "${metric.positionA}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(50.dp).padding(start = Spacing.extraSmall),
+                        textAlign = TextAlign.End
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.extraSmall))
+
+                // Cable B Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "B",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(20.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                    Text(
+                        "${metric.positionB}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(50.dp).padding(start = Spacing.extraSmall),
+                        textAlign = TextAlign.End
+                    )
+                }
             }
         }
     }
