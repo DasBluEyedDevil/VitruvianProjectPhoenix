@@ -171,15 +171,11 @@ fun ProgramBuilderScreen(
             derivedStateOf {
                 val layoutInfo = listState.layoutInfo
                 val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
-                val totalItems = layoutInfo.totalItemsCount
 
-                // Can scroll if there are items and the last visible item is not the last item
-                // or if the last item is partially visible
-                totalItems > 0 && (
-                    lastVisibleItem == null ||
-                    lastVisibleItem.index < totalItems - 1 ||
-                    lastVisibleItem.offset + lastVisibleItem.size > layoutInfo.viewportEndOffset
-                )
+                // Can scroll down if the last visible item is not the last item in the list
+                lastVisibleItem?.let {
+                    it.index < layoutInfo.totalItemsCount - 1
+                } ?: false
             }
         }
 
@@ -271,29 +267,36 @@ fun ProgramBuilderScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp)
+                        .height(80.dp)
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Color(0xFFEFF6FF).copy(alpha = 0.7f),
+                                    Color(0xFFEFF6FF).copy(alpha = 0.85f),
                                     Color(0xFFEFF6FF)
                                 )
                             )
                         )
                         .zIndex(1f)
                 ) {
-                    // Optional: Add a subtle down arrow icon
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Scroll down for more",
+                    // Down arrow icon to indicate more content
+                    Surface(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 8.dp)
-                            .size(24.dp),
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                    )
+                            .padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Scroll down for more",
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .size(28.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
