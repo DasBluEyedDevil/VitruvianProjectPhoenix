@@ -2,6 +2,7 @@ package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -41,7 +42,8 @@ fun ProgramBuilderScreen(
     navController: NavController,
     viewModel: MainViewModel,
     programId: String,
-    exerciseRepository: ExerciseRepository
+    exerciseRepository: ExerciseRepository,
+    themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
     val routines by viewModel.routines.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
@@ -163,6 +165,31 @@ fun ProgramBuilderScreen(
             )
         }
     ) { padding ->
+        // Determine actual theme (matching Theme.kt logic)
+        val useDarkColors = when (themeMode) {
+            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
+            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
+        }
+
+        val backgroundGradient = if (useDarkColors) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0F172A), // slate-900
+                    Color(0xFF1E1B4B), // indigo-950
+                    Color(0xFF172554)  // blue-950
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFE0E7FF), // soft indigo
+                    Color(0xFFEDE9FE), // soft violet
+                    Color(0xFFDFF6FF)  // soft sky blue
+                )
+            )
+        }
+
         // Track scroll state to show scroll indicator
         val listState = rememberLazyListState()
 
@@ -182,15 +209,7 @@ fun ProgramBuilderScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFF8FAFC),
-                            Color(0xFFF5F3FF),
-                            Color(0xFFEFF6FF)
-                        )
-                    )
-                )
+                .background(backgroundGradient)
         ) {
             LazyColumn(
                 state = listState,
@@ -264,6 +283,7 @@ fun ProgramBuilderScreen(
 
             // Scroll indicator - gradient fade at bottom when more content is available
             if (canScrollDown) {
+                val bottomColor = if (useDarkColors) Color(0xFF172554) else Color(0xFFDFF6FF)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -273,8 +293,8 @@ fun ProgramBuilderScreen(
                             Brush.verticalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Color(0xFFEFF6FF).copy(alpha = 0.85f),
-                                    Color(0xFFEFF6FF)
+                                    bottomColor.copy(alpha = 0.85f),
+                                    bottomColor
                                 )
                             )
                         )

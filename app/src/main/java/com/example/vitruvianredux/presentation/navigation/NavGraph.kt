@@ -153,7 +153,8 @@ fun NavGraph(
                 navController = navController,
                 viewModel = viewModel,
                 programId = programId,
-                exerciseRepository = exerciseRepository
+                exerciseRepository = exerciseRepository,
+                themeMode = themeMode
             )
         }
 
