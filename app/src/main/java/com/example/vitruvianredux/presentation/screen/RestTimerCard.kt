@@ -129,7 +129,7 @@ fun RestTimerCard(
                             text = formatRestTime(restSecondsRemaining),
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
