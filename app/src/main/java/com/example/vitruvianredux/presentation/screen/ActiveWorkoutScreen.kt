@@ -145,6 +145,7 @@ fun ActiveWorkoutScreen(
             },
             onStopWorkout = { viewModel.stopWorkout() },
             onSkipRest = { viewModel.skipRest() },
+            onProceedFromSummary = { viewModel.proceedFromSummary() },
             onResetForNewWorkout = { viewModel.resetForNewWorkout() },
             onStartNextExercise = { viewModel.advanceToNextExercise() },
             onUpdateParameters = { viewModel.updateWorkoutParameters(it) },

@@ -857,6 +857,40 @@ class MainViewModel @Inject constructor(
             // Save progress
             saveWorkoutSession()
 
+            // Calculate metrics for summary
+            val peakPower = if (collectedMetrics.isNotEmpty()) {
+                collectedMetrics.maxOf { it.totalLoad }
+            } else {
+                0f
+            }
+
+            val averagePower = if (collectedMetrics.isNotEmpty()) {
+                collectedMetrics.map { it.totalLoad }.average().toFloat()
+            } else {
+                0f
+            }
+
+            val completedReps = _repCount.value.workingReps
+
+            // Transition to SetSummary state to show post-set metrics
+            _workoutState.value = WorkoutState.SetSummary(
+                metrics = collectedMetrics.toList(),
+                peakPower = peakPower,
+                averagePower = averagePower,
+                repCount = completedReps
+            )
+
+            Timber.d("Set summary: peak=$peakPower, avg=$averagePower, reps=$completedReps, metrics=${collectedMetrics.size}")
+            Timber.d("???????????????????????????????????????????????????")
+        }
+    }
+
+    /**
+     * Proceed from set summary to rest timer or completion
+     * Called when user clicks "Continue" button on set summary screen
+     */
+    fun proceedFromSummary() {
+        viewModelScope.launch {
             val routine = _loadedRoutine.value
             val isJustLift = workoutParameters.value.isJustLift
 
