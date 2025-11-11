@@ -76,13 +76,9 @@ fun CompactNumberPicker(
             // Get the theme-aware text color
             val textColor = MaterialTheme.colorScheme.onSurface
 
-            // Use isDarkTheme as key for API 28 and below to force recreation on theme change
-            val isDarkTheme = isSystemInDarkTheme()
-
-            // For API 28 and below, use key() to force recreation on theme change
-            // For API 29+, use setTextColor() in update block
-            key(if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) isDarkTheme else null) {
-                AndroidView(
+            // Don't use key() wrapper - let update block handle all text color changes
+            // This ensures update runs on every recomposition, catching new EditText children during scroll
+            AndroidView(
                     factory = { context ->
                     NumberPicker(context).apply {
                         // Use offset range that starts at 0 or positive number
@@ -108,18 +104,39 @@ fun CompactNumberPicker(
                             // API 29+: Use official setTextColor() method
                             setTextColor(textColor.toArgb())
                         } else {
-                            // API 28 and below (including Fire OS): Use reflection to access EditText children
-                            try {
-                                val count = childCount
-                                for (i in 0 until count) {
-                                    val child = getChildAt(i)
-                                    if (child is android.widget.EditText) {
-                                        child.setTextColor(textColor.toArgb())
+                            // API 28 and below (including Fire OS): Aggressively style ALL text-related children
+                            // Use post() to ensure styling is applied after view is fully created
+                            post {
+                                try {
+                                    // Style all TextView-based children (EditText, TextView, etc.)
+                                    val count = childCount
+                                    for (i in 0 until count) {
+                                        val child = getChildAt(i)
+                                        when (child) {
+                                            is android.widget.EditText -> {
+                                                child.setTextColor(textColor.toArgb())
+                                                child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                            }
+                                            is android.widget.TextView -> {
+                                                child.setTextColor(textColor.toArgb())
+                                                child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                            }
+                                        }
                                     }
+
+                                    // Try to access and modify the Paint object used for selector rendering
+                                    try {
+                                        val paintField = NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint")
+                                        paintField.isAccessible = true
+                                        val paint = paintField.get(this) as? android.graphics.Paint
+                                        paint?.color = textColor.toArgb()
+                                    } catch (e: Exception) {
+                                        // Paint field not found or access denied
+                                        android.util.Log.d("CompactNumberPicker", "Could not access Paint: ${e.message}")
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.w("CompactNumberPicker", "Failed to set text color via reflection", e)
                                 }
-                            } catch (e: Exception) {
-                                // Fallback: If reflection fails, log but continue
-                                android.util.Log.w("CompactNumberPicker", "Failed to set text color via reflection", e)
                             }
                         }
                     }
@@ -131,20 +148,52 @@ fun CompactNumberPicker(
                         picker.value = pickerValue.coerceIn(pickerRange)
                     }
 
-                    // Update text color on theme changes
+                    // Update text color on every recomposition (including after scroll events)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                         // API 29+: Use official setTextColor() method
                         picker.setTextColor(textColor.toArgb())
                     } else {
-                        // API 28 and below: key() forces recreation on theme change
-                        // So we don't need to update color here - it's set in factory
+                        // API 28 and below (including Fire OS): Aggressively apply text color to ALL text children
+                        // This runs on every recomposition to catch dynamically created children during scroll
+                        // Use post() to ensure this runs after any layout/draw updates
+                        picker.post {
+                            try {
+                                // Style all TextView-based children (EditText, TextView, etc.)
+                                val count = picker.childCount
+                                for (i in 0 until count) {
+                                    val child = picker.getChildAt(i)
+                                    when (child) {
+                                        is android.widget.EditText -> {
+                                            child.setTextColor(textColor.toArgb())
+                                            child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                        }
+                                        is android.widget.TextView -> {
+                                            child.setTextColor(textColor.toArgb())
+                                            child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                        }
+                                    }
+                                }
+
+                                // Try to access and modify the Paint object used for selector rendering
+                                try {
+                                    val paintField = NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint")
+                                    paintField.isAccessible = true
+                                    val paint = paintField.get(picker) as? android.graphics.Paint
+                                    paint?.color = textColor.toArgb()
+                                } catch (e: Exception) {
+                                    // Paint field not found or access denied
+                                    android.util.Log.d("CompactNumberPicker", "Could not access Paint in update: ${e.message}")
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.w("CompactNumberPicker", "Failed to set text color in update block", e)
+                            }
+                        }
                     }
                 },
                 modifier = Modifier
                     .weight(1f)
                     .height(120.dp)
                 )
-            }
 
             // Increase button
             IconButton(
