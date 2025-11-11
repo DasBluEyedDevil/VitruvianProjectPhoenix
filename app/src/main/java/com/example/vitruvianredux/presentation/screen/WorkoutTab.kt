@@ -1705,7 +1705,7 @@ fun PositionBarsCard(
                         modifier = Modifier.width(16.dp)
                     )
                     LinearProgressIndicator(
-                        progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
+                        progress = { (currentMetric.positionA / 1000f).coerceIn(0f, 1f) },
                         modifier = Modifier
                             .weight(1f)
                             .height(12.dp),
@@ -1713,7 +1713,7 @@ fun PositionBarsCard(
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Text(
-                        "${(metric.positionA / 10).toInt()}%",
+                        "${(currentMetric.positionA / 10).toInt()}%",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.width(40.dp),
@@ -1735,7 +1735,7 @@ fun PositionBarsCard(
                         modifier = Modifier.width(16.dp)
                     )
                     LinearProgressIndicator(
-                        progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
+                        progress = { (currentMetric.positionB / 1000f).coerceIn(0f, 1f) },
                         modifier = Modifier
                             .weight(1f)
                             .height(12.dp),
@@ -1743,7 +1743,7 @@ fun PositionBarsCard(
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Text(
-                        "${(metric.positionB / 10).toInt()}%",
+                        "${(currentMetric.positionB / 10).toInt()}%",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.width(40.dp),

@@ -923,16 +923,6 @@ class MainViewModel @Inject constructor(
                 result
             } ?: false
 
-            // Show rest timer for:
-            // 1. Routines with more sets/exercises
-            // 2. Single exercise mode (non-routine, non-just-lift) to allow multiple sets
-            val shouldShowRestTimer = if (routine != null) {
-                // Routine mode: show rest timer if more sets or exercises remain
-                (hasMoreSets || hasMoreExercises) && !isJustLift
-            } else {
-                // Single exercise mode: show rest timer to allow user to do another set
-                !isJustLift
-            }
             // 2. Single Exercise mode (not Just Lift, not a routine)
             val isSingleExercise = routine == null && !isJustLift
             val shouldShowRestTimer = ((hasMoreSets || hasMoreExercises) && !isJustLift) || isSingleExercise
@@ -1002,44 +992,6 @@ class MainViewModel @Inject constructor(
 
         restTimerJob = viewModelScope.launch {
             val routine = _loadedRoutine.value
-            val autoplay = userPreferences.value.autoplayEnabled
-
-            // Handle routine mode
-            if (routine != null) {
-                val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: run {
-                    Timber.e("startRestTimer: No exercise at index ${_currentExerciseIndex.value}")
-                    return@launch
-                }
-                val restDuration = currentExercise.restSeconds.takeIf { it > 0 } ?: 90
-
-                Timber.d("???????????????????????????????????????????????????")
-                Timber.d("REST TIMER STARTING (Routine Mode)")
-                Timber.d("  Exercise: ${currentExercise.exercise.displayName}")
-                Timber.d("  Rest duration: ${restDuration}s")
-                Timber.d("  Autoplay enabled: $autoplay")
-                Timber.d("  Current set: ${_currentSetIndex.value + 1}/${currentExercise.setReps.size}")
-                Timber.d("???????????????????????????????????????????????????")
-
-                for (i in restDuration downTo 1) {
-                    val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
-                    val nextExercise = routine.exercises.getOrNull(_currentExerciseIndex.value + 1)
-                    val nextName = if (isLastSet) {
-                        nextExercise?.exercise?.name ?: "Workout Complete"
-                    } else {
-                        "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
-                    }
-
-                    _workoutState.value = WorkoutState.Resting(
-                        restSecondsRemaining = i,
-                        nextExerciseName = nextName,
-                        isLastExercise = isLastSet && nextExercise == null,
-                        currentSet = _currentSetIndex.value + 1,
-                        totalSets = currentExercise.setReps.size
-                    )
-                    delay(1000)
-                }
-
-                Timber.d("Rest timer complete. Autoplay=$autoplay")
             val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
 
             // Determine rest duration and autoplay
@@ -1096,64 +1048,6 @@ class MainViewModel @Inject constructor(
                 delay(1000)
             }
 
-                // Only auto-advance if autoplay is enabled
-                // If autoplay is disabled, user must manually start next set via skipRest()
-                if (autoplay) {
-                    Timber.d("Autoplay enabled - starting next set/exercise")
-                    startNextSetOrExercise()
-                } else {
-                    // Stay in resting state with 0 seconds remaining
-                    // User will see "Start Next Set" button in UI
-                    Timber.d("Autoplay disabled - staying in resting state")
-
-                    // Recalculate next exercise info after loop ends
-                    val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
-                    val nextExercise = routine.exercises.getOrNull(_currentExerciseIndex.value + 1)
-                    val nextName = if (isLastSet) {
-                        nextExercise?.exercise?.name ?: "Workout Complete"
-                    } else {
-                        "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
-                    }
-
-                    _workoutState.value = WorkoutState.Resting(
-                        restSecondsRemaining = 0,
-                        nextExerciseName = nextName,
-                        isLastExercise = isLastSet && nextExercise == null,
-                        currentSet = _currentSetIndex.value + 1,
-                        totalSets = currentExercise.setReps.size
-                    )
-                }
-            } else {
-                // Handle single exercise mode (no routine)
-                val restDuration = 90  // Default rest duration for single exercise mode
-
-                Timber.d("???????????????????????????????????????????????????")
-                Timber.d("REST TIMER STARTING (Single Exercise Mode)")
-                Timber.d("  Rest duration: ${restDuration}s")
-                Timber.d("  Mode: Single Exercise")
-                Timber.d("???????????????????????????????????????????????????")
-
-                for (i in restDuration downTo 1) {
-                    _workoutState.value = WorkoutState.Resting(
-                        restSecondsRemaining = i,
-                        nextExerciseName = "Next Set",
-                        isLastExercise = false,
-                        currentSet = 0,
-                        totalSets = 0
-                    )
-                    delay(1000)
-                }
-
-                // After rest timer completes, stay in resting state with 0 seconds
-                // User can choose to start another set or end the workout
-                Timber.d("Single exercise rest timer complete - waiting for user action")
-                _workoutState.value = WorkoutState.Resting(
-                    restSecondsRemaining = 0,
-                    nextExerciseName = "Next Set",
-                    isLastExercise = false,
-                    currentSet = 0,
-                    totalSets = 0
-                )
             // Only auto-advance if autoplay is enabled
             // If autoplay is disabled, user must manually start next set via skipRest()
             if (autoplay) {
@@ -1302,15 +1196,6 @@ class MainViewModel @Inject constructor(
             restTimerJob?.cancel()
             restTimerJob = null
 
-            val routine = _loadedRoutine.value
-            if (routine != null) {
-                // Routine mode: advance to next set/exercise
-                Timber.d("Rest timer cancelled, starting next set/exercise in routine")
-                startNextSetOrExercise()
-            } else {
-                // Single exercise mode: restart workout for another set
-                Timber.d("Rest timer cancelled, starting another set in single exercise mode")
-                startWorkout(skipCountdown = true)
             Timber.d("Rest timer cancelled, starting next set/exercise")
 
             // Check if this is single exercise mode (no routine loaded)
