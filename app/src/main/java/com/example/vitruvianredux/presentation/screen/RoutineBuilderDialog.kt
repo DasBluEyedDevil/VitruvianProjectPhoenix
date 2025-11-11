@@ -41,6 +41,7 @@ fun RoutineBuilderDialog(
     personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
     formatWeight: (Float, WeightUnit) -> String,
     weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     themeMode: ThemeMode
@@ -253,7 +254,8 @@ fun RoutineBuilderDialog(
                 exerciseToEdit = Pair(exercises.size, newRoutineExercise)
                 showExercisePicker = false
             },
-            exerciseRepository = exerciseRepository
+            exerciseRepository = exerciseRepository,
+            enableVideoPlayback = enableVideoPlayback
         )
     }
 
@@ -261,6 +263,7 @@ fun RoutineBuilderDialog(
         ExerciseEditBottomSheet(
             exercise = exercise,
             weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
             kgToDisplay = kgToDisplay,
             displayToKg = displayToKg,
             exerciseRepository = exerciseRepository,

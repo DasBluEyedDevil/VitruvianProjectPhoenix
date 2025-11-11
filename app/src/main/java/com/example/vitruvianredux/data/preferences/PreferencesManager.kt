@@ -26,6 +26,7 @@ class PreferencesManager @Inject constructor(
     private val WEIGHT_UNIT_KEY = stringPreferencesKey("weight_unit")
     private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
     private val STOP_AT_TOP_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("stop_at_top")
+    private val ENABLE_VIDEO_PLAYBACK_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("enable_video_playback")
 
     /**
      * Flow of user preferences
@@ -41,11 +42,13 @@ class PreferencesManager @Inject constructor(
             }
             val autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true
             val stopAtTop = preferences[STOP_AT_TOP_KEY] ?: false
+            val enableVideoPlayback = preferences[ENABLE_VIDEO_PLAYBACK_KEY] ?: true
 
             UserPreferences(
                 weightUnit = weightUnit,
                 autoplayEnabled = autoplayEnabled,
-                stopAtTop = stopAtTop
+                stopAtTop = stopAtTop,
+                enableVideoPlayback = enableVideoPlayback
             )
         }
 
@@ -77,5 +80,15 @@ class PreferencesManager @Inject constructor(
             preferences[STOP_AT_TOP_KEY] = enabled
         }
         Timber.d("Stop at top preference set to: $enabled")
+    }
+
+    /**
+     * Set the enable video playback preference
+     */
+    suspend fun setEnableVideoPlayback(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ENABLE_VIDEO_PLAYBACK_KEY] = enabled
+        }
+        Timber.d("Enable video playback preference set to: $enabled")
     }
 }

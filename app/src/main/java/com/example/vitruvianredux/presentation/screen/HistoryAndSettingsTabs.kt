@@ -365,9 +365,11 @@ fun SettingsTab(
     weightUnit: WeightUnit,
     autoplayEnabled: Boolean,
     stopAtTop: Boolean,
+    enableVideoPlayback: Boolean,
     onWeightUnitChange: (WeightUnit) -> Unit,
     onAutoplayChange: (Boolean) -> Unit,
     onStopAtTopChange: (Boolean) -> Unit,
+    onEnableVideoPlaybackChange: (Boolean) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
     onNavigateToConnectionLogs: () -> Unit = {},
@@ -566,6 +568,36 @@ fun SettingsTab(
                     Switch(
                         checked = stopAtTop,
                         onCheckedChange = onStopAtTopChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Enable Video Playback toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Show Exercise Videos",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Display exercise demonstration videos (disable to avoid slow loading)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = enableVideoPlayback,
+                        onCheckedChange = onEnableVideoPlaybackChange
                     )
                 }
             }
