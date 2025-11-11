@@ -30,6 +30,7 @@ fun ActiveWorkoutScreen(
     val repCount by viewModel.repCount.collectAsState()
     val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
     val loadedRoutine by viewModel.loadedRoutine.collectAsState()
     val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
     val hapticEvents = viewModel.hapticEvents
@@ -125,6 +126,7 @@ fun ActiveWorkoutScreen(
             repCount = repCount,
             autoStopState = autoStopState,
             weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
             exerciseRepository = exerciseRepository,
             isWorkoutSetupDialogVisible = false,
             hapticEvents = hapticEvents,
