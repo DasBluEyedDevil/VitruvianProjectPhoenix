@@ -286,8 +286,32 @@ The project includes comprehensive test suites:
 - [ ] Foreground service persistence
 - [ ] Disconnection and reconnection handling
 
+## Hardware Compatibility
+
+This app supports the following Vitruvian Trainer models:
+
+### Vitruvian V-Form Trainer (Euclid / VIT-200)
+- **Status:** ✅ Supported
+- **Device Name Pattern:** `Vee_*`
+- **Max Resistance:** 200 kg (440 lbs)
+- **Known Limitations:**
+  - ⚠️ **Eccentric-Only Mode:** Users report that eccentric-only mode may not function correctly on this hardware. While the feature is supported in the original Vitruvian software, implementation issues or firmware differences may prevent proper operation. Under investigation - see [Issue #80](https://github.com/DasBluEyedDevil/VitruvianProjectPhoenix/issues/80).
+  - All other workout modes (Old School, Pump, TUT, TUT Beast, Echo) work normally
+
+### Vitruvian Trainer+
+- **Status:** ✅ Supported (expected)
+- **Max Resistance:** 220 kg (485 lbs)
+- **Features:** Improved motors with better eccentric mode performance
+- **Note:** Device name pattern to be confirmed with community testing
+
+If you experience issues with eccentric-only mode on Euclid hardware, please:
+1. Export connection logs via Settings → Connection Logs
+2. Report the issue on GitHub with logs attached
+3. Try other workout modes as alternatives (Echo mode provides similar eccentric loading)
+
 ## Known Issues
 
+- **Eccentric-only mode on Euclid hardware:** Not working correctly (under investigation)
 - Live charting visualization not yet implemented
 - CSV export feature pending
 - Unit conversion (kg/lb) not yet available
