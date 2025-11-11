@@ -170,7 +170,9 @@ fun HomeScreen(
 
         // Auto-connect UI overlays (same as exercise start screens)
         if (isAutoConnecting) {
-            com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+            com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+                onCancel = { viewModel.cancelAutoConnecting() }
+            )
         }
 
         connectionError?.let { error ->

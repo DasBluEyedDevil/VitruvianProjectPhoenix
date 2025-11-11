@@ -166,7 +166,9 @@ fun SingleExerciseScreen(
         }
 
         if (isAutoConnecting) {
-            ConnectingOverlay()
+            ConnectingOverlay(
+                onCancel = { viewModel.cancelAutoConnecting() }
+            )
         }
 
         connectionError?.let { error ->
