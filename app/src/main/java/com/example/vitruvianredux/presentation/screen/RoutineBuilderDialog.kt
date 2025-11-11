@@ -321,7 +321,22 @@ fun ExerciseListItem(
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-                val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
+
+                // Display individual set weights if they differ, otherwise show single weight
+                val weightDisplay = if (exercise.setWeightsPerCableKg.isNotEmpty()) {
+                    val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit).toInt() }
+                    val minWeight = displayWeights.minOrNull() ?: 0
+                    val maxWeight = displayWeights.maxOrNull() ?: 0
+
+                    if (minWeight == maxWeight) {
+                        "$minWeight$weightSuffix"
+                    } else {
+                        "$minWeight-$maxWeight$weightSuffix"
+                    }
+                } else {
+                    val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
+                    "${displayWeight.toInt()}$weightSuffix"
+                }
 
                 Text(exercise.exercise.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
@@ -330,7 +345,7 @@ fun ExerciseListItem(
                         Text(formatReps(exercise.setReps), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                     }
                     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)) {
-                        Text("${displayWeight.toInt()}$weightSuffix", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
+                        Text(weightDisplay, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                     }
                 }
 

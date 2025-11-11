@@ -292,7 +292,9 @@ fun WorkoutTab(
                         currentExerciseIndex = currentExerciseIndex,
                         workoutParameters = workoutParameters,
                         exerciseRepository = exerciseRepository,
-                        formatWeight = { weight -> formatWeight(weight, weightUnit) }
+                        formatWeight = { weight -> formatWeight(weight, weightUnit) },
+                        kgToDisplay = { weight -> kgToDisplay(weight, weightUnit) },
+                        weightUnit = weightUnit
                     )
                 }
                 else -> {}
@@ -1325,7 +1327,9 @@ fun CurrentExerciseCard(
     currentExerciseIndex: Int,
     workoutParameters: WorkoutParameters,
     exerciseRepository: ExerciseRepository,
-    formatWeight: (Float) -> String
+    formatWeight: (Float) -> String,
+    kgToDisplay: (Float) -> Float,
+    weightUnit: WeightUnit
 ) {
     // Get current exercise from routine if available
     val currentExercise = loadedRoutine?.exercises?.getOrNull(currentExerciseIndex)
@@ -1375,10 +1379,26 @@ fun CurrentExerciseCard(
                     currentExercise.setReps.joinToString(", ")
                 }
 
+                // Display individual set weights if they differ, otherwise show single weight
+                val baseWeightText = if (currentExercise.setWeightsPerCableKg.isNotEmpty()) {
+                    val displayWeights = currentExercise.setWeightsPerCableKg.map { kgToDisplay(it) }
+                    val minWeight = displayWeights.minOrNull() ?: 0f
+                    val maxWeight = displayWeights.maxOrNull() ?: 0f
+                    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+
+                    if (minWeight == maxWeight) {
+                        "%.1f %s".format(minWeight, weightSuffix)
+                    } else {
+                        "%.1f-%.1f %s".format(minWeight, maxWeight, weightSuffix)
+                    }
+                } else {
+                    formatWeight(currentExercise.weightPerCableKg)
+                }
+
                 val weightText = when (currentExercise.cableConfig) {
-                    CableConfiguration.SINGLE -> "${formatWeight(currentExercise.weightPerCableKg)} (Single)"
-                    CableConfiguration.DOUBLE -> "${formatWeight(currentExercise.weightPerCableKg)}/cable (Double)"
-                    else -> formatWeight(currentExercise.weightPerCableKg)
+                    CableConfiguration.SINGLE -> "$baseWeightText (Single)"
+                    CableConfiguration.DOUBLE -> "$baseWeightText/cable (Double)"
+                    else -> baseWeightText
                 }
 
                 Text(
