@@ -1677,6 +1677,80 @@ fun PositionBarsCard(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Cable Position Bars - Real-time position feedback
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                Text(
+                    "Cable Positions",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Cable A Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    Text(
+                        "A",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.width(16.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(12.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text(
+                        "${(metric.positionA / 10).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(40.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+
+                // Cable B Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    Text(
+                        "B",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.width(16.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(12.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text(
+                        "${(metric.positionB / 10).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(40.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
         }
     }
 }
