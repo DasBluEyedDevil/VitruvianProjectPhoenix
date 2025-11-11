@@ -60,6 +60,7 @@ fun WorkoutTab(
     onStartWorkout: () -> Unit,
     onStopWorkout: () -> Unit,
     onSkipRest: () -> Unit,
+    onProceedFromSummary: () -> Unit = {},
     onResetForNewWorkout: () -> Unit,
     onStartNextExercise: () -> Unit = {},
     onUpdateParameters: (WorkoutParameters) -> Unit,
@@ -319,6 +320,17 @@ fun WorkoutTab(
                 if (!workoutParameters.isJustLift) {
                     CountdownCard(secondsRemaining = workoutState.secondsRemaining)
                 }
+            }
+            is WorkoutState.SetSummary -> {
+                com.example.vitruvianredux.presentation.components.SetSummaryCard(
+                    metrics = workoutState.metrics,
+                    peakPower = workoutState.peakPower,
+                    averagePower = workoutState.averagePower,
+                    repCount = workoutState.repCount,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    onContinue = onProceedFromSummary
+                )
             }
             is WorkoutState.Resting -> {
                 RestTimerCard(
