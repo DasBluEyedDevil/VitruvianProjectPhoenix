@@ -28,6 +28,7 @@ fun ActiveWorkoutScreen(
     val currentMetric by viewModel.currentMetric.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val repCount by viewModel.repCount.collectAsState()
+    val repRanges by viewModel.repRanges.collectAsState()
     val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val loadedRoutine by viewModel.loadedRoutine.collectAsState()
@@ -123,6 +124,7 @@ fun ActiveWorkoutScreen(
             currentMetric = currentMetric,
             workoutParameters = workoutParameters,
             repCount = repCount,
+            repRanges = repRanges,
             autoStopState = autoStopState,
             weightUnit = weightUnit,
             exerciseRepository = exerciseRepository,
