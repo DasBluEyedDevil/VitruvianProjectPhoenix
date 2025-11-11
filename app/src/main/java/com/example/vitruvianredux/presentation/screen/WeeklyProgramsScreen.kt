@@ -83,9 +83,9 @@ fun WeeklyProgramsScreen(
         } else {
             Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFFE0E7FF), // indigo-200 - soft lavender
-                    Color(0xFFFCE7F3), // pink-100 - soft pink
-                    Color(0xFFDDD6FE)  // violet-200 - soft violet
+                    Color(0xFFF8FAFC), // subtle gray-blue
+                    Color(0xFFF5F3FF), // subtle lavender
+                    Color(0xFFEFF6FF)  // subtle blue
                 )
             )
         }
