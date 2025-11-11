@@ -1396,7 +1396,7 @@ class MainViewModel @Inject constructor(
 
         updateWorkoutParameters(
             WorkoutParameters(
-                workoutType = _workoutParameters.value.workoutType, // Keep current workout type
+                workoutType = firstExercise.workoutType, // Use workout type from the exercise
                 reps = firstSetReps,
                 weightPerCableKg = firstExercise.weightPerCableKg,
                 progressionRegressionKg = firstExercise.progressionKg,
