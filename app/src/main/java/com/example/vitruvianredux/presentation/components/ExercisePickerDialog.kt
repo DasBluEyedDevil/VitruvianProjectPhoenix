@@ -100,6 +100,7 @@ fun ExercisePickerDialog(
     onDismiss: () -> Unit,
     onExerciseSelected: (ExerciseEntity) -> Unit,
     exerciseRepository: ExerciseRepository,
+    enableVideoPlayback: Boolean = true,
     modifier: Modifier = Modifier,
     fullScreen: Boolean = false
 ) {
@@ -377,6 +378,7 @@ private fun ExerciseListItem(
         ExerciseVideoDialog(
             exerciseName = exercise.name,
             videos = videos,
+            enableVideoPlayback = enableVideoPlayback,
             onDismiss = { showVideoDialog = false }
         )
     }
@@ -537,6 +539,7 @@ private fun ExerciseInitial(
 fun ExerciseVideoDialog(
     exerciseName: String,
     videos: List<ExerciseVideoEntity>,
+    enableVideoPlayback: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -584,35 +587,37 @@ fun ExerciseVideoDialog(
             }
 
             // Video player
-            currentVideo?.let { video ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    VideoPlayer(
-                        videoUrl = video.videoUrl,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            } ?: run {
-                // No video available
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(12.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Video not available",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            if (enableVideoPlayback) {
+                currentVideo?.let { video ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        VideoPlayer(
+                            videoUrl = video.videoUrl,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } ?: run {
+                    // No video available
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Video not available",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

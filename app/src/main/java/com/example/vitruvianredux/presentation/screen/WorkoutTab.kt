@@ -47,6 +47,7 @@ fun WorkoutTab(
     repCount: RepCount,
     autoStopState: AutoStopUiState,
     weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
     exerciseRepository: ExerciseRepository,
     isWorkoutSetupDialogVisible: Boolean = false,
     hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
@@ -292,6 +293,7 @@ fun WorkoutTab(
                         currentExerciseIndex = currentExerciseIndex,
                         workoutParameters = workoutParameters,
                         exerciseRepository = exerciseRepository,
+                        enableVideoPlayback = enableVideoPlayback,
                         formatWeight = { weight -> formatWeight(weight, weightUnit) },
                         kgToDisplay = { weight -> kgToDisplay(weight, weightUnit) },
                         weightUnit = weightUnit
@@ -1327,6 +1329,7 @@ fun CurrentExerciseCard(
     currentExerciseIndex: Int,
     workoutParameters: WorkoutParameters,
     exerciseRepository: ExerciseRepository,
+    enableVideoPlayback: Boolean,
     formatWeight: (Float) -> String,
     kgToDisplay: (Float) -> Float,
     weightUnit: WeightUnit
@@ -1416,16 +1419,18 @@ fun CurrentExerciseCard(
             }
 
             // Video player (if video available)
-            videoEntity?.let { video ->
-                Spacer(modifier = Modifier.height(Spacing.medium))
+            if (enableVideoPlayback) {
+                videoEntity?.let { video ->
+                    Spacer(modifier = Modifier.height(Spacing.medium))
 
-                VideoPlayer(
-                    videoUrl = video.videoUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                )
+                    VideoPlayer(
+                        videoUrl = video.videoUrl,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
             }
         }
     }
