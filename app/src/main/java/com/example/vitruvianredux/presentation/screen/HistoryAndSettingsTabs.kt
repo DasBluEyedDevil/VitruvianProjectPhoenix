@@ -40,6 +40,7 @@ fun HistoryTab(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     onDeleteWorkout: (String) -> Unit,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -102,6 +103,7 @@ fun HistoryTab(
                         session = session,
                         weightUnit = weightUnit,
                         formatWeight = formatWeight,
+                        exerciseRepository = exerciseRepository,
                         onDelete = { onDeleteWorkout(session.id) }
                     )
                 }
@@ -116,6 +118,7 @@ fun WorkoutHistoryCard(
     session: WorkoutSession,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -128,6 +131,14 @@ fun WorkoutHistoryCard(
         ),
         label = "scale"
     )
+
+    // Fetch exercise name if exerciseId is available
+    var exerciseName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(session.exerciseId) {
+        session.exerciseId?.let { id ->
+            exerciseName = exerciseRepository.getExerciseById(id)?.name
+        }
+    }
 
     Card(
         onClick = { isPressed = true },
@@ -173,17 +184,23 @@ fun WorkoutHistoryCard(
                     }
                     Spacer(modifier = Modifier.width(Spacing.medium))
                     Column(modifier = Modifier.weight(1f)) {
-                        // Exercise/Mode name - larger and bolder
+                        // Exercise name (or mode if no exercise) - larger and bolder
                         Text(
-                            session.mode,
+                            exerciseName ?: session.mode,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Formatted date/time
+                        // Mode and date/time
                         Text(
-                            formatRelativeTimestamp(session.timestamp),
+                            buildString {
+                                if (exerciseName != null) {
+                                    append(session.mode)
+                                    append(" • ")
+                                }
+                                append(formatRelativeTimestamp(session.timestamp))
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -31,6 +31,12 @@ sealed class WorkoutState {
     object Initializing : WorkoutState()
     data class Countdown(val secondsRemaining: Int) : WorkoutState()
     object Active : WorkoutState()
+    data class SetSummary(
+        val metrics: List<WorkoutMetric>,
+        val peakPower: Float,
+        val averagePower: Float,
+        val repCount: Int
+    ) : WorkoutState()
     object Paused : WorkoutState()
     object Completed : WorkoutState()
     data class Error(val message: String) : WorkoutState()
