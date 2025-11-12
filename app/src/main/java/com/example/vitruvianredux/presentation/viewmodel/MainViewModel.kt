@@ -707,13 +707,14 @@ class MainViewModel @Inject constructor(
 
     /**
      * Prepare the ViewModel for Just Lift mode.
-     * If a previous workout was completed, reset the state to Idle so Just Lift can work.
-     * This is called when entering the JustLiftScreen with a completed workout.
+     * If a previous workout was in any non-Idle state, reset to Idle so Just Lift can work.
+     * This is called when entering the JustLiftScreen.
      */
     fun prepareForJustLift() {
         viewModelScope.launch {
-            if (_workoutState.value is WorkoutState.Completed) {
-                Timber.d("Preparing for Just Lift: Resetting completed workout state")
+            val currentState = _workoutState.value
+            if (currentState !is WorkoutState.Idle) {
+                Timber.d("Preparing for Just Lift: Resetting from ${currentState::class.simpleName} to Idle")
                 resetForNewWorkout()
                 _workoutState.value = WorkoutState.Idle
                 enableHandleDetection()
@@ -722,6 +723,9 @@ class MainViewModel @Inject constructor(
                     useAutoStart = true
                 )
                 Timber.d("Just Lift ready: State=Idle, AutoStart=enabled")
+            } else {
+                Timber.d("Just Lift already in Idle state, ensuring auto-start is enabled")
+                enableHandleDetection()
             }
         }
     }

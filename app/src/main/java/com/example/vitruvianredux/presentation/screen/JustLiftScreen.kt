@@ -78,9 +78,10 @@ fun JustLiftScreen(
         }
     }
 
-    // Reset workout state if entering Just Lift with a completed workout
+    // Reset workout state if entering Just Lift with any non-Idle state
+    // This ensures the AutoStartStopCard is always visible
     LaunchedEffect(workoutState) {
-        if (workoutState is WorkoutState.Completed) {
+        if (workoutState !is WorkoutState.Idle && workoutState !is WorkoutState.Active) {
             viewModel.prepareForJustLift()
         }
     }
