@@ -482,9 +482,9 @@ fun SetsConfiguration(
     weightSuffix: String,
     maxWeight: Int,
     isEchoMode: Boolean = false,
-    onRepsChange: (Int, Int) -> Unit,
-    onWeightChange: (Int, Float) -> Unit,
-    onDurationChange: (Int, Int) -> Unit,
+    onRepsChange: (String, Int) -> Unit, // Changed: setId instead of index
+    onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
+    onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
     onAddSet: () -> Unit,
     onDeleteSet: (Int) -> Unit
 ) {
@@ -509,10 +509,10 @@ fun SetsConfiguration(
                     maxWeight = maxWeight,
                     isEchoMode = isEchoMode,
                     canDelete = sets.size > 1,
-                    onRepsChange = { newReps -> onRepsChange(index, newReps) },
-                    onWeightChange = { newWeight -> onWeightChange(index, newWeight) },
-                    onDurationChange = { newDuration -> onDurationChange(index, newDuration) },
-                    onDelete = { onDeleteSet(index) }
+                    onRepsChange = { newReps -> onRepsChange(setConfig.id, newReps) },
+                    onWeightChange = { newWeight -> onWeightChange(setConfig.id, newWeight) },
+                    onDurationChange = { newDuration -> onDurationChange(setConfig.id, newDuration) },
+                    onDelete = { onDeleteSet(index) } // Still use index for deletion since it removes by position
                 )
             }
         }

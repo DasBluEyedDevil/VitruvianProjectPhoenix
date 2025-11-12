@@ -160,27 +160,21 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         _echoLevel.value = level
     }
 
-    fun updateReps(index: Int, reps: Int) {
-        val currentSets = _sets.value.toMutableList()
-        if (index < currentSets.size) {
-            currentSets[index] = currentSets[index].copy(reps = reps)
-            _sets.value = currentSets
+    fun updateReps(setId: String, reps: Int) {
+        _sets.value = _sets.value.map { set ->
+            if (set.id == setId) set.copy(reps = reps) else set
         }
     }
 
-    fun updateWeight(index: Int, weight: Float) {
-        val currentSets = _sets.value.toMutableList()
-        if (index < currentSets.size) {
-            currentSets[index] = currentSets[index].copy(weightPerCable = weight)
-            _sets.value = currentSets
+    fun updateWeight(setId: String, weight: Float) {
+        _sets.value = _sets.value.map { set ->
+            if (set.id == setId) set.copy(weightPerCable = weight) else set
         }
     }
 
-    fun updateDuration(index: Int, duration: Int) {
-        val currentSets = _sets.value.toMutableList()
-        if (index < currentSets.size) {
-            currentSets[index] = currentSets[index].copy(duration = duration)
-            _sets.value = currentSets
+    fun updateDuration(setId: String, duration: Int) {
+        _sets.value = _sets.value.map { set ->
+            if (set.id == setId) set.copy(duration = duration) else set
         }
     }
 
