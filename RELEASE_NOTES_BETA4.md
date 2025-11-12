@@ -41,10 +41,14 @@ Beta 4 is a stability and quality-of-life release focusing on bug fixes, UI impr
   - Displayed after completing each set
   - Helps track performance within workouts
 
-- **NEW:** Real-time cable position visualization
-  - Rep/position bars show cable extension during workouts
+- **NEW:** Real-time cable position visualization (Session 14)
+  - Vertical position bars on left and right screen edges
+  - Shows Cable A (left hand) and Cable B (right hand) positions independently
+  - Fills from bottom to top as cables extend
+  - Displays range zones with semi-transparent overlay
   - Visual feedback for form and range of motion
-  - Enhances workout awareness
+  - Uses absolute positioning for proper edge placement
+  - **Files:** WorkoutTab.kt:97-403, 1846-1945
 
 - **NEW:** Scroll indicators on long lists
   - Added to Program Builder day selection
@@ -65,6 +69,18 @@ Beta 4 is a stability and quality-of-life release focusing on bug fixes, UI impr
 ---
 
 ## 🐛 Critical Bug Fixes
+
+### BLE Initialization Race Condition (Session 14)
+**FIXED:** "NUS RX characteristic not available" error when starting workouts
+- **Root Cause:** Commands sent before BLE initialization completed (race condition)
+- **Symptom:** START_WORKOUT command failed with "characteristic not available" error
+- **Fix:** Implemented AtomicInteger-based operation tracking
+  - Tracks completion of 25 async BLE operations (MTU request + 24 notification enables)
+  - Only sets ConnectionStatus.Ready after ALL operations complete
+  - Added `checkAllOperationsComplete()` helper function
+- **Impact:** Workouts now start reliably without connection errors
+- **Testing:** Verified on device with successful workout starts
+- **Files:** VitruvianBleManager.kt:220-285
 
 ### Single Exercise Mode (Session 13)
 **FIXED:** Rest timer showing 0/0 sets and second set resetting to 10 reps
@@ -160,6 +176,19 @@ Beta 4 is a stability and quality-of-life release focusing on bug fixes, UI impr
 ## 🔧 Technical Improvements
 
 ### Code Quality
+- **Warning Resolution (Session 14):**
+  - Fixed 12 Kotlin compiler warnings for Beta 4 release
+  - WorkoutTab.kt: 11 warnings fixed
+    - Removed unused import directive
+    - Removed 4 unnecessary non-null assertions (!!)
+    - Fixed unused variable assignments
+    - Removed unused parameters and variables
+    - Deleted dead code (PositionBarsCard, CablePositionBar - old implementations)
+    - Removed redundant type conversion
+  - VitruvianBleManager.kt: 1 warning fixed
+    - Removed unused toHexString() extension function
+  - Build now completes with zero warnings
+
 - **Logging Standardization:**
   - Replaced 9 `android.util.Log` calls with `Timber`
   - ExerciseImporter.kt: 5 instances
@@ -197,6 +226,7 @@ Beta 4 is a stability and quality-of-life release focusing on bug fixes, UI impr
 - `WorkoutIntegrationTest > test rep counting integration` - AssertionError at line 189
 
 ### Lint Warnings (Non-critical)
+- **RESOLVED:** All Kotlin compiler warnings fixed in Session 14 (was 12 warnings)
 - 9 deprecated Material Icon references (AutoMirrored versions available)
 - Dependency updates available (Kotlin 2.0.21 → 2.2.21, Hilt 2.51.1 → 2.57.2, etc.)
 - 9 composables have modifier parameter ordering issues
@@ -253,18 +283,19 @@ This release addresses multiple user-reported issues:
 
 ## 📝 Change Summary by Category
 
-### Bug Fixes (11)
-1. Single exercise mode rest timer (0/0 sets)
-2. Single exercise mode rep count reset
-3. Tablet layout black screen
-4. Connection cancel not working
-5. History card title showing mode
-6. History card mode truncation
-7. History card set count including warmup
-8. History card progress bar calculation
-9. Workout progress indicator not updating
-10. Workout mode not preserved
-11. Multi-set weight display
+### Bug Fixes (12)
+1. BLE initialization race condition (Session 14)
+2. Single exercise mode rest timer (0/0 sets)
+3. Single exercise mode rep count reset
+4. Tablet layout black screen
+5. Connection cancel not working
+6. History card title showing mode
+7. History card mode truncation
+8. History card set count including warmup
+9. History card progress bar calculation
+10. Workout progress indicator not updating
+11. Workout mode not preserved
+12. Multi-set weight display
 
 ### Features (6)
 1. Hardware detection system
@@ -286,11 +317,12 @@ This release addresses multiple user-reported issues:
 8. Consistent theme behavior
 9. Just Lift hold timer extension
 
-### Technical (4)
-1. Logging standardization (Timber)
-2. Test coverage expansion
-3. Rep counting enhancements
-4. Connection logging improvements
+### Technical (5)
+1. Warning resolution (12 warnings fixed - Session 14)
+2. Logging standardization (Timber)
+3. Test coverage expansion
+4. Rep counting enhancements
+5. Connection logging improvements
 
 ---
 

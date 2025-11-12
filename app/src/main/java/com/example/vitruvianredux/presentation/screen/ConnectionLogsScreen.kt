@@ -207,7 +207,13 @@ fun ConnectionLogsScreen(
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
             title = { Text("Export Logs") },
-            text = { Text("Export all logs as a text file?") },
+            text = {
+                Text(
+                    "This will open the Android share sheet. " +
+                    "You can email the log file, upload to Drive, or share via any app.\n\n" +
+                    "Recommended: Email the log file to report issues."
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -215,7 +221,8 @@ fun ConnectionLogsScreen(
                             val logsText = viewModel.exportLogsAsText()
 
                             // Create a temporary file
-                            val file = File(context.cacheDir, "vitruvian_connection_logs_${System.currentTimeMillis()}.txt")
+                            val fileName = "vitruvian_connection_logs_${System.currentTimeMillis()}.txt"
+                            val file = File(context.cacheDir, fileName)
                             file.writeText(logsText)
 
                             // Share the file
@@ -228,15 +235,29 @@ fun ConnectionLogsScreen(
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_STREAM, uri)
+                                putExtra(Intent.EXTRA_EMAIL, arrayOf("VitruvianRedux@gmail.com"))
+                                putExtra(Intent.EXTRA_SUBJECT, "VitruvianRedux Connection Logs - Issue Report")
+                                putExtra(Intent.EXTRA_TEXT,
+                                    "Attached are my VitruvianRedux connection logs.\n\n" +
+                                    "GitHub Issue #: (fill in if applicable)\n" +
+                                    "Device Model: ${android.os.Build.MODEL}\n" +
+                                    "Android Version: ${android.os.Build.VERSION.RELEASE}\n\n" +
+                                    "Description of issue:\n" +
+                                    "(Please describe what happened)\n\n" +
+                                    "Steps to reproduce:\n" +
+                                    "1. \n" +
+                                    "2. \n" +
+                                    "3. \n"
+                                )
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
 
-                            context.startActivity(Intent.createChooser(shareIntent, "Export Logs"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Connection Logs"))
                         }
                         showExportDialog = false
                     }
                 ) {
-                    Text("Export")
+                    Text("Share")
                 }
             },
             dismissButton = {
