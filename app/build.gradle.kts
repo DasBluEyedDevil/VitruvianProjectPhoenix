@@ -24,6 +24,14 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            // Explicit debug signing configuration
+            val keystorePath = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storeFile = keystorePath
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
             // Using debug keystore for signing release builds
             // This allows the app to be installed without "invalid package" errors
@@ -53,6 +61,7 @@ android {
             isDebuggable = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
