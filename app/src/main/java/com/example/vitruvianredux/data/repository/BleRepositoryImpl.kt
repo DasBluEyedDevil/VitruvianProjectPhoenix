@@ -332,21 +332,28 @@ class BleRepositoryImpl @Inject constructor(
             Timber.d("Cancelling in-progress connection...")
 
             // Cancel the connecting BLE manager if one exists
-            connectingBleManager?.let { manager ->
+            val managerToCancel = connectingBleManager
+            if (managerToCancel != null) {
                 Timber.d("Cleaning up connecting BLE manager...")
-                manager.stopPolling()
-                manager.cleanup()
-                manager.disconnect()?.enqueue()
+                managerToCancel.stopPolling()
+                managerToCancel.cleanup()
+                managerToCancel.disconnect()?.enqueue()
+
+                // Only clear bleManager if it's the same instance we're cancelling
+                // (i.e., connection hasn't succeeded yet)
+                if (bleManager === managerToCancel) {
+                    bleManager = null
+                }
+                connectingBleManager = null
+            } else {
+                Timber.d("No connecting BLE manager to cancel")
             }
 
-            // Clear references
-            connectingBleManager = null
-            if (bleManager == connectingBleManager) {
-                bleManager = null
+            // Reset connection state only if we're still connecting
+            if (_connectionState.value is ConnectionState.Connecting ||
+                _connectionState.value is ConnectionState.Scanning) {
+                _connectionState.value = ConnectionState.Disconnected
             }
-
-            // Reset connection state
-            _connectionState.value = ConnectionState.Disconnected
 
             Timber.d("Connection cancelled successfully")
         } catch (e: Exception) {
