@@ -175,28 +175,18 @@ private fun playToneWithAudioFocus(
 
     try {
         // Request audio focus to duck other audio (like music)
-        val focusResult = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Modern API (Android 8.0+) - Use AudioFocusRequest
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
+        // minSdk=26 (Android 8.0) always has AudioFocusRequest API
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
 
-            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                .setAudioAttributes(audioAttributes)
-                .setWillPauseWhenDucked(false)
-                .build()
+        focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(audioAttributes)
+            .setWillPauseWhenDucked(false)
+            .build()
 
-            audioManager.requestAudioFocus(focusRequest)
-        } else {
-            // Legacy API (pre-Android 8.0)
-            @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(
-                null,
-                AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
-            )
-        }
+        val focusResult = audioManager.requestAudioFocus(focusRequest)
 
         if (focusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             // Play the tone
@@ -213,11 +203,9 @@ private fun playToneWithAudioFocus(
     } finally {
         // Release audio focus
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest != null) {
+            // minSdk=26 (Android 8.0) always has abandonAudioFocusRequest
+            if (focusRequest != null) {
                 audioManager.abandonAudioFocusRequest(focusRequest)
-            } else {
-                @Suppress("DEPRECATION")
-                audioManager.abandonAudioFocus(null)
             }
         } catch (e: Exception) {
             Timber.w(e, "Error releasing audio focus")

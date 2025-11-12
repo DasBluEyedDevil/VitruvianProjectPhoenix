@@ -29,6 +29,7 @@ fun DailyRoutinesScreen(
 ) {
     val routines by viewModel.routines.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
@@ -87,6 +88,7 @@ fun DailyRoutinesScreen(
                 personalRecordRepository = viewModel.personalRecordRepository,
                 formatWeight = viewModel::formatWeight,
                 weightUnit = weightUnit,
+                enableVideoPlayback = enableVideoPlayback,
                 kgToDisplay = viewModel::kgToDisplay,
                 displayToKg = viewModel::displayToKg,
                 onStartWorkout = { routine ->
@@ -110,7 +112,9 @@ fun DailyRoutinesScreen(
 
         // Auto-connect UI overlays
         if (isAutoConnecting) {
-            com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+            com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+                onCancel = { viewModel.cancelAutoConnecting() }
+            )
         }
 
         connectionError?.let { error ->

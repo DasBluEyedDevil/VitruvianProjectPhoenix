@@ -76,6 +76,9 @@ class MainViewModel @Inject constructor(
     private val _repCount = MutableStateFlow(RepCount())
     val repCount: StateFlow<RepCount> = _repCount.asStateFlow()
 
+    private val _repRanges = MutableStateFlow<com.example.vitruvianredux.domain.usecase.RepRanges?>(null)
+    val repRanges: StateFlow<com.example.vitruvianredux.domain.usecase.RepRanges?> = _repRanges.asStateFlow()
+
     private val _autoStopState = MutableStateFlow(AutoStopUiState())
     val autoStopState: StateFlow<AutoStopUiState> = _autoStopState.asStateFlow()
 
@@ -103,6 +106,10 @@ class MainViewModel @Inject constructor(
     val stopAtTop: StateFlow<Boolean> = userPreferences
         .map { it.stopAtTop }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val enableVideoPlayback: StateFlow<Boolean> = userPreferences
+        .map { it.enableVideoPlayback }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     // Feature 4: Routine Management
     private val _routines = MutableStateFlow<List<Routine>>(emptyList())
@@ -258,6 +265,7 @@ class MainViewModel @Inject constructor(
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
+    private var connectionJob: Job? = null  // Track connection attempt for cancellation
 
     // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
     private var monitorDataCollectionJob: Job? = null
@@ -423,13 +431,17 @@ class MainViewModel @Inject constructor(
             return
         }
 
-        Timber.d("Auto-start timer STARTING! (1.2 seconds)")
+        Timber.d("Auto-start timer STARTING! (3 seconds)")
         autoStartJob = viewModelScope.launch {
-            // Official app: 1.2 second hold timer with visible countdown
-            _autoStartCountdown.value = 1  // Show "1" during hold
-            delay(1200)  // Official app: 1200ms hold
+            // User preference: 3 second hold timer with visible countdown
+            _autoStartCountdown.value = 3
+            delay(1000)
+            _autoStartCountdown.value = 2
+            delay(1000)
+            _autoStartCountdown.value = 1
+            delay(1000)
             _autoStartCountdown.value = null
-            Timber.d("Auto-start hold complete (1.2s)! Starting workout...")
+            Timber.d("Auto-start hold complete (3s)! Starting workout...")
             // Just Lift mode: Pass isJustLiftMode=true to ensure flag is preserved
             startWorkout(isJustLiftMode = true)
         }
@@ -460,6 +472,8 @@ class MainViewModel @Inject constructor(
             posA = currentPositions?.positionA ?: 0,
             posB = currentPositions?.positionB ?: 0
         )
+        // Update rep ranges for position bars visualization
+        _repRanges.value = repCounter.getRepRanges()
         // All other logic (UI update, haptics, auto-stop) handled in onRepEvent callback
     }
 
@@ -570,71 +584,100 @@ class MainViewModel @Inject constructor(
      * If not connected, starts scan and shows device selection dialog.
      */
     fun ensureConnection(onConnected: () -> Unit, onFailed: () -> Unit = {}) {
-        viewModelScope.launch {
-            when (connectionState.value) {
-                is ConnectionState.Connected -> {
-                    onConnected()
-                }
-                else -> {
-                    _isAutoConnecting.value = true
-                    _connectionError.value = null
+        // Cancel any existing connection attempt before starting a new one
+        connectionJob?.cancel()
+        connectionJob = null
 
-                    // Start scanning
-                    startScanning()
+        connectionJob = viewModelScope.launch {
+            try {
+                when (connectionState.value) {
+                    is ConnectionState.Connected -> {
+                        onConnected()
+                    }
+                    else -> {
+                        _isAutoConnecting.value = true
+                        _connectionError.value = null
 
-                    // Wait for first discovered device (with timeout)
-                    val found = withTimeoutOrNull(30000) {
-                        scannedDevices
-                            .filter { it.isNotEmpty() }
-                            .take(1)
-                            .collect { devices ->
-                                stopScanning()
-                                val device = devices.firstOrNull()
-                                if (device != null) {
-                                    _pendingConnectionCallback = onConnected
-                                    connectToDevice(device.address)
+                        // Start scanning
+                        startScanning()
 
-                                    // Wait for Connected state with timeout (15 seconds)
-                                    val connected = withTimeoutOrNull(15000) {
-                                        connectionState
-                                            .filter { it is ConnectionState.Connected }
-                                            .take(1)
-                                            .collect { }
-                                        true // Return true if we got Connected
-                                    }
+                        // Wait for first discovered device (with timeout)
+                        val found = withTimeoutOrNull(30000) {
+                            scannedDevices
+                                .filter { it.isNotEmpty() }
+                                .take(1)
+                                .collect { devices ->
+                                    stopScanning()
+                                    val device = devices.firstOrNull()
+                                    if (device != null) {
+                                        _pendingConnectionCallback = onConnected
+                                        connectToDevice(device.address)
 
-                                    _isAutoConnecting.value = false
-                                    if (connected == true) {
-                                        onConnected()
+                                        // Wait for Connected state with timeout (15 seconds)
+                                        val connected = withTimeoutOrNull(15000) {
+                                            connectionState
+                                                .filter { it is ConnectionState.Connected }
+                                                .take(1)
+                                                .collect { }
+                                            true // Return true if we got Connected
+                                        }
+
+                                        _isAutoConnecting.value = false
+                                        if (connected == true) {
+                                            onConnected()
+                                        } else {
+                                            _pendingConnectionCallback = null  // Clear callback on failure
+                                            _connectionError.value = "Connection failed"
+                                            onFailed()
+                                        }
                                     } else {
                                         _pendingConnectionCallback = null  // Clear callback on failure
-                                        _connectionError.value = "Connection failed"
+                                        _isAutoConnecting.value = false
+                                        _connectionError.value = "No device found"
                                         onFailed()
                                     }
-                                } else {
-                                    _pendingConnectionCallback = null  // Clear callback on failure
-                                    _isAutoConnecting.value = false
-                                    _connectionError.value = "No device found"
-                                    onFailed()
                                 }
-                            }
-                    }
+                        }
 
-                    if (found == null) {
-                        // Timeout
-                        _pendingConnectionCallback = null  // Clear callback on timeout
-                        stopScanning()
-                        _isAutoConnecting.value = false
-                        _connectionError.value = "Scan timeout - no device found"
-                        onFailed()
+                        if (found == null) {
+                            // Timeout
+                            _pendingConnectionCallback = null  // Clear callback on timeout
+                            stopScanning()
+                            _isAutoConnecting.value = false
+                            _connectionError.value = "Scan timeout - no device found"
+                            onFailed()
+                        }
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // User explicitly cancelled - clean up without showing errors
+                Timber.d("Connection attempt cancelled by user")
+                stopScanning()
+                bleRepository.disconnect()
+                _isAutoConnecting.value = false
+                _pendingConnectionCallback = null
+                // Don't show error or call onFailed() - user cancelled intentionally
+                throw e  // Re-throw to properly cancel the coroutine
+            } finally {
+                // Always clear job reference when coroutine completes (success, failure, or cancellation)
+                connectionJob = null
             }
         }
     }
 
     fun clearConnectionError() {
         _connectionError.value = null
+    }
+
+    /**
+     * Cancel the auto-connection process.
+     * Cancels the connection coroutine, which triggers cleanup in the CancellationException handler.
+     */
+    fun cancelAutoConnecting() {
+        // Cancel the connection coroutine - this triggers the CancellationException handler
+        // which will handle all cleanup (stop scanning, disconnect, clear state, etc.)
+        connectionJob?.cancel()
+        connectionJob = null
     }
 
     fun dismissConnectionLostAlert() {
@@ -852,6 +895,52 @@ class MainViewModel @Inject constructor(
             // Save progress
             saveWorkoutSession()
 
+            // Calculate metrics for summary
+            val peakPower = if (collectedMetrics.isNotEmpty()) {
+                collectedMetrics.maxOf { it.totalLoad }
+            } else {
+                0f
+            }
+
+            val averagePower = if (collectedMetrics.isNotEmpty()) {
+                collectedMetrics.map { it.totalLoad }.average().toFloat()
+            } else {
+                0f
+            }
+
+            val completedReps = _repCount.value.workingReps
+
+            // Transition to SetSummary state to show post-set metrics
+            _workoutState.value = WorkoutState.SetSummary(
+                metrics = collectedMetrics.toList(),
+                peakPower = peakPower,
+                averagePower = averagePower,
+                repCount = completedReps
+            )
+
+            Timber.d("Set summary: peak=$peakPower, avg=$averagePower, reps=$completedReps, metrics=${collectedMetrics.size}")
+            Timber.d("???????????????????????????????????????????????????")
+        }
+    }
+
+    /**
+     * Check if current workout is in single exercise mode.
+     * Single exercise mode is when:
+     * 1. No routine is loaded (legacy single exercise), OR
+     * 2. A temporary routine created by SingleExerciseScreen is loaded
+     *    (ID starts with "temp_single_exercise_")
+     */
+    private fun isSingleExerciseMode(): Boolean {
+        val routine = _loadedRoutine.value
+        return routine == null || routine.id.startsWith("temp_single_exercise_")
+    }
+
+    /**
+     * Proceed from set summary to rest timer or completion
+     * Called when user clicks "Continue" button on set summary screen
+     */
+    fun proceedFromSummary() {
+        viewModelScope.launch {
             val routine = _loadedRoutine.value
             val isJustLift = workoutParameters.value.isJustLift
 
@@ -884,15 +973,19 @@ class MainViewModel @Inject constructor(
                 result
             } ?: false
 
-            val shouldShowRestTimer = (hasMoreSets || hasMoreExercises) && !isJustLift
+            // 2. Single Exercise mode (not Just Lift, includes temp routines from SingleExerciseScreen)
+            val isSingleExercise = isSingleExerciseMode() && !isJustLift
+            val shouldShowRestTimer = ((hasMoreSets || hasMoreExercises) && !isJustLift) || isSingleExercise
 
             Timber.d("Decision:")
             Timber.d("  hasMoreSets = $hasMoreSets")
             Timber.d("  hasMoreExercises = $hasMoreExercises")
+            Timber.d("  isSingleExercise = $isSingleExercise")
             Timber.d("  shouldShowRestTimer = $shouldShowRestTimer")
             Timber.d("???????????????????????????????????????????????????")
 
-            // Show rest timer if there are more sets/exercises (regardless of autoplay preference)
+            // Show rest timer if there are more sets/exercises OR in single exercise mode
+            // (regardless of autoplay preference)
             // Autoplay preference only controls whether we auto-advance after rest
             if (shouldShowRestTimer) {
                 Timber.d("? Starting rest timer...")
@@ -948,72 +1041,111 @@ class MainViewModel @Inject constructor(
         restTimerJob?.cancel()
 
         restTimerJob = viewModelScope.launch {
-            val routine = _loadedRoutine.value ?: run {
-                Timber.e("startRestTimer: No routine loaded!")
-                return@launch
-            }
-            val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: run {
-                Timber.e("startRestTimer: No exercise at index ${_currentExerciseIndex.value}")
-                return@launch
-            }
-            val restDuration = currentExercise.restSeconds.takeIf { it > 0 } ?: 90
+            val routine = _loadedRoutine.value
+            val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+
+            // Determine rest duration and autoplay
+            val restDuration = currentExercise?.restSeconds?.takeIf { it > 0 } ?: 90
             val autoplay = userPreferences.value.autoplayEnabled
+
+            // For single exercise mode (no routine or temp routine), we always "continue" the same exercise
+            val isSingleExercise = isSingleExerciseMode()
 
             Timber.d("???????????????????????????????????????????????????")
             Timber.d("REST TIMER STARTING")
-            Timber.d("  Exercise: ${currentExercise.exercise.displayName}")
+            if (isSingleExercise) {
+                Timber.d("  Mode: Single Exercise")
+            } else {
+                Timber.d("  Exercise: ${currentExercise?.exercise?.displayName}")
+                Timber.d("  Current set: ${_currentSetIndex.value + 1}/${currentExercise?.setReps?.size}")
+            }
             Timber.d("  Rest duration: ${restDuration}s")
             Timber.d("  Autoplay enabled: $autoplay")
-            Timber.d("  Current set: ${_currentSetIndex.value + 1}/${currentExercise.setReps.size}")
             Timber.d("???????????????????????????????????????????????????")
 
             for (i in restDuration downTo 1) {
-                val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
-                val nextExercise = routine.exercises.getOrNull(_currentExerciseIndex.value + 1)
-                val nextName = if (isLastSet) {
-                    nextExercise?.exercise?.name ?: "Workout Complete"
+                val nextName = if (isSingleExercise) {
+                    "Next Set"
                 } else {
-                    "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    if (isLastSet) {
+                        nextExercise?.exercise?.name ?: "Workout Complete"
+                    } else {
+                        "Set ${_currentSetIndex.value + 2} of ${currentExercise?.exercise?.name}"
+                    }
                 }
 
-                _workoutState.value = WorkoutState.Resting(
-                    restSecondsRemaining = i,
-                    nextExerciseName = nextName,
-                    isLastExercise = isLastSet && nextExercise == null,
-                    currentSet = _currentSetIndex.value + 1,
-                    totalSets = currentExercise.setReps.size
-                )
+                _workoutState.value = if (isSingleExercise) {
+                    // For single exercise temp routines, show proper set count
+                    WorkoutState.Resting(
+                        restSecondsRemaining = i,
+                        nextExerciseName = nextName,
+                        isLastExercise = false,
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
+                    )
+                } else {
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    WorkoutState.Resting(
+                        restSecondsRemaining = i,
+                        nextExerciseName = nextName,
+                        isLastExercise = isLastSet && nextExercise == null,
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
+                    )
+                }
                 delay(1000)
             }
-
-            Timber.d("Rest timer complete. Autoplay=$autoplay")
 
             // Only auto-advance if autoplay is enabled
             // If autoplay is disabled, user must manually start next set via skipRest()
             if (autoplay) {
                 Timber.d("Autoplay enabled - starting next set/exercise")
-                startNextSetOrExercise()
+                if (isSingleExercise) {
+                    // For single exercise, restart with same parameters
+                    startWorkout(skipCountdown = true)
+                } else {
+                    startNextSetOrExercise()
+                }
             } else {
                 // Stay in resting state with 0 seconds remaining
                 // User will see "Start Next Set" button in UI
                 Timber.d("Autoplay disabled - staying in resting state")
 
                 // Recalculate next exercise info after loop ends
-                val isLastSet = _currentSetIndex.value >= currentExercise.setReps.size - 1
-                val nextExercise = routine.exercises.getOrNull(_currentExerciseIndex.value + 1)
-                val nextName = if (isLastSet) {
-                    nextExercise?.exercise?.name ?: "Workout Complete"
+                val nextNameFinal = if (isSingleExercise) {
+                    "Next Set"
                 } else {
-                    "Set ${_currentSetIndex.value + 2} of ${currentExercise.exercise.name}"
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    if (isLastSet) {
+                        nextExercise?.exercise?.name ?: "Workout Complete"
+                    } else {
+                        "Set ${_currentSetIndex.value + 2} of ${currentExercise?.exercise?.name}"
+                    }
                 }
 
-                _workoutState.value = WorkoutState.Resting(
-                    restSecondsRemaining = 0,
-                    nextExerciseName = nextName,
-                    isLastExercise = isLastSet && nextExercise == null,
-                    currentSet = _currentSetIndex.value + 1,
-                    totalSets = currentExercise.setReps.size
-                )
+                _workoutState.value = if (isSingleExercise) {
+                    WorkoutState.Resting(
+                        restSecondsRemaining = 0,
+                        nextExerciseName = nextNameFinal,
+                        isLastExercise = false,
+                        currentSet = 0,
+                        totalSets = 0
+                    )
+                } else {
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    WorkoutState.Resting(
+                        restSecondsRemaining = 0,
+                        nextExerciseName = nextNameFinal,
+                        isLastExercise = isLastSet && nextExercise == null,
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
+                    )
+                }
             }
         }
     }
@@ -1107,14 +1239,24 @@ class MainViewModel @Inject constructor(
         Timber.d("  Current state: ${_workoutState.value}")
         Timber.d("  Current exercise index: ${_currentExerciseIndex.value}")
         Timber.d("  Current set index: ${_currentSetIndex.value}")
+        Timber.d("  Loaded routine: ${_loadedRoutine.value?.name ?: "None (single exercise mode)"}")
         Timber.d("???????????????????????????????????????????????????")
-        
+
         if (_workoutState.value is WorkoutState.Resting) {
             // Cancel the rest timer
             restTimerJob?.cancel()
             restTimerJob = null
+
             Timber.d("Rest timer cancelled, starting next set/exercise")
-            startNextSetOrExercise()
+
+            // Check if this is single exercise mode (no routine or temp routine from SingleExerciseScreen)
+            val isSingleExercise = isSingleExerciseMode() && !_workoutParameters.value.isJustLift
+            if (isSingleExercise) {
+                // For single exercise, restart with same parameters
+                startWorkout(skipCountdown = true)
+            } else {
+                startNextSetOrExercise()
+            }
         } else {
             Timber.w("skipRest called but state is not Resting: ${_workoutState.value}")
         }
@@ -1272,6 +1414,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun setEnableVideoPlayback(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setEnableVideoPlayback(enabled)
+        }
+    }
+
     /**
      * Convert weight from KG to display unit
      */
@@ -1300,6 +1448,7 @@ class MainViewModel @Inject constructor(
     fun resetForNewWorkout() {
         _workoutState.value = WorkoutState.Idle
         _repCount.value = RepCount()
+        _repRanges.value = null
         _currentSetIndex.value = 0
         resetAutoStopState()
         Timber.d("Reset for new workout - state returned to Idle")
@@ -1396,7 +1545,7 @@ class MainViewModel @Inject constructor(
 
         updateWorkoutParameters(
             WorkoutParameters(
-                workoutType = _workoutParameters.value.workoutType, // Keep current workout type
+                workoutType = firstExercise.workoutType, // Use workout type from the exercise
                 reps = firstSetReps,
                 weightPerCableKg = firstExercise.weightPerCableKg,
                 progressionRegressionKg = firstExercise.progressionKg,

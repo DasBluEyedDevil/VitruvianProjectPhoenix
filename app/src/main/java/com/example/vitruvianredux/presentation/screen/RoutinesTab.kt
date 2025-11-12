@@ -37,6 +37,7 @@ fun RoutinesTab(
     personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
     formatWeight: (Float, WeightUnit) -> String,
     weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     onStartWorkout: (Routine) -> Unit,
@@ -197,6 +198,7 @@ fun RoutinesTab(
             personalRecordRepository = personalRecordRepository,
             formatWeight = formatWeight,
             weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
             kgToDisplay = kgToDisplay,
             displayToKg = displayToKg,
             themeMode = themeMode

@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
@@ -100,6 +101,7 @@ fun ExercisePickerDialog(
     onDismiss: () -> Unit,
     onExerciseSelected: (ExerciseEntity) -> Unit,
     exerciseRepository: ExerciseRepository,
+    enableVideoPlayback: Boolean = true,
     modifier: Modifier = Modifier,
     fullScreen: Boolean = false
 ) {
@@ -156,12 +158,14 @@ fun ExercisePickerDialog(
                 .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
                 .padding(horizontal = 16.dp)
         ) {
-            // Title
-            Text(
-                text = "Select Exercise",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            // Title (only show in bottom sheet mode, not in fullscreen mode where TopAppBar has the title)
+            if (!fullScreen) {
+                Text(
+                    text = "Select Exercise",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
 
             // Search field
             OutlinedTextField(
@@ -298,7 +302,8 @@ fun ExercisePickerDialog(
                             onClick = {
                                 onExerciseSelected(exercise)
                                 onDismiss()
-                            }
+                            },
+                            enableVideoPlayback = enableVideoPlayback
                         )
                     }
                 }
@@ -316,11 +321,30 @@ fun ExercisePickerDialog(
                 usePlatformDefaultWidth = false
             )
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                PickerContent()
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Select Exercise") },
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                },
+                containerColor = MaterialTheme.colorScheme.surface
+            ) { paddingValues ->
+                Box(modifier = Modifier.padding(paddingValues)) {
+                    PickerContent()
+                }
             }
         }
     } else {
@@ -341,6 +365,7 @@ private fun ExerciseListItem(
     exercise: ExerciseEntity,
     exerciseRepository: ExerciseRepository,
     onClick: () -> Unit,
+    enableVideoPlayback: Boolean,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -377,6 +402,7 @@ private fun ExerciseListItem(
         ExerciseVideoDialog(
             exerciseName = exercise.name,
             videos = videos,
+            enableVideoPlayback = enableVideoPlayback,
             onDismiss = { showVideoDialog = false }
         )
     }
@@ -537,6 +563,7 @@ private fun ExerciseInitial(
 fun ExerciseVideoDialog(
     exerciseName: String,
     videos: List<ExerciseVideoEntity>,
+    enableVideoPlayback: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -584,35 +611,37 @@ fun ExerciseVideoDialog(
             }
 
             // Video player
-            currentVideo?.let { video ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    VideoPlayer(
-                        videoUrl = video.videoUrl,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            } ?: run {
-                // No video available
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(12.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Video not available",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            if (enableVideoPlayback) {
+                currentVideo?.let { video ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        VideoPlayer(
+                            videoUrl = video.videoUrl,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                } ?: run {
+                    // No video available
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Video not available",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

@@ -22,7 +22,7 @@ import com.example.vitruvianredux.ui.theme.Spacing
  * Creates an animated gradient that sweeps across placeholder content.
  */
 @Composable
-fun ShimmerBrush(
+fun shimmerBrush(
     targetValue: Float = 1000f,
     showShimmer: Boolean = true
 ): Brush {
@@ -72,7 +72,7 @@ fun ShimmerBox(
     Box(
         modifier = modifier
             .background(
-                brush = ShimmerBrush(showShimmer = showShimmer),
+                brush = shimmerBrush(showShimmer = showShimmer),
                 shape = RoundedCornerShape(8.dp)
             )
     )

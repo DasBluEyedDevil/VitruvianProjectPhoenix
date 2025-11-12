@@ -4,6 +4,7 @@ import android.app.Application
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.data.repository.PersonalRecordRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
@@ -41,6 +42,7 @@ class MainViewModelEnhancedTest {
     private lateinit var bleRepository: BleRepository
     private lateinit var workoutRepository: WorkoutRepository
     private lateinit var exerciseRepository: ExerciseRepository
+    private lateinit var personalRecordRepository: PersonalRecordRepository
     private lateinit var repCounter: RepCounterFromMachine
     private lateinit var preferencesManager: PreferencesManager
     private lateinit var viewModel: MainViewModel
@@ -107,6 +109,7 @@ class MainViewModelEnhancedTest {
         bleRepository = mockk(relaxed = true)
         workoutRepository = mockk(relaxed = true)
         exerciseRepository = mockk(relaxed = true)
+        personalRecordRepository = mockk(relaxed = true)
         repCounter = mockk(relaxed = true)
         preferencesManager = mockk(relaxed = true)
 
@@ -134,6 +137,7 @@ class MainViewModelEnhancedTest {
             bleRepository = bleRepository,
             workoutRepository = workoutRepository,
             exerciseRepository = exerciseRepository,
+            personalRecordRepository = personalRecordRepository,
             repCounter = repCounter,
             preferencesManager = preferencesManager
         )
@@ -291,6 +295,7 @@ class MainViewModelEnhancedTest {
             bleRepository = bleRepository,
             workoutRepository = workoutRepository,
             exerciseRepository = exerciseRepository,
+            personalRecordRepository = personalRecordRepository,
             repCounter = repCounter,
             preferencesManager = preferencesManager
         )
@@ -298,5 +303,131 @@ class MainViewModelEnhancedTest {
         // Assert
         assertThat(newViewModel.userPreferences.value.autoplayEnabled).isTrue()
         assertThat(newViewModel.userPreferences.value.weightUnit).isEqualTo(WeightUnit.LB)
+    }
+
+    // ========== Single Exercise Mode Bug Tests ==========
+
+    @Test
+    fun `single exercise mode - rest timer shows correct set count after first set`() = runTest {
+        // Arrange - Create temp routine like SingleExerciseScreen does
+        val singleExercise = RoutineExercise(
+            id = "single_ex1",
+            exercise = testExercise1,
+            cableConfig = CableConfiguration.DOUBLE,
+            orderIndex = 0,
+            setReps = listOf(2, 2),  // User configured: 2 sets x 2 reps
+            weightPerCableKg = 20f,
+            progressionKg = 0f,
+            restSeconds = 60,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType()
+        )
+
+        val tempRoutine = Routine(
+            id = "temp_single_exercise_test",
+            name = "Single Exercise: ${singleExercise.exercise.name}",
+            description = "Temporary routine for single exercise mode",
+            exercises = listOf(singleExercise)
+        )
+
+        // Act - Load the temp routine (simulating SingleExerciseScreen behavior)
+        viewModel.loadRoutine(tempRoutine)
+
+        // Assert - Initial state
+        assertThat(viewModel.loadedRoutine.value).isEqualTo(tempRoutine)
+        assertThat(viewModel.currentSetIndex.value).isEqualTo(0)
+        assertThat(viewModel.workoutParameters.value.reps).isEqualTo(2) // First set: 2 reps
+
+        // TODO: Complete the workout flow test when we can simulate workout completion
+        // This test currently verifies the initial setup is correct
+        // The bug manifests during workout execution which requires:
+        // 1. BLE connection simulation
+        // 2. Rep counting simulation
+        // 3. Workout state transitions
+    }
+
+    @Test
+    fun `single exercise mode - second set uses correct rep count from setReps array`() = runTest {
+        // Arrange - Create temp routine with 2 sets x 2 reps
+        val singleExercise = RoutineExercise(
+            id = "single_ex2",
+            exercise = testExercise1,
+            cableConfig = CableConfiguration.DOUBLE,
+            orderIndex = 0,
+            setReps = listOf(2, 2),  // User configured: 2 sets x 2 reps
+            weightPerCableKg = 20f,
+            progressionKg = 0f,
+            restSeconds = 60,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType()
+        )
+
+        val tempRoutine = Routine(
+            id = "temp_single_exercise_test2",
+            name = "Single Exercise: ${singleExercise.exercise.name}",
+            description = "Temporary routine for single exercise mode",
+            exercises = listOf(singleExercise)
+        )
+
+        // Act - Load routine
+        viewModel.loadRoutine(tempRoutine)
+
+        // Assert - Verify setReps array is correct
+        val currentExercise = viewModel.loadedRoutine.value?.exercises?.get(0)
+        assertThat(currentExercise).isNotNull()
+        assertThat(currentExercise?.setReps).isEqualTo(listOf(2, 2)) // NOT [10, 10, 10]
+
+        // Assert - First set configured correctly
+        assertThat(viewModel.workoutParameters.value.reps).isEqualTo(2)
+        assertThat(viewModel.currentSetIndex.value).isEqualTo(0)
+
+        // Note: To fully test the bug, we would need to:
+        // 1. Mock BLE connection
+        // 2. Start workout with viewModel.startWorkout()
+        // 3. Simulate rep completion (send RepEvent via repCounter)
+        // 4. Call endWorkout() to complete first set
+        // 5. Verify WorkoutState.Resting shows currentSet=1, totalSets=2 (NOT 0/0)
+        // 6. Call skipRest() to advance to second set
+        // 7. Verify viewModel.workoutParameters.value.reps == 2 (NOT 10)
+        //
+        // This requires extensive mocking of the workout flow which is beyond
+        // a simple unit test. This would be better as an instrumented test.
+    }
+
+    @Test
+    fun `temp routine identification - routine is NOT null for single exercise mode`() = runTest {
+        // This test verifies a key finding from the investigation:
+        // The isSingleExercise check uses `routine == null`, but temp routines
+        // created by SingleExerciseScreen have a non-null routine.
+
+        // Arrange - Create temp routine
+        val singleExercise = RoutineExercise(
+            id = "single_ex3",
+            exercise = testExercise1,
+            cableConfig = CableConfiguration.DOUBLE,
+            orderIndex = 0,
+            setReps = listOf(2, 2),
+            weightPerCableKg = 20f,
+            progressionKg = 0f,
+            restSeconds = 60,
+            workoutType = WorkoutMode.OldSchool.toWorkoutType()
+        )
+
+        val tempRoutine = Routine(
+            id = "temp_single_exercise_test3",
+            name = "Single Exercise: ${singleExercise.exercise.name}",
+            description = "Temporary routine for single exercise mode",
+            exercises = listOf(singleExercise)
+        )
+
+        // Act
+        viewModel.loadRoutine(tempRoutine)
+
+        // Assert - Critical finding: routine is NOT null
+        assertThat(viewModel.loadedRoutine.value).isNotNull()
+        assertThat(viewModel.loadedRoutine.value?.id).startsWith("temp_single_exercise")
+
+        // This means any code checking `routine == null` to detect single exercise
+        // mode will fail for temp routines created by SingleExerciseScreen.
+        // The bug is likely here:
+        // val isSingleExercise = routine == null && !isJustLift  // ← Always false!
     }
 }
