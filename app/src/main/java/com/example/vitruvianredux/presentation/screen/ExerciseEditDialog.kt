@@ -11,8 +11,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
+import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -133,10 +135,32 @@ fun ExerciseEditBottomSheet(
     val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
     val maxWeightChange = if (weightUnit == WeightUnit.LB) 10 else 10
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Prevent accidental dismissal via swipe gestures while allowing button-based dismissal
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { newValue ->
+            // Only allow dismissal through explicit button clicks (onDismiss callback)
+            // Prevent swipe-to-dismiss to avoid losing unsaved changes during parameter adjustment
+            newValue != SheetValue.Hidden
+        }
+    )
+
+    // Coroutine scope for programmatic sheet dismissal via buttons
+    val scope = rememberCoroutineScope()
+
+    // Helper function to dismiss the sheet programmatically
+    val dismissSheet: () -> Unit = {
+        scope.launch {
+            sheetState.hide()
+            viewModel.onDismiss()
+            onDismiss()
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = {
+            // This will be blocked by confirmValueChange for swipe gestures
+            // Buttons will use dismissSheet() instead
             viewModel.onDismiss()
             onDismiss()
         },
@@ -166,10 +190,7 @@ fun ExerciseEditBottomSheet(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                IconButton(onClick = {
-                    viewModel.onDismiss()
-                    onDismiss()
-                }) {
+                IconButton(onClick = dismissSheet) {
                     Icon(
                         Icons.Default.Close,
                         contentDescription = "Close",
@@ -391,10 +412,7 @@ fun ExerciseEditBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
                 TextButton(
-                    onClick = {
-                        viewModel.onDismiss()
-                        onDismiss()
-                    },
+                    onClick = dismissSheet,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancel")
