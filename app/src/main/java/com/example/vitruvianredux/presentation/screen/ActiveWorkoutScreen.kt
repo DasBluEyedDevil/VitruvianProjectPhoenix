@@ -74,6 +74,11 @@ fun ActiveWorkoutScreen(
                 // Just Lift completed and reset to Idle - navigate back to Just Lift screen
                 navController.navigateUp()
             }
+            workoutState is WorkoutState.Error -> {
+                // Show error for 3 seconds then navigate back
+                delay(3000)
+                navController.navigateUp()
+            }
         }
     }
 
