@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import android.net.Uri
 import android.view.ViewGroup
 import androidx.core.net.toUri
 import android.widget.VideoView
@@ -99,10 +98,53 @@ fun WorkoutTab(
             .fillMaxSize()
             .background(if (isDarkMode) darkGradient else lightGradient)
     ) {
+        // Show position bars at edges only when workout is active and metric is available
+        val showPositionBars = connectionState is ConnectionState.Connected &&
+            workoutState is WorkoutState.Active &&
+            currentMetric != null
+
+        // Left edge bar (Cable A / Left hand) - positioned absolutely at left edge
+        if (showPositionBars) {
+            VerticalCablePositionBar(
+                label = "L",
+                currentPosition = currentMetric.positionA,
+                minPosition = repRanges?.minPosA,
+                maxPosition = repRanges?.maxPosA,
+                isActive = currentMetric.positionA > 0,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(40.dp)
+                    .fillMaxHeight()
+                    .padding(vertical = 8.dp, horizontal = 4.dp)
+            )
+        }
+
+        // Right edge bar (Cable B / Right hand) - positioned absolutely at right edge
+        if (showPositionBars) {
+            VerticalCablePositionBar(
+                label = "R",
+                currentPosition = currentMetric.positionB,
+                minPosition = repRanges?.minPosB,
+                maxPosition = repRanges?.maxPosB,
+                isActive = currentMetric.positionB > 0,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(40.dp)
+                    .fillMaxHeight()
+                    .padding(vertical = 8.dp, horizontal = 4.dp)
+            )
+        }
+
+        // Center content column - with horizontal padding to avoid overlapping bars
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp)
+                .padding(
+                    start = if (showPositionBars) 56.dp else 20.dp, // 40dp bar + 4dp padding + 12dp spacing
+                    end = if (showPositionBars) 56.dp else 20.dp,   // 40dp bar + 4dp padding + 12dp spacing
+                    top = 0.dp,
+                    bottom = 0.dp
+                )
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -333,14 +375,6 @@ fun WorkoutTab(
                     // Show rep counter first (above video) so it's always visible
                     RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
 
-                    // Show position bars for visual feedback of machine response
-                    if (currentMetric != null) {
-                        PositionBarsCard(
-                            currentMetric = currentMetric,
-                            repRanges = repRanges
-                        )
-                    }
-
                     // Show current exercise details
                     CurrentExerciseCard(
                         loadedRoutine = loadedRoutine,
@@ -450,7 +484,7 @@ fun WorkoutSetupDialog(
 
     LaunchedEffect(workoutParameters.selectedExerciseId) {
         workoutParameters.selectedExerciseId?.let { id ->
-            selectedExercise = exerciseRepository.getExerciseById(id)
+            exerciseRepository.getExerciseById(id).also { selectedExercise = it }
         }
     }
     AlertDialog(
@@ -1323,7 +1357,6 @@ fun VideoPlayer(
     videoUrl: String,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var isLoading by remember { mutableStateOf(true) }
     var hasError by remember { mutableStateOf(false) }
 
@@ -1355,7 +1388,7 @@ fun VideoPlayer(
                             hasError = true
                             true
                         }
-                    } catch (e: Exception) {
+                    } catch (_e: Exception) {
                         isLoading = false
                         hasError = true
                     }
@@ -1547,9 +1580,6 @@ fun LiveMetricsCard(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
 ) {
-    // Determine active position (max of both cables for progress indicator)
-    val maxPosition = maxOf(metric.positionA, metric.positionB)
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1655,214 +1685,109 @@ fun LiveMetricsCard(
 }
 
 /**
- * Position Bars Card - Shows real-time cable positions within calibrated range
- * This provides visual feedback that the machine is responding and helps with setup
+ * Vertical cable position bar for left/right side display
+ * Shows current position filling from bottom up, with range markers
  */
 @Composable
-fun PositionBarsCard(
-    currentMetric: WorkoutMetric,
-    repRanges: com.example.vitruvianredux.domain.usecase.RepRanges?
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.medium)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Cable Position",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                if (repRanges != null && repRanges.rangeA != null) {
-                    Text(
-                        "Range: ${repRanges.rangeA}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Cable A Position Bar
-            CablePositionBar(
-                label = "Cable A",
-                currentPosition = currentMetric.positionA,
-                minPosition = repRanges?.minPosA,
-                maxPosition = repRanges?.maxPosA,
-                isActive = currentMetric.positionA > 0
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.small))
-
-            // Cable B Position Bar
-            CablePositionBar(
-                label = "Cable B",
-                currentPosition = currentMetric.positionB,
-                minPosition = repRanges?.minPosB,
-                maxPosition = repRanges?.maxPosB,
-                isActive = currentMetric.positionB > 0
-            )
-
-            // Setup hint (only show when calibration is in progress)
-            if (repRanges == null || repRanges.rangeA == null || (repRanges.rangeA ?: 0) < 50) {
-                Spacer(modifier = Modifier.height(Spacing.small))
-                Text(
-                    "Perform a few reps to calibrate range",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Cable Position Bars - Real-time position feedback
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                Text(
-                    "Cable Positions",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // Cable A Position Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-                ) {
-                    Text(
-                        "A",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.width(16.dp)
-                    )
-                    LinearProgressIndicator(
-                        progress = { (currentMetric.positionA / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(12.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Text(
-                        "${(currentMetric.positionA / 10).toInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(40.dp),
-                        textAlign = TextAlign.End
-                    )
-                }
-
-                // Cable B Position Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-                ) {
-                    Text(
-                        "B",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.width(16.dp)
-                    )
-                    LinearProgressIndicator(
-                        progress = { (currentMetric.positionB / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(12.dp),
-                        color = MaterialTheme.colorScheme.secondary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Text(
-                        "${(currentMetric.positionB / 10).toInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(40.dp),
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Individual cable position bar with calibrated range visualization
- */
-@Composable
-fun CablePositionBar(
+fun VerticalCablePositionBar(
     label: String,
     currentPosition: Int,
     minPosition: Int?,
     maxPosition: Int?,
-    isActive: Boolean
+    isActive: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                currentPosition.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+    Column(
+        modifier = modifier.fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Label at top
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Position bar with calibrated range
-        Box(
+        // Vertical bar container - fills available height between label and value
+        BoxWithConstraints(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(12.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .weight(1f)
+                .width(40.dp)
+                .clip(RoundedCornerShape(20.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            // Calculate progress within calibrated range
-            val progress = if (minPosition != null && maxPosition != null && maxPosition > minPosition) {
-                ((currentPosition - minPosition).toFloat() / (maxPosition - minPosition).toFloat()).coerceIn(0f, 1f)
-            } else {
-                // Fallback: use absolute position (0-1000 range typically)
-                (currentPosition / 1000f).coerceIn(0f, 1f)
+            val barHeight = maxHeight
+            
+            // Calculate positions as fractions (0.0 to 1.0) from bottom
+            val maxPos = 1000 // Typical max position value
+            val currentProgress = (currentPosition / maxPos.toFloat()).coerceIn(0f, 1f)
+            val minProgress = minPosition?.let { (it / maxPos.toFloat()).coerceIn(0f, 1f) }
+            val maxProgress = maxPosition?.let { (it / maxPos.toFloat()).coerceIn(0f, 1f) }
+
+            // Range zone visualization (if min/max are available)
+            // This shows the calibrated workout range with subtle color
+            if (minProgress != null && maxProgress != null && maxProgress > minProgress) {
+                val rangeHeight = maxProgress - minProgress
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(barHeight * rangeHeight)
+                        .align(Alignment.BottomCenter)
+                        .offset(y = -barHeight * minProgress)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        )
+                )
             }
 
-            // Filled portion showing current position
+            // Current position fill (from bottom up)
             Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(progress)
+                    .fillMaxWidth()
+                    .height(barHeight * currentProgress)
+                    .align(Alignment.BottomCenter)
                     .background(
                         if (isActive) {
                             MaterialTheme.colorScheme.primary
                         } else {
-                            MaterialTheme.colorScheme.outline
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                         }
                     )
             )
+
+            // Range markers (subtle indicators at min/max positions)
+            if (minProgress != null && maxProgress != null && maxProgress > minProgress) {
+                // Min position marker
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .align(Alignment.BottomCenter)
+                        .offset(y = -barHeight * minProgress)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+                )
+                
+                // Max position marker
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .align(Alignment.BottomCenter)
+                        .offset(y = -barHeight * maxProgress)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+                )
+            }
         }
+
+        // Position value at bottom
+        Text(
+            text = "${currentPosition / 10}%",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }

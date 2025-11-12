@@ -24,6 +24,7 @@ import no.nordicsemi.android.ble.data.Data
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Vitruvian BLE Manager - Handles BLE communication with Vitruvian device
@@ -219,6 +220,25 @@ class VitruvianBleManager(
         override fun initialize() {
             super.initialize()
 
+            // Track pending operations: MTU request + all notification enables
+            val pendingOperations = AtomicInteger(notifyCharacteristics.size + 1)
+            
+            // Helper to check if all operations complete
+            fun checkAllOperationsComplete() {
+                val remaining = pendingOperations.decrementAndGet()
+                Timber.d("Pending operations: $remaining")
+                if (remaining == 0) {
+                    _connectionState.value = ConnectionStatus.Ready
+                    Timber.d("All initialization operations complete! Device ready.")
+                    
+                    // Start property polling immediately to keep machine alive (keep-alive mechanism)
+                    // The official app/web app does this - property polling at 500ms intervals
+                    // Monitor polling (100ms) only starts when workout begins
+                    Timber.d("Starting keep-alive property polling (500ms)...")
+                    startPropertyPolling()
+                }
+            }
+
             // REQUEST MTU FIRST - Critical for large frames (96 bytes)!
             // Default MTU is 23 bytes, we need at least 100 bytes for program params
             requestMtu(247)
@@ -227,6 +247,9 @@ class VitruvianBleManager(
                 }
                 .fail { _, status ->
                     Timber.e("MTU request failed with status: $status (continuing anyway)")
+                }
+                .done { _ ->
+                    checkAllOperationsComplete()
                 }
                 .enqueue()
 
@@ -253,21 +276,14 @@ class VitruvianBleManager(
                 enableNotifications(characteristic)
                     .done { _ ->
                         Timber.d("    -> Notifications active on ${characteristic.uuid}")
+                        checkAllOperationsComplete()
                     }
                     .fail { _, status ->
                         Timber.w("    -> Failed to enable notifications on ${characteristic.uuid}: status=$status")
+                        checkAllOperationsComplete()
                     }
                     .enqueue()
             }
-
-            _connectionState.value = ConnectionStatus.Ready
-            Timber.d("Core notifications enabled! Device ready.")
-
-            // Start property polling immediately to keep machine alive (keep-alive mechanism)
-            // The official app/web app does this - property polling at 500ms intervals
-            // Monitor polling (100ms) only starts when workout begins
-            Timber.d("Starting keep-alive property polling (500ms)...")
-            startPropertyPolling()
         }
     }
     
@@ -319,7 +335,7 @@ class VitruvianBleManager(
                     propertyCharacteristic?.let { char ->
                         readCharacteristic(char)
                             .with { _, data ->
-                                Timber.v("Property data: ${data.value?.toHexString()}")
+                                Timber.v("Property data: ${data.value?.joinToString(" ") { "%02X".format(it) } ?: "null"}")
                             }
                             .enqueue()
                     }
@@ -386,7 +402,7 @@ class VitruvianBleManager(
                 Timber.d("STOP_DEBUG: [$timestamp] === SENDING COMMAND ===")
                 Timber.d("STOP_DEBUG: Command size: ${data.size} bytes")
                 Timber.d("STOP_DEBUG: Full hex: ${data.joinToString(" ") { "0x%02X".format(it) }}")
-                Timber.d("STOP_DEBUG: Hex string: ${data.toHexString()}")
+                Timber.d("STOP_DEBUG: Hex string: ${data.joinToString(" ") { "%02X".format(it) }}")
 
                 // Show first 64 bytes formatted for easy reading
                 if (data.size > 0) {
@@ -658,7 +674,7 @@ class VitruvianBleManager(
             val topCounter = buffer.getShort(0).toInt() and 0xFFFF
             val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
             
-            Timber.d("Rep notification: top=$topCounter, complete=$completeCounter, hex=${bytes.toHexString()}")
+            Timber.d("Rep notification: top=$topCounter, complete=$completeCounter, hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
 
             val repData = RepNotification(
                 topCounter = topCounter,
@@ -671,13 +687,6 @@ class VitruvianBleManager(
         } catch (e: Exception) {
             Timber.e(e, "Error parsing rep notification")
         }
-    }
-
-    /**
-     * Helper function to convert Data to hex string
-     */
-    private fun Data.toHexString(): String {
-        return value?.joinToString(" ") { "%02X".format(it) } ?: "null"
     }
 
     /**
