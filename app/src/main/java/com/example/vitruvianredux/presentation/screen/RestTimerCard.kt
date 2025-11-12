@@ -91,48 +91,31 @@ fun RestTimerCard(
                 letterSpacing = 1.5.sp
             )
 
-            // Immersive circular timer with subtle pulsing
+            // Countdown timer - large centered text with pulsing animation
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .height(220.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // Outer gradient halo
+                // Circular background with pulse effect
                 Box(
                     modifier = Modifier
-                        .size(260.dp)
+                        .size(220.dp)
                         .scale(pulse)
                         .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFF8B5CF6).copy(alpha = 0.25f), // violet-500
-                                    Color.Transparent
-                                )
-                            ),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
                             shape = RoundedCornerShape(200.dp)
                         )
                 )
 
-                // Timer content stack
-                Surface(
-                    modifier = Modifier.size(220.dp),
-                    shape = RoundedCornerShape(200.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 0.dp,
-                    shadowElevation = 8.dp,
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        // Time remaining
-                        Text(
-                            text = formatRestTime(restSecondsRemaining),
-                            style = MaterialTheme.typography.displayLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                // Timer text
+                Text(
+                    text = formatRestTime(restSecondsRemaining),
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 80.sp),
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
             // UP NEXT section
