@@ -262,6 +262,8 @@ class MainViewModel @Inject constructor(
     private var autoStopStartTime: Long? = null
     private val autoStopTriggered = AtomicBoolean(false)
     private val autoStopStopRequested = AtomicBoolean(false)
+    private var currentHandleState: com.example.vitruvianredux.data.ble.HandleState =
+        com.example.vitruvianredux.data.ble.HandleState.Released
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
@@ -374,6 +376,9 @@ class MainViewModel @Inject constructor(
         // Collect handle state for auto-start/stop
         viewModelScope.launch {
             bleRepository.handleState.collect { state ->
+                // Track current handle state for auto-stop logic
+                currentHandleState = state
+
                 Timber.d("Handle state received in ViewModel: $state, useAutoStart=${workoutParameters.value.useAutoStart}, workoutState=${workoutState.value}")
                 if (workoutParameters.value.useAutoStart && workoutState.value is WorkoutState.Idle) {
                     when (state) {
@@ -499,10 +504,15 @@ class MainViewModel @Inject constructor(
         }
 
         val inDangerZone = repCounter.isInDangerZone(metric.positionA, metric.positionB)
-        if (inDangerZone) {
+        val handlesReleased = currentHandleState == com.example.vitruvianredux.data.ble.HandleState.Released
+
+        // Auto-stop should only trigger when BOTH conditions are met:
+        // 1. Position is in danger zone (near bottom)
+        // 2. Handles are actually released (not during eccentric phase)
+        if (inDangerZone && handlesReleased) {
             val startTime = autoStopStartTime ?: run {
                 autoStopStartTime = System.currentTimeMillis()
-                Timber.d("Entered Just Lift auto-stop danger zone - starting timer")
+                Timber.d("Entered Just Lift auto-stop danger zone with handles released - starting timer")
                 System.currentTimeMillis()
             }
 
@@ -522,7 +532,7 @@ class MainViewModel @Inject constructor(
             }
         } else {
             if (autoStopStartTime != null) {
-                Timber.d("Left auto-stop danger zone - resetting timer")
+                Timber.d("Left auto-stop danger zone (inDangerZone=$inDangerZone, handlesReleased=$handlesReleased) - resetting timer")
             }
             resetAutoStopTimer()
         }
