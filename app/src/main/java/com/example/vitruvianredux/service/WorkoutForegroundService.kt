@@ -32,11 +32,8 @@ class WorkoutForegroundService : Service() {
                 putExtra(EXTRA_WORKOUT_MODE, workoutMode)
                 putExtra(EXTRA_TARGET_REPS, targetReps)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            // minSdk=26 (Android 8.0) requires startForegroundService
+            context.startForegroundService(intent)
         }
 
         fun stopWorkoutService(context: Context) {
@@ -80,19 +77,18 @@ class WorkoutForegroundService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Vitruvian Workout",
-                NotificationManager.IMPORTANCE_LOW // Low importance = no sound/vibration
-            ).apply {
-                description = "Shows ongoing workout status"
-                setShowBadge(false)
-            }
-
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+        // minSdk=26 (Android 8.0) always has NotificationChannel
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Vitruvian Workout",
+            NotificationManager.IMPORTANCE_LOW // Low importance = no sound/vibration
+        ).apply {
+            description = "Shows ongoing workout status"
+            setShowBadge(false)
         }
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun createNotification() = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -109,11 +105,8 @@ class WorkoutForegroundService : Service() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        // minSdk=26 (Android 8.0) is above API 23 (M), FLAG_IMMUTABLE always available
+        val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         return PendingIntent.getActivity(this, 0, intent, flags)
     }
 

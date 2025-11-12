@@ -11,6 +11,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -119,7 +120,7 @@ fun AnalyticsScreen(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
                     text = { Text("History") },
-                    icon = { Icon(Icons.Default.List, contentDescription = "Workout history") }
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Workout history") }
                 )
                 Tab(
                     selected = pagerState.currentPage == 1,
@@ -282,7 +283,7 @@ fun AnalyticsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text("Export Workout History")
                     }
@@ -878,7 +879,7 @@ fun ExerciseProgressionCard(
                 if (prs.size >= 2) {
                     IconButton(onClick = { showChart = !showChart }) {
                         Icon(
-                            if (showChart) Icons.Default.List else Icons.Default.Info,
+                            if (showChart) Icons.AutoMirrored.Filled.List else Icons.Default.Info,
                             contentDescription = if (showChart) "Show list" else "Show chart",
                             tint = MaterialTheme.colorScheme.primary
                         )
