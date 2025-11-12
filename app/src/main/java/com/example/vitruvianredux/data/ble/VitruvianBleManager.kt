@@ -153,6 +153,16 @@ class VitruvianBleManager(
             propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
 
+            // DIAGNOSTIC: Log characteristic discovery with timestamp
+            val timestamp = System.currentTimeMillis()
+            Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.i("✅ CHARACTERISTICS DISCOVERED! [$timestamp]")
+            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+            if (nusRxCharacteristic != null) {
+                Timber.i("✅ nusRxCharacteristic UUID: ${nusRxCharacteristic?.uuid}, instance: ${nusRxCharacteristic?.instanceId}")
+            }
+            Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
             Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
 
             // If rep notify not in NUS service, search all services
@@ -209,6 +219,24 @@ class VitruvianBleManager(
 
         @Deprecated("Using deprecated Nordic BLE API")
         override fun onServicesInvalidated() {
+            val timestamp = System.currentTimeMillis()
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.e("⚠️ onServicesInvalidated() CALLED! [$timestamp]")
+            Timber.e("⚠️ This will NULL all characteristic references!")
+            Timber.e("⚠️ Stack trace:")
+            Thread.currentThread().stackTrace.take(10).forEach {
+                Timber.e("   at $it")
+            }
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+            // Log current connection state
+            connectionLogger?.logError(
+                currentDeviceName ?: "Unknown",
+                currentDeviceAddress ?: "Unknown",
+                "CHARACTERISTICS_INVALIDATED",
+                "onServicesInvalidated() called - all characteristics will be nulled"
+            )
+
             nusRxCharacteristic = null
             monitorCharacteristic = null
             propertyCharacteristic = null
@@ -397,6 +425,13 @@ class VitruvianBleManager(
     fun sendCommand(data: ByteArray): Result<Unit> {
         return try {
             val timestamp = System.currentTimeMillis()
+
+            // DIAGNOSTIC: Log characteristic state at time of command
+            Timber.d("SEND_COMMAND_DEBUG: [$timestamp] sendCommand() called")
+            Timber.d("SEND_COMMAND_DEBUG: nusRxCharacteristic is ${if (nusRxCharacteristic != null) "AVAILABLE" else "NULL"}")
+            Timber.d("SEND_COMMAND_DEBUG: isConnected=${isConnected}")
+            Timber.d("SEND_COMMAND_DEBUG: connectionState=${_connectionState.value}")
+
             nusRxCharacteristic?.let { characteristic ->
                 // Log detailed hex dump for debugging
                 Timber.d("STOP_DEBUG: [$timestamp] === SENDING COMMAND ===")
