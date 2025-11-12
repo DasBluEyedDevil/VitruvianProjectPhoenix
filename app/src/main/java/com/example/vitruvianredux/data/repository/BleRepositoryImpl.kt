@@ -44,6 +44,7 @@ interface BleRepository {
     suspend fun startScanning(): Result<Unit>
     suspend fun stopScanning()
     suspend fun connectToDevice(deviceAddress: String): Result<Unit>
+    suspend fun cancelConnection() // Cancel an in-progress connection attempt
     suspend fun disconnect()
     suspend fun sendInitSequence(): Result<Unit>
     suspend fun startWorkout(params: WorkoutParameters): Result<Unit>
@@ -63,6 +64,7 @@ class BleRepositoryImpl @Inject constructor(
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     private var bleManager: VitruvianBleManager? = null
+    private var connectingBleManager: VitruvianBleManager? = null  // Track manager being created during connection
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
@@ -225,8 +227,8 @@ class BleRepositoryImpl @Inject constructor(
             _connectionState.value = ConnectionState.Connecting
             Timber.d("Connection state set to Connecting")
 
-            // Create BLE manager
-            bleManager = VitruvianBleManager(context, connectionLogger).apply {
+            // Create BLE manager and track it for potential cancellation
+            val newBleManager = VitruvianBleManager(context, connectionLogger).apply {
                 setDeviceInfo(device.name, device.address)
                 Timber.d("Created VitruvianBleManager")
 
@@ -242,16 +244,22 @@ class BleRepositoryImpl @Inject constructor(
                                     deviceName = device.name ?: "Vitruvian",
                                     deviceAddress = device.address
                                 )
+                                // Connection succeeded, clear the connecting reference
+                                connectingBleManager = null
                             }
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Disconnected -> {
                                 Timber.d("Device disconnected")
                                 connectionLogger.logDisconnected(deviceName, deviceAddress)
                                 _connectionState.value = ConnectionState.Disconnected
+                                // Connection failed, clear the connecting reference
+                                connectingBleManager = null
                             }
                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Error -> {
                                 Timber.e("Connection error: ${status.message}")
                                 connectionLogger.logConnectionFailed(deviceName, deviceAddress, status.message)
                                 _connectionState.value = ConnectionState.Error(status.message)
+                                // Connection failed, clear the connecting reference
+                                connectingBleManager = null
                             }
                         }
                     }
@@ -283,9 +291,13 @@ class BleRepositoryImpl @Inject constructor(
                 }
             }
 
+            // Store references to the new BLE manager
+            bleManager = newBleManager
+            connectingBleManager = newBleManager
+
             // Connect to device
             Timber.d("Initiating connection to device...")
-            bleManager?.connect(device)
+            newBleManager.connect(device)
                 ?.timeout(BleConstants.CONNECTION_TIMEOUT_MS)
                 ?.retry(3, 100)
                 ?.useAutoConnect(false)
@@ -315,6 +327,33 @@ class BleRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun cancelConnection() = withContext(Dispatchers.Main) {
+        try {
+            Timber.d("Cancelling in-progress connection...")
+
+            // Cancel the connecting BLE manager if one exists
+            connectingBleManager?.let { manager ->
+                Timber.d("Cleaning up connecting BLE manager...")
+                manager.stopPolling()
+                manager.cleanup()
+                manager.disconnect()?.enqueue()
+            }
+
+            // Clear references
+            connectingBleManager = null
+            if (bleManager == connectingBleManager) {
+                bleManager = null
+            }
+
+            // Reset connection state
+            _connectionState.value = ConnectionState.Disconnected
+
+            Timber.d("Connection cancelled successfully")
+        } catch (e: Exception) {
+            Timber.e(e, "Error cancelling connection")
+        }
+    }
+
     override suspend fun disconnect() = withContext(Dispatchers.Main) {
         try {
             Timber.d("Disconnecting from device...")
@@ -322,6 +361,7 @@ class BleRepositoryImpl @Inject constructor(
             bleManager?.cleanup()  // Clean up resources and cancel polling jobs
             bleManager?.disconnect()?.enqueue()
             bleManager = null
+            connectingBleManager = null
             _connectionState.value = ConnectionState.Disconnected
             Timber.d("Disconnected from device")
         } catch (e: Exception) {
