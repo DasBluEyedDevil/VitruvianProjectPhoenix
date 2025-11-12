@@ -794,6 +794,14 @@ class MainViewModel @Inject constructor(
             // Set state to Active immediately before sending BLE command for instant UI response
             _workoutState.value = WorkoutState.Active
 
+            // Set initial baseline position for position bars calibration
+            // This ensures bars start at 0% relative to the starting rope position
+            _currentMetric.value?.let { metric ->
+                repCounter.setInitialBaseline(metric.positionA, metric.positionB)
+                _repRanges.value = repCounter.getRepRanges()
+                Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
+            }
+
             val result = bleRepository.startWorkout(params)
 
             val commandLatency = System.currentTimeMillis() - startTime
