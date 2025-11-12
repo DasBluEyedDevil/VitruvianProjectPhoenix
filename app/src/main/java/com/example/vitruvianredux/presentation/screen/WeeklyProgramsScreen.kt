@@ -83,9 +83,9 @@ fun WeeklyProgramsScreen(
         } else {
             Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFFE0E7FF), // indigo-200 - soft lavender
-                    Color(0xFFFCE7F3), // pink-100 - soft pink
-                    Color(0xFFDDD6FE)  // violet-200 - soft violet
+                    Color(0xFFE0E7FF), // soft indigo
+                    Color(0xFFEDE9FE), // soft violet
+                    Color(0xFFDFF6FF)  // soft sky blue
                 )
             )
         }
@@ -228,7 +228,9 @@ fun WeeklyProgramsScreen(
 
             // Auto-connect UI overlays
             if (isAutoConnecting) {
-                com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+                com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+                    onCancel = { viewModel.cancelAutoConnecting() }
+                )
             }
 
             connectionError?.let { error ->

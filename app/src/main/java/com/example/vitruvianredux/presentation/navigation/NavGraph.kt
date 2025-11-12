@@ -153,7 +153,8 @@ fun NavGraph(
                 navController = navController,
                 viewModel = viewModel,
                 programId = programId,
-                exerciseRepository = exerciseRepository
+                exerciseRepository = exerciseRepository,
+                themeMode = themeMode
             )
         }
 
@@ -183,15 +184,18 @@ fun NavGraph(
                 weightUnit = weightUnit,
                 autoplayEnabled = userPreferences.autoplayEnabled,
                 stopAtTop = userPreferences.stopAtTop,
+                enableVideoPlayback = userPreferences.enableVideoPlayback,
                 onWeightUnitChange = { viewModel.setWeightUnit(it) },
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                 onStopAtTopChange = { viewModel.setStopAtTop(it) },
+                onEnableVideoPlaybackChange = { viewModel.setEnableVideoPlayback(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
                 onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                 onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
-                onClearConnectionError = { viewModel.clearConnectionError() }
+                onClearConnectionError = { viewModel.clearConnectionError() },
+                onCancelAutoConnecting = { viewModel.cancelAutoConnecting() }
             )
         }
 

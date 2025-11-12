@@ -2,9 +2,11 @@ package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -17,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.local.ProgramDayEntity
 import com.example.vitruvianredux.data.local.WeeklyProgramEntity
@@ -39,7 +42,8 @@ fun ProgramBuilderScreen(
     navController: NavController,
     viewModel: MainViewModel,
     programId: String,
-    exerciseRepository: ExerciseRepository
+    exerciseRepository: ExerciseRepository,
+    themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
     val routines by viewModel.routines.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
@@ -161,20 +165,54 @@ fun ProgramBuilderScreen(
             )
         }
     ) { padding ->
+        // Determine actual theme (matching Theme.kt logic)
+        val useDarkColors = when (themeMode) {
+            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
+            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
+        }
+
+        val backgroundGradient = if (useDarkColors) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0F172A), // slate-900
+                    Color(0xFF1E1B4B), // indigo-950
+                    Color(0xFF172554)  // blue-950
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFE0E7FF), // soft indigo
+                    Color(0xFFEDE9FE), // soft violet
+                    Color(0xFFDFF6FF)  // soft sky blue
+                )
+            )
+        }
+
+        // Track scroll state to show scroll indicator
+        val listState = rememberLazyListState()
+
+        // Determine if we can scroll down (more content below)
+        val canScrollDown by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
+
+                // Can scroll down if the last visible item is not the last item in the list
+                lastVisibleItem?.let {
+                    it.index < layoutInfo.totalItemsCount - 1
+                } ?: false
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFF8FAFC),
-                            Color(0xFFF5F3FF),
-                            Color(0xFFEFF6FF)
-                        )
-                    )
-                )
+                .background(backgroundGradient)
         ) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
@@ -241,6 +279,45 @@ fun ProgramBuilderScreen(
                     }
                 }
             }
+            }
+
+            // Scroll indicator - gradient fade at bottom when more content is available
+            if (canScrollDown) {
+                val bottomColor = if (useDarkColors) Color(0xFF172554) else Color(0xFFDFF6FF)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    bottomColor.copy(alpha = 0.85f),
+                                    bottomColor
+                                )
+                            )
+                        )
+                        .zIndex(1f)
+                ) {
+                    // Down arrow icon to indicate more content
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Scroll down for more",
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .size(28.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
         }
     }
@@ -309,7 +386,9 @@ fun ProgramBuilderScreen(
 
     // Auto-connect UI overlays (same as other screens)
     if (isAutoConnecting) {
-        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+            onCancel = { viewModel.cancelAutoConnecting() }
+        )
     }
 
     connectionError?.let { error ->

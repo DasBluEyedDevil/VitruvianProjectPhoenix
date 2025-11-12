@@ -122,6 +122,18 @@ object ProtocolBuilder {
         val totalWeightKg = adjustedWeightPerCable
         val effectiveKg = adjustedWeightPerCable + 10.0f
 
+        timber.log.Timber.d("=== WORKOUT MODE DEBUG ===")
+        timber.log.Timber.d("Mode: ${params.workoutType}")
+        timber.log.Timber.d("Profile Mode: $profileMode")
+        if (profileMode == ProgramMode.EccentricOnly) {
+            timber.log.Timber.d("⚠️ ECCENTRIC-ONLY MODE SELECTED")
+            timber.log.Timber.d("  This mode should provide resistance ONLY during lowering phase")
+            timber.log.Timber.d("  If not working, check:")
+            timber.log.Timber.d("    1. Device firmware version")
+            timber.log.Timber.d("    2. Connection logs for protocol bytes sent")
+            timber.log.Timber.d("    3. Whether 'Release Tension at Top' affects behavior")
+        }
+
         timber.log.Timber.d("=== WEIGHT DEBUG ===")
         timber.log.Timber.d("Per-cable weight (input): ${params.weightPerCableKg} kg")
         timber.log.Timber.d("Progression: ${params.progressionRegressionKg} kg")

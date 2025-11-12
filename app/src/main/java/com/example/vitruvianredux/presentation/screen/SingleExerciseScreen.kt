@@ -31,6 +31,7 @@ fun SingleExerciseScreen(
     exerciseRepository: ExerciseRepository
 ) {
     val weightUnit by viewModel.weightUnit.collectAsState()
+    val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
@@ -87,7 +88,8 @@ fun SingleExerciseScreen(
                         exerciseToConfig = newRoutineExercise
                         showExercisePicker = false
                     },
-                    exerciseRepository = exerciseRepository
+                    exerciseRepository = exerciseRepository,
+                    enableVideoPlayback = enableVideoPlayback
                 )
             }
 
@@ -95,6 +97,7 @@ fun SingleExerciseScreen(
                 ExerciseEditBottomSheet(
                     exercise = it,
                     weightUnit = weightUnit,
+                    enableVideoPlayback = enableVideoPlayback,
                     kgToDisplay = viewModel::kgToDisplay,
                     displayToKg = viewModel::displayToKg,
                     exerciseRepository = exerciseRepository,
@@ -166,7 +169,9 @@ fun SingleExerciseScreen(
         }
 
         if (isAutoConnecting) {
-            ConnectingOverlay()
+            ConnectingOverlay(
+                onCancel = { viewModel.cancelAutoConnecting() }
+            )
         }
 
         connectionError?.let { error ->

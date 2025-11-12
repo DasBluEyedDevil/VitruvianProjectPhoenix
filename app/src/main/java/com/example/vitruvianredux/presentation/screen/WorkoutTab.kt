@@ -45,8 +45,10 @@ fun WorkoutTab(
     currentMetric: WorkoutMetric?,
     workoutParameters: WorkoutParameters,
     repCount: RepCount,
+    repRanges: com.example.vitruvianredux.domain.usecase.RepRanges?,
     autoStopState: AutoStopUiState,
     weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
     exerciseRepository: ExerciseRepository,
     isWorkoutSetupDialogVisible: Boolean = false,
     hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
@@ -60,6 +62,7 @@ fun WorkoutTab(
     onStartWorkout: () -> Unit,
     onStopWorkout: () -> Unit,
     onSkipRest: () -> Unit,
+    onProceedFromSummary: () -> Unit = {},
     onResetForNewWorkout: () -> Unit,
     onStartNextExercise: () -> Unit = {},
     onUpdateParameters: (WorkoutParameters) -> Unit,
@@ -286,12 +289,21 @@ fun WorkoutTab(
                     // Show rep counter first (above video) so it's always visible
                     RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
 
+                    // Show position bars for visual feedback of machine response
+                    if (currentMetric != null) {
+                        PositionBarsCard(
+                            currentMetric = currentMetric,
+                            repRanges = repRanges
+                        )
+                    }
+
                     // Show current exercise details
                     CurrentExerciseCard(
                         loadedRoutine = loadedRoutine,
                         currentExerciseIndex = currentExerciseIndex,
                         workoutParameters = workoutParameters,
                         exerciseRepository = exerciseRepository,
+                        enableVideoPlayback = enableVideoPlayback,
                         formatWeight = { weight -> formatWeight(weight, weightUnit) },
                         kgToDisplay = { weight -> kgToDisplay(weight, weightUnit) },
                         weightUnit = weightUnit
@@ -319,6 +331,17 @@ fun WorkoutTab(
                 if (!workoutParameters.isJustLift) {
                     CountdownCard(secondsRemaining = workoutState.secondsRemaining)
                 }
+            }
+            is WorkoutState.SetSummary -> {
+                com.example.vitruvianredux.presentation.components.SetSummaryCard(
+                    metrics = workoutState.metrics,
+                    peakPower = workoutState.peakPower,
+                    averagePower = workoutState.averagePower,
+                    repCount = workoutState.repCount,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    onContinue = onProceedFromSummary
+                )
             }
             is WorkoutState.Resting -> {
                 RestTimerCard(
@@ -1327,6 +1350,7 @@ fun CurrentExerciseCard(
     currentExerciseIndex: Int,
     workoutParameters: WorkoutParameters,
     exerciseRepository: ExerciseRepository,
+    enableVideoPlayback: Boolean,
     formatWeight: (Float) -> String,
     kgToDisplay: (Float) -> Float,
     weightUnit: WeightUnit
@@ -1416,16 +1440,18 @@ fun CurrentExerciseCard(
             }
 
             // Video player (if video available)
-            videoEntity?.let { video ->
-                Spacer(modifier = Modifier.height(Spacing.medium))
+            if (enableVideoPlayback) {
+                videoEntity?.let { video ->
+                    Spacer(modifier = Modifier.height(Spacing.medium))
 
-                VideoPlayer(
-                    videoUrl = video.videoUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                )
+                    VideoPlayer(
+                        videoUrl = video.videoUrl,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
             }
         }
     }
@@ -1511,24 +1537,288 @@ fun LiveMetricsCard(
 
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Position indicator
+            // Cable Position Bars - showing individual cable positions
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Range of Motion",
+                    "Cable Positions",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                )
+
+                // Cable A Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "A",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(20.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                    Text(
+                        "${metric.positionA}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(50.dp).padding(start = Spacing.extraSmall),
+                        textAlign = TextAlign.End
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.extraSmall))
+
+                // Cable B Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "B",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(20.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                    Text(
+                        "${metric.positionB}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(50.dp).padding(start = Spacing.extraSmall),
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Position Bars Card - Shows real-time cable positions within calibrated range
+ * This provides visual feedback that the machine is responding and helps with setup
+ */
+@Composable
+fun PositionBarsCard(
+    currentMetric: WorkoutMetric,
+    repRanges: com.example.vitruvianredux.domain.usecase.RepRanges?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Cable Position",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (repRanges != null && repRanges.rangeA != null) {
+                    Text(
+                        "Range: ${repRanges.rangeA}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Cable A Position Bar
+            CablePositionBar(
+                label = "Cable A",
+                currentPosition = currentMetric.positionA,
+                minPosition = repRanges?.minPosA,
+                maxPosition = repRanges?.maxPosA,
+                isActive = currentMetric.positionA > 0
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Cable B Position Bar
+            CablePositionBar(
+                label = "Cable B",
+                currentPosition = currentMetric.positionB,
+                minPosition = repRanges?.minPosB,
+                maxPosition = repRanges?.maxPosB,
+                isActive = currentMetric.positionB > 0
+            )
+
+            // Setup hint (only show when calibration is in progress)
+            if (repRanges == null || repRanges.rangeA == null || (repRanges.rangeA ?: 0) < 50) {
+                Spacer(modifier = Modifier.height(Spacing.small))
+                Text(
+                    "Perform a few reps to calibrate range",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Cable Position Bars - Real-time position feedback
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                Text(
+                    "Cable Positions",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                LinearProgressIndicator(
-                    progress = { (maxPosition / 1000f).coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .padding(top = Spacing.extraSmall)
-                        .height(8.dp)
-                )
+
+                // Cable A Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    Text(
+                        "A",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.width(16.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (currentMetric.positionA / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(12.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text(
+                        "${(currentMetric.positionA / 10).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(40.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
+
+                // Cable B Position Bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    Text(
+                        "B",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.width(16.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { (currentMetric.positionB / 1000f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(12.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Text(
+                        "${(currentMetric.positionB / 10).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(40.dp),
+                        textAlign = TextAlign.End
+                    )
+                }
             }
+        }
+    }
+}
+
+/**
+ * Individual cable position bar with calibrated range visualization
+ */
+@Composable
+fun CablePositionBar(
+    label: String,
+    currentPosition: Int,
+    minPosition: Int?,
+    maxPosition: Int?,
+    isActive: Boolean
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                currentPosition.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Position bar with calibrated range
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(12.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            // Calculate progress within calibrated range
+            val progress = if (minPosition != null && maxPosition != null && maxPosition > minPosition) {
+                ((currentPosition - minPosition).toFloat() / (maxPosition - minPosition).toFloat()).coerceIn(0f, 1f)
+            } else {
+                // Fallback: use absolute position (0-1000 range typically)
+                (currentPosition / 1000f).coerceIn(0f, 1f)
+            }
+
+            // Filled portion showing current position
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress)
+                    .background(
+                        if (isActive) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        }
+                    )
+            )
         }
     }
 }

@@ -40,6 +40,7 @@ fun HistoryTab(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     onDeleteWorkout: (String) -> Unit,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -102,6 +103,7 @@ fun HistoryTab(
                         session = session,
                         weightUnit = weightUnit,
                         formatWeight = formatWeight,
+                        exerciseRepository = exerciseRepository,
                         onDelete = { onDeleteWorkout(session.id) }
                     )
                 }
@@ -116,6 +118,7 @@ fun WorkoutHistoryCard(
     session: WorkoutSession,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -128,6 +131,14 @@ fun WorkoutHistoryCard(
         ),
         label = "scale"
     )
+
+    // Fetch exercise name if exerciseId is available
+    var exerciseName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(session.exerciseId) {
+        session.exerciseId?.let { id ->
+            exerciseName = exerciseRepository.getExerciseById(id)?.name
+        }
+    }
 
     Card(
         onClick = { isPressed = true },
@@ -173,15 +184,15 @@ fun WorkoutHistoryCard(
                     }
                     Spacer(modifier = Modifier.width(Spacing.medium))
                     Column(modifier = Modifier.weight(1f)) {
-                        // Exercise/Mode name - larger and bolder
+                        // Exercise name (or "Just Lift" if no exercise selected)
                         Text(
-                            session.mode,
+                            exerciseName ?: "Just Lift",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Formatted date/time
+                        // Date/time
                         Text(
                             formatRelativeTimestamp(session.timestamp),
                             style = MaterialTheme.typography.bodyMedium,
@@ -208,9 +219,13 @@ fun WorkoutHistoryCard(
 
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Progress bar showing set completion (visual representation)
+            // Progress bar showing progress through last/current set
+            val progressValue = if (session.workingReps > 0 && session.reps > 0) {
+                val repsInCurrentSet = session.workingReps % session.reps
+                if (repsInCurrentSet == 0) 1f else repsInCurrentSet.toFloat() / session.reps
+            } else 0f
             LinearProgressIndicator(
-                progress = { if (session.totalReps > 0) session.totalReps / (session.totalReps + 3f).coerceAtLeast(1f) else 0f },
+                progress = { progressValue },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp),
@@ -234,7 +249,7 @@ fun WorkoutHistoryCard(
                 EnhancedMetricItem(
                     icon = Icons.AutoMirrored.Filled.List,
                     label = "Sets",
-                    value = if (session.totalReps > 0) ((session.totalReps / session.reps.coerceAtLeast(1)) + 1).toString() else "0",
+                    value = if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString() else "0",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -254,7 +269,7 @@ fun WorkoutHistoryCard(
                 EnhancedMetricItem(
                     icon = Icons.Default.Settings,
                     label = "Mode",
-                    value = session.mode.take(8),
+                    value = session.mode,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -348,15 +363,18 @@ fun SettingsTab(
     weightUnit: WeightUnit,
     autoplayEnabled: Boolean,
     stopAtTop: Boolean,
+    enableVideoPlayback: Boolean,
     onWeightUnitChange: (WeightUnit) -> Unit,
     onAutoplayChange: (Boolean) -> Unit,
     onStopAtTopChange: (Boolean) -> Unit,
+    onEnableVideoPlaybackChange: (Boolean) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
     onNavigateToConnectionLogs: () -> Unit = {},
     isAutoConnecting: Boolean = false,
     connectionError: String? = null,
     onClearConnectionError: () -> Unit = {},
+    onCancelAutoConnecting: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
@@ -548,6 +566,36 @@ fun SettingsTab(
                     Switch(
                         checked = stopAtTop,
                         onCheckedChange = onStopAtTopChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Enable Video Playback toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Show Exercise Videos",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Display exercise demonstration videos (disable to avoid slow loading)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = enableVideoPlayback,
+                        onCheckedChange = onEnableVideoPlaybackChange
                     )
                 }
             }
@@ -759,8 +807,8 @@ fun SettingsTab(
                 )
             }
                 Spacer(modifier = Modifier.height(Spacing.small))
-                Text("Version: 0.3.0-beta", color = MaterialTheme.colorScheme.onSurface)
-                Text("Build: Beta 3", color = MaterialTheme.colorScheme.onSurface)
+                Text("Version: 0.4.0-beta", color = MaterialTheme.colorScheme.onSurface)
+                Text("Build: Beta 4", color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(Spacing.small))
                 Text(
                     "Open source community project to control Vitruvian Trainer machines locally.",
@@ -798,7 +846,9 @@ fun SettingsTab(
 
     // Auto-connect UI overlays (same as other screens)
     if (isAutoConnecting) {
-        com.example.vitruvianredux.presentation.components.ConnectingOverlay()
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+            onCancel = onCancelAutoConnecting
+        )
     }
 
     connectionError?.let { error ->

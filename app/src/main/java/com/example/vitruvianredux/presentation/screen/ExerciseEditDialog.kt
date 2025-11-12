@@ -36,6 +36,7 @@ import com.example.vitruvianredux.ui.theme.*
 fun ExerciseEditBottomSheet(
     exercise: RoutineExercise,
     weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     exerciseRepository: ExerciseRepository,
@@ -187,17 +188,19 @@ fun ExerciseEditBottomSheet(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                preferredVideo?.let { video ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        VideoPlayer(
-                            videoUrl = video.videoUrl,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                if (enableVideoPlayback) {
+                    preferredVideo?.let { video ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            VideoPlayer(
+                                videoUrl = video.videoUrl,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
 
