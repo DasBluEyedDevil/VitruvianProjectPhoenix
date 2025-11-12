@@ -1,12 +1,12 @@
 package com.example.vitruvianredux.data.local
 
 import android.content.Context
-import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,7 +30,7 @@ class ExerciseImporter @Inject constructor(
      */
     suspend fun importExercises(): Result<Int> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "Starting exercise import from $ASSET_FILE")
+            Timber.d("Starting exercise import from $ASSET_FILE")
             
             // Read JSON from assets
             val jsonString = context.assets.open(ASSET_FILE).bufferedReader().use { it.readText() }
@@ -51,7 +51,7 @@ class ExerciseImporter @Inject constructor(
                     val exerciseVideos = parseVideos(jsonExercise, exercise.id)
                     videos.addAll(exerciseVideos)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to parse exercise at index $i: ${e.message}")
+                    Timber.w("Failed to parse exercise at index $i: ${e.message}")
                     // Continue with other exercises
                 }
             }
@@ -59,12 +59,12 @@ class ExerciseImporter @Inject constructor(
             // Insert into database
             exerciseDao.insertAll(exercises)
             exerciseDao.insertVideos(videos)
-            
-            Log.d(TAG, "Successfully imported ${exercises.size} exercises with ${videos.size} videos")
+
+            Timber.d("Successfully imported ${exercises.size} exercises with ${videos.size} videos")
             Result.success(exercises.size)
-            
+
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to import exercises", e)
+            Timber.e(e, "Failed to import exercises")
             Result.failure(e)
         }
     }
@@ -113,7 +113,7 @@ class ExerciseImporter @Inject constructor(
                 )
                 videos.add(video)
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to parse video at index $i for exercise $exerciseId: ${e.message}")
+                Timber.w("Failed to parse video at index $i for exercise $exerciseId: ${e.message}")
             }
         }
         

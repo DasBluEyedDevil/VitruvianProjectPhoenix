@@ -131,11 +131,10 @@ fun CompactNumberPicker(
                                         val paint = paintField.get(this) as? android.graphics.Paint
                                         paint?.color = textColor.toArgb()
                                     } catch (e: Exception) {
-                                        // Paint field not found or access denied
-                                        android.util.Log.d("CompactNumberPicker", "Could not access Paint: ${e.message}")
+                                        // Paint field not found or access denied - expected on some Android versions
                                     }
                                 } catch (e: Exception) {
-                                    android.util.Log.w("CompactNumberPicker", "Failed to set text color via reflection", e)
+                                    // Reflection failed - fall back to default styling
                                 }
                             }
                         }
@@ -181,11 +180,10 @@ fun CompactNumberPicker(
                                     val paint = paintField.get(picker) as? android.graphics.Paint
                                     paint?.color = textColor.toArgb()
                                 } catch (e: Exception) {
-                                    // Paint field not found or access denied
-                                    android.util.Log.d("CompactNumberPicker", "Could not access Paint in update: ${e.message}")
+                                    // Paint field not found or access denied - expected on some Android versions
                                 }
                             } catch (e: Exception) {
-                                android.util.Log.w("CompactNumberPicker", "Failed to set text color in update block", e)
+                                // Reflection failed - fall back to default styling
                             }
                         }
                     }
