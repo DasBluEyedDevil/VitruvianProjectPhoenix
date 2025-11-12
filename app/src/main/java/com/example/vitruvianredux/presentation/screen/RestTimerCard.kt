@@ -118,10 +118,10 @@ fun RestTimerCard(
                 Surface(
                     modifier = Modifier.size(220.dp),
                     shape = RoundedCornerShape(200.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    tonalElevation = 0.dp,
                     shadowElevation = 8.dp,
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         // Time remaining
@@ -129,7 +129,7 @@ fun RestTimerCard(
                             text = formatRestTime(restSecondsRemaining),
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
