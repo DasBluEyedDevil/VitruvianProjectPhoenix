@@ -626,8 +626,11 @@ class MainViewModel @Inject constructor(
                                         if (connected == true) {
                                             onConnected()
                                         } else {
+                                            // Connection timeout or failure - clean up BLE connection
+                                            Timber.d("Connection timeout or failure - cleaning up")
+                                            bleRepository.cancelConnection()
                                             _pendingConnectionCallback = null  // Clear callback on failure
-                                            _connectionError.value = "Connection failed"
+                                            _connectionError.value = "Connection timeout"
                                             onFailed()
                                         }
                                     } else {
@@ -640,9 +643,11 @@ class MainViewModel @Inject constructor(
                         }
 
                         if (found == null) {
-                            // Timeout
+                            // Scan timeout - clean up properly
+                            Timber.d("Scan timeout reached - cleaning up")
                             _pendingConnectionCallback = null  // Clear callback on timeout
                             stopScanning()
+                            bleRepository.cancelConnection()  // Cancel any in-progress connection
                             _isAutoConnecting.value = false
                             _connectionError.value = "Scan timeout - no device found"
                             onFailed()
@@ -653,7 +658,7 @@ class MainViewModel @Inject constructor(
                 // User explicitly cancelled - clean up without showing errors
                 Timber.d("Connection attempt cancelled by user")
                 stopScanning()
-                bleRepository.disconnect()
+                bleRepository.cancelConnection()  // Cancel any in-progress connection
                 _isAutoConnecting.value = false
                 _pendingConnectionCallback = null
                 // Don't show error or call onFailed() - user cancelled intentionally
@@ -671,11 +676,13 @@ class MainViewModel @Inject constructor(
 
     /**
      * Cancel the auto-connection process.
-     * Cancels the connection coroutine, which triggers cleanup in the CancellationException handler.
+     * Cancels the connection coroutine, which triggers cleanup in the exception handler.
      */
     fun cancelAutoConnecting() {
+        Timber.d("User cancelled connection - stopping all connection attempts")
+
         // Cancel the connection coroutine - this triggers the CancellationException handler
-        // which will handle all cleanup (stop scanning, disconnect, clear state, etc.)
+        // which will handle all cleanup (stop scanning, cancel BLE connection, clear state, etc.)
         connectionJob?.cancel()
         connectionJob = null
     }
