@@ -676,18 +676,13 @@ class MainViewModel @Inject constructor(
 
     /**
      * Cancel the auto-connection process.
-     * Cancels the connection coroutine and any in-progress BLE connection.
+     * Cancels the connection coroutine, which triggers cleanup in the exception handler.
      */
     fun cancelAutoConnecting() {
         Timber.d("User cancelled connection - stopping all connection attempts")
 
-        // Cancel any in-progress BLE connection immediately
-        viewModelScope.launch {
-            bleRepository.cancelConnection()
-        }
-
         // Cancel the connection coroutine - this triggers the CancellationException handler
-        // which will handle all cleanup (stop scanning, clear state, etc.)
+        // which will handle all cleanup (stop scanning, cancel BLE connection, clear state, etc.)
         connectionJob?.cancel()
         connectionJob = null
     }
