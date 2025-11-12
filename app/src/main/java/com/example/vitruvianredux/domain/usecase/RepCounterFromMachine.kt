@@ -79,6 +79,25 @@ class RepCounterFromMachine {
         minRepPosBRange = null
     }
 
+    /**
+     * Sets the initial baseline position when the workout starts (after countdown completes).
+     * This calibrates the position bars to the starting rope position, so bars show 0% at
+     * the starting position rather than showing raw machine values.
+     *
+     * The baseline will be refined as reps are performed through the sliding window calibration.
+     */
+    fun setInitialBaseline(posA: Int, posB: Int) {
+        // Only set initial baseline if positions are valid and not already calibrated
+        if (posA > 0 && minRepPosA == null) {
+            minRepPosA = posA
+            minRepPosARange = Pair(posA, posA)
+        }
+        if (posB > 0 && minRepPosB == null) {
+            minRepPosB = posB
+            minRepPosBRange = Pair(posB, posB)
+        }
+    }
+
     fun process(topCounter: Int, completeCounter: Int, posA: Int = 0, posB: Int = 0) {
 
         if (lastTopCounter != null) {
