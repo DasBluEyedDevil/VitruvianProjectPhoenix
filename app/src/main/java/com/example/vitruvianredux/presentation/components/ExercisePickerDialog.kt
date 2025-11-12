@@ -302,7 +302,8 @@ fun ExercisePickerDialog(
                             onClick = {
                                 onExerciseSelected(exercise)
                                 onDismiss()
-                            }
+                            },
+                            enableVideoPlayback = enableVideoPlayback
                         )
                     }
                 }
@@ -364,6 +365,7 @@ private fun ExerciseListItem(
     exercise: ExerciseEntity,
     exerciseRepository: ExerciseRepository,
     onClick: () -> Unit,
+    enableVideoPlayback: Boolean,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()

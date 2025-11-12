@@ -265,6 +265,7 @@ class MainViewModel @Inject constructor(
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
+    private var connectionJob: Job? = null  // Track connection attempt for cancellation
 
     // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
     private var monitorDataCollectionJob: Job? = null
@@ -583,65 +584,83 @@ class MainViewModel @Inject constructor(
      * If not connected, starts scan and shows device selection dialog.
      */
     fun ensureConnection(onConnected: () -> Unit, onFailed: () -> Unit = {}) {
-        viewModelScope.launch {
-            when (connectionState.value) {
-                is ConnectionState.Connected -> {
-                    onConnected()
-                }
-                else -> {
-                    _isAutoConnecting.value = true
-                    _connectionError.value = null
+        // Cancel any existing connection attempt before starting a new one
+        connectionJob?.cancel()
+        connectionJob = null
 
-                    // Start scanning
-                    startScanning()
+        connectionJob = viewModelScope.launch {
+            try {
+                when (connectionState.value) {
+                    is ConnectionState.Connected -> {
+                        onConnected()
+                    }
+                    else -> {
+                        _isAutoConnecting.value = true
+                        _connectionError.value = null
 
-                    // Wait for first discovered device (with timeout)
-                    val found = withTimeoutOrNull(30000) {
-                        scannedDevices
-                            .filter { it.isNotEmpty() }
-                            .take(1)
-                            .collect { devices ->
-                                stopScanning()
-                                val device = devices.firstOrNull()
-                                if (device != null) {
-                                    _pendingConnectionCallback = onConnected
-                                    connectToDevice(device.address)
+                        // Start scanning
+                        startScanning()
 
-                                    // Wait for Connected state with timeout (15 seconds)
-                                    val connected = withTimeoutOrNull(15000) {
-                                        connectionState
-                                            .filter { it is ConnectionState.Connected }
-                                            .take(1)
-                                            .collect { }
-                                        true // Return true if we got Connected
-                                    }
+                        // Wait for first discovered device (with timeout)
+                        val found = withTimeoutOrNull(30000) {
+                            scannedDevices
+                                .filter { it.isNotEmpty() }
+                                .take(1)
+                                .collect { devices ->
+                                    stopScanning()
+                                    val device = devices.firstOrNull()
+                                    if (device != null) {
+                                        _pendingConnectionCallback = onConnected
+                                        connectToDevice(device.address)
 
-                                    _isAutoConnecting.value = false
-                                    if (connected == true) {
-                                        onConnected()
+                                        // Wait for Connected state with timeout (15 seconds)
+                                        val connected = withTimeoutOrNull(15000) {
+                                            connectionState
+                                                .filter { it is ConnectionState.Connected }
+                                                .take(1)
+                                                .collect { }
+                                            true // Return true if we got Connected
+                                        }
+
+                                        _isAutoConnecting.value = false
+                                        if (connected == true) {
+                                            onConnected()
+                                        } else {
+                                            _pendingConnectionCallback = null  // Clear callback on failure
+                                            _connectionError.value = "Connection failed"
+                                            onFailed()
+                                        }
                                     } else {
                                         _pendingConnectionCallback = null  // Clear callback on failure
-                                        _connectionError.value = "Connection failed"
+                                        _isAutoConnecting.value = false
+                                        _connectionError.value = "No device found"
                                         onFailed()
                                     }
-                                } else {
-                                    _pendingConnectionCallback = null  // Clear callback on failure
-                                    _isAutoConnecting.value = false
-                                    _connectionError.value = "No device found"
-                                    onFailed()
                                 }
-                            }
-                    }
+                        }
 
-                    if (found == null) {
-                        // Timeout
-                        _pendingConnectionCallback = null  // Clear callback on timeout
-                        stopScanning()
-                        _isAutoConnecting.value = false
-                        _connectionError.value = "Scan timeout - no device found"
-                        onFailed()
+                        if (found == null) {
+                            // Timeout
+                            _pendingConnectionCallback = null  // Clear callback on timeout
+                            stopScanning()
+                            _isAutoConnecting.value = false
+                            _connectionError.value = "Scan timeout - no device found"
+                            onFailed()
+                        }
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // User explicitly cancelled - clean up without showing errors
+                Timber.d("Connection attempt cancelled by user")
+                stopScanning()
+                bleRepository.disconnect()
+                _isAutoConnecting.value = false
+                _pendingConnectionCallback = null
+                // Don't show error or call onFailed() - user cancelled intentionally
+                throw e  // Re-throw to properly cancel the coroutine
+            } finally {
+                // Always clear job reference when coroutine completes (success, failure, or cancellation)
+                connectionJob = null
             }
         }
     }
@@ -652,21 +671,13 @@ class MainViewModel @Inject constructor(
 
     /**
      * Cancel the auto-connection process.
-     * This stops scanning, clears pending callbacks, and hides the connecting overlay.
+     * Cancels the connection coroutine, which triggers cleanup in the CancellationException handler.
      */
     fun cancelAutoConnecting() {
-        viewModelScope.launch {
-            Timber.d("User cancelled auto-connection")
-            _isAutoConnecting.value = false
-            _pendingConnectionCallback = null
-            stopScanning()
-
-            // If we're in the middle of connecting, disconnect
-            val currentState = connectionState.value
-            if (currentState is ConnectionState.Connecting) {
-                bleRepository.disconnect()
-            }
-        }
+        // Cancel the connection coroutine - this triggers the CancellationException handler
+        // which will handle all cleanup (stop scanning, disconnect, clear state, etc.)
+        connectionJob?.cancel()
+        connectionJob = null
     }
 
     fun dismissConnectionLostAlert() {
@@ -913,6 +924,18 @@ class MainViewModel @Inject constructor(
     }
 
     /**
+     * Check if current workout is in single exercise mode.
+     * Single exercise mode is when:
+     * 1. No routine is loaded (legacy single exercise), OR
+     * 2. A temporary routine created by SingleExerciseScreen is loaded
+     *    (ID starts with "temp_single_exercise_")
+     */
+    private fun isSingleExerciseMode(): Boolean {
+        val routine = _loadedRoutine.value
+        return routine == null || routine.id.startsWith("temp_single_exercise_")
+    }
+
+    /**
      * Proceed from set summary to rest timer or completion
      * Called when user clicks "Continue" button on set summary screen
      */
@@ -950,8 +973,8 @@ class MainViewModel @Inject constructor(
                 result
             } ?: false
 
-            // 2. Single Exercise mode (not Just Lift, not a routine)
-            val isSingleExercise = routine == null && !isJustLift
+            // 2. Single Exercise mode (not Just Lift, includes temp routines from SingleExerciseScreen)
+            val isSingleExercise = isSingleExerciseMode() && !isJustLift
             val shouldShowRestTimer = ((hasMoreSets || hasMoreExercises) && !isJustLift) || isSingleExercise
 
             Timber.d("Decision:")
@@ -1025,8 +1048,8 @@ class MainViewModel @Inject constructor(
             val restDuration = currentExercise?.restSeconds?.takeIf { it > 0 } ?: 90
             val autoplay = userPreferences.value.autoplayEnabled
 
-            // For single exercise mode (no routine), we always "continue" the same exercise
-            val isSingleExercise = routine == null
+            // For single exercise mode (no routine or temp routine), we always "continue" the same exercise
+            val isSingleExercise = isSingleExerciseMode()
 
             Timber.d("???????????????????????????????????????????????????")
             Timber.d("REST TIMER STARTING")
@@ -1054,12 +1077,13 @@ class MainViewModel @Inject constructor(
                 }
 
                 _workoutState.value = if (isSingleExercise) {
+                    // For single exercise temp routines, show proper set count
                     WorkoutState.Resting(
                         restSecondsRemaining = i,
                         nextExerciseName = nextName,
                         isLastExercise = false,
-                        currentSet = 0,
-                        totalSets = 0
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
                     )
                 } else {
                     val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
@@ -1225,8 +1249,8 @@ class MainViewModel @Inject constructor(
 
             Timber.d("Rest timer cancelled, starting next set/exercise")
 
-            // Check if this is single exercise mode (no routine loaded)
-            val isSingleExercise = _loadedRoutine.value == null && !_workoutParameters.value.isJustLift
+            // Check if this is single exercise mode (no routine or temp routine from SingleExerciseScreen)
+            val isSingleExercise = isSingleExerciseMode() && !_workoutParameters.value.isJustLift
             if (isSingleExercise) {
                 // For single exercise, restart with same parameters
                 startWorkout(skipCountdown = true)

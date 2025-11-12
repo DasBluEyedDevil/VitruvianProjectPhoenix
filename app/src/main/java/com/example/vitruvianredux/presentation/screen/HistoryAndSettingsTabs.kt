@@ -184,23 +184,17 @@ fun WorkoutHistoryCard(
                     }
                     Spacer(modifier = Modifier.width(Spacing.medium))
                     Column(modifier = Modifier.weight(1f)) {
-                        // Exercise name (or mode if no exercise) - larger and bolder
+                        // Exercise name (or "Just Lift" if no exercise selected)
                         Text(
-                            exerciseName ?: session.mode,
+                            exerciseName ?: "Just Lift",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Mode and date/time
+                        // Date/time
                         Text(
-                            buildString {
-                                if (exerciseName != null) {
-                                    append(session.mode)
-                                    append(" • ")
-                                }
-                                append(formatRelativeTimestamp(session.timestamp))
-                            },
+                            formatRelativeTimestamp(session.timestamp),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -225,9 +219,13 @@ fun WorkoutHistoryCard(
 
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Progress bar showing set completion (visual representation)
+            // Progress bar showing progress through last/current set
+            val progressValue = if (session.workingReps > 0 && session.reps > 0) {
+                val repsInCurrentSet = session.workingReps % session.reps
+                if (repsInCurrentSet == 0) 1f else repsInCurrentSet.toFloat() / session.reps
+            } else 0f
             LinearProgressIndicator(
-                progress = { if (session.totalReps > 0) session.totalReps / (session.totalReps + 3f).coerceAtLeast(1f) else 0f },
+                progress = { progressValue },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp),
@@ -251,7 +249,7 @@ fun WorkoutHistoryCard(
                 EnhancedMetricItem(
                     icon = Icons.AutoMirrored.Filled.List,
                     label = "Sets",
-                    value = if (session.totalReps > 0) ((session.totalReps / session.reps.coerceAtLeast(1)) + 1).toString() else "0",
+                    value = if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString() else "0",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -271,7 +269,7 @@ fun WorkoutHistoryCard(
                 EnhancedMetricItem(
                     icon = Icons.Default.Settings,
                     label = "Mode",
-                    value = session.mode.take(8),
+                    value = session.mode,
                     modifier = Modifier.weight(1f)
                 )
             }
