@@ -536,8 +536,8 @@ class VitruvianBleManager(
     private fun analyzeHandleState(metric: WorkoutMetric): HandleState {
         val posA = metric.positionA.toDouble()
         val posB = metric.positionB.toDouble()
-        val velocityA = kotlin.math.abs(metric.velocityA)
-        val velocityB = kotlin.math.abs(metric.velocityB)
+        val velocityA = metric.velocityA
+        val velocityB = metric.velocityB
 
         // Track position range for post-workout tuning (use max of both handles)
         minPositionSeen = minOf(minPositionSeen, minOf(posA, posB))
