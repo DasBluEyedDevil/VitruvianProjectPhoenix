@@ -131,7 +131,7 @@ class ConnectionLogger @Inject constructor(
                     timestamp = System.currentTimeMillis(),
                     eventType = eventType,
                     level = level.name,
-                    deviceAddress = deviceAddress,
+                    deviceAddress = null, // Privacy: Don't log MAC addresses
                     deviceName = deviceName,
                     message = message,
                     details = details,
@@ -184,7 +184,6 @@ class ConnectionLogger @Inject constructor(
             deviceName = deviceName,
             details = buildString {
                 appendLine("Vitruvian Device: $deviceName")
-                appendLine("MAC Address: $deviceAddress")
                 appendLine()
                 appendLine("Android Device: ${DeviceInfo.getCompactInfo()}")
             }
@@ -199,13 +198,12 @@ class ConnectionLogger @Inject constructor(
             deviceName = deviceName,
             details = buildString {
                 appendLine("Device Name: $deviceName")
-                appendLine("MAC Address: $deviceAddress")
                 appendLine("Model: ${extractVitruvianModel(deviceName)}")
                 appendLine()
                 appendLine("Note: Firmware version not available via BLE")
                 appendLine("To check firmware: Settings → About on Vitruvian touchscreen")
             },
-            metadata = """{"deviceName":"$deviceName","address":"$deviceAddress","model":"${extractVitruvianModel(deviceName)}"}"""
+            metadata = """{"deviceName":"$deviceName","model":"${extractVitruvianModel(deviceName)}"}"""
         )
     }
 

@@ -325,20 +325,25 @@ fun ExerciseListItem(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
 
-                // Display individual set weights if they differ, otherwise show single weight
-                val weightDisplay = if (exercise.setWeightsPerCableKg.isNotEmpty()) {
-                    val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit).toInt() }
-                    val minWeight = displayWeights.minOrNull() ?: 0
-                    val maxWeight = displayWeights.maxOrNull() ?: 0
-
-                    if (minWeight == maxWeight) {
-                        "$minWeight$weightSuffix"
-                    } else {
-                        "$minWeight-$maxWeight$weightSuffix"
-                    }
+                // For Echo mode, show "Adaptive" instead of weight (Issue #109)
+                val weightDisplay = if (exercise.workoutType is com.example.vitruvianredux.domain.model.WorkoutType.Echo) {
+                    "Adaptive"
                 } else {
-                    val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
-                    "${displayWeight.toInt()}$weightSuffix"
+                    // Display individual set weights if they differ, otherwise show single weight
+                    if (exercise.setWeightsPerCableKg.isNotEmpty()) {
+                        val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit).toInt() }
+                        val minWeight = displayWeights.minOrNull() ?: 0
+                        val maxWeight = displayWeights.maxOrNull() ?: 0
+
+                        if (minWeight == maxWeight) {
+                            "$minWeight$weightSuffix"
+                        } else {
+                            "$minWeight-$maxWeight$weightSuffix"
+                        }
+                    } else {
+                        val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
+                        "${displayWeight.toInt()}$weightSuffix"
+                    }
                 }
 
                 Text(exercise.exercise.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)

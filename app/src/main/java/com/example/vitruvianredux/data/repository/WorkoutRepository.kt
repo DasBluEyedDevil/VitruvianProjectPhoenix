@@ -441,37 +441,57 @@ private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity
     useCount = useCount
 )
 
-private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
-    id = id,
-    // Reconstruct Exercise data class from stored fields
-    exercise = Exercise(
-        name = exerciseName,
-        muscleGroup = exerciseMuscleGroup,
-        equipment = exerciseEquipment,
-        defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig),
-        id = exerciseId  // Pass through exercise library ID
-    ),
-    cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
-    orderIndex = orderIndex,
-    setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
-    weightPerCableKg = weightPerCableKg,
-    setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
-    workoutType = when (mode) {
-        "Echo" -> WorkoutType.Echo(
-            level = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
-            eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
-        )
-        "OldSchool" -> WorkoutType.Program(ProgramMode.OldSchool)
-        "Pump" -> WorkoutType.Program(ProgramMode.Pump)
-        "TUT" -> WorkoutType.Program(ProgramMode.TUT)
-        "TUTBeast" -> WorkoutType.Program(ProgramMode.TUTBeast)
-        "EccentricOnly" -> WorkoutType.Program(ProgramMode.EccentricOnly)
-        else -> WorkoutType.Program(ProgramMode.OldSchool)
-    },
-    eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
-    echoLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
-    progressionKg = progressionKg,
-    restSeconds = restSeconds,
-    notes = notes,
-    duration = duration
-)
+private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
+    // LOG: Database values for Echo mode debugging (Issue #109)
+    if (mode == "Echo") {
+        Timber.d("━━━━━━ DATABASE → DOMAIN MAPPING (Issue #109) ━━━━━━")
+        Timber.d("Exercise: $exerciseName")
+        Timber.d("DB Values:")
+        Timber.d("  mode: '$mode'")
+        Timber.d("  echoLevel (raw): $echoLevel")
+        Timber.d("  eccentricLoad (raw): $eccentricLoad")
+
+        val mappedLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER
+        val mappedEccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
+
+        Timber.d("Mapped Values:")
+        Timber.d("  echoLevel: $echoLevel → ${mappedLevel.displayName} (levelValue=${mappedLevel.levelValue})")
+        Timber.d("  eccentricLoad: $eccentricLoad → ${mappedEccentricLoad.displayName} (${mappedEccentricLoad.percentage}%)")
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    }
+
+    return RoutineExercise(
+        id = id,
+        // Reconstruct Exercise data class from stored fields
+        exercise = Exercise(
+            name = exerciseName,
+            muscleGroup = exerciseMuscleGroup,
+            equipment = exerciseEquipment,
+            defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig),
+            id = exerciseId  // Pass through exercise library ID
+        ),
+        cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
+        orderIndex = orderIndex,
+        setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
+        weightPerCableKg = weightPerCableKg,
+        setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
+        workoutType = when (mode) {
+            "Echo" -> WorkoutType.Echo(
+                level = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
+                eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
+            )
+            "OldSchool" -> WorkoutType.Program(ProgramMode.OldSchool)
+            "Pump" -> WorkoutType.Program(ProgramMode.Pump)
+            "TUT" -> WorkoutType.Program(ProgramMode.TUT)
+            "TUTBeast" -> WorkoutType.Program(ProgramMode.TUTBeast)
+            "EccentricOnly" -> WorkoutType.Program(ProgramMode.EccentricOnly)
+            else -> WorkoutType.Program(ProgramMode.OldSchool)
+        },
+        eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
+        echoLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
+        progressionKg = progressionKg,
+        restSeconds = restSeconds,
+        notes = notes,
+        duration = duration
+    )
+}

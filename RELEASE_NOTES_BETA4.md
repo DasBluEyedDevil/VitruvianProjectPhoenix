@@ -21,12 +21,25 @@ Beta 4 is a stability and quality-of-life release focusing on bug fixes, UI impr
 
 ## 🔄 Beta 4 Patches
 
+### Patch 3: Echo Mode Complete Fix (November 12, 2025) ⭐ RECOMMENDED
+**Fixed:** Multiple Echo mode bugs + Privacy enhancement
+- **APK:** `VitruvianRedux-Beta4-EchoModeFixes-20251112.apk` (22 MB)
+- **Issues Fixed:**
+  - **#108:** Echo difficulty level and eccentric load now persist correctly
+  - **#109:** Echo exercises now show "Adaptive" instead of weight values
+- **Privacy:** Removed MAC addresses from all connection logs
+- **Diagnostics:** Enhanced logging for eccentric load (Issue #107) and routine loading
+- **Files Modified:** 7 files (~150 lines)
+- **Recommendation:** All users should upgrade to this patch
+- **Full Details:** See RELEASE_NOTES_ECHO_MODE_FIXES.md
+
 ### Patch 2: Issue #108 Fix (November 12, 2025)
 **Fixed:** Echo mode settings not persisting correctly
 - **APK:** `VitruvianRedux-Beta4-Issue108Fix-20251112.apk`
 - **Root Cause:** Incorrect enum mapping using array indices instead of levelValue property
 - **Impact:** Echo difficulty level and eccentric load now save and load correctly
 - **Files Modified:** WorkoutRepository.kt, WorkoutEntities.kt, VitruvianBleManager.kt
+- **Status:** Superseded by Patch 3
 - **Full Details:** See RELEASE_NOTES_ISSUE108.md
 
 ### Patch 1: Enhanced Log Sharing (November 12, 2025)

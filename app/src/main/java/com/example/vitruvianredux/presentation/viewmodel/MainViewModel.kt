@@ -1562,7 +1562,7 @@ class MainViewModel @Inject constructor(
         val firstExercise = routine.exercises[0]
         val firstSetReps = firstExercise.setReps.firstOrNull() ?: 10
 
-        Timber.d("???????????????????????????????????????????????????")
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         Timber.d("LOADING ROUTINE: ${routine.name}")
         Timber.d("  ID: ${routine.id}")
         Timber.d("  Total exercises: ${routine.exercises.size}")
@@ -1571,19 +1571,42 @@ class MainViewModel @Inject constructor(
         Timber.d("  Weight: ${firstExercise.weightPerCableKg}kg")
         Timber.d("  First set reps: $firstSetReps")
         Timber.d("  Setting isJustLift = false")
-        Timber.d("???????????????????????????????????????????????????")
+        Timber.d("")
+        Timber.d("WORKOUT TYPE DETAILS:")
+        Timber.d("  Type: ${firstExercise.workoutType.displayName}")
+        when (val wt = firstExercise.workoutType) {
+            is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                Timber.d("  ✓ Echo mode detected!")
+                Timber.d("    Level: ${wt.level.displayName} (levelValue=${wt.level.levelValue})")
+                Timber.d("    Eccentric Load: ${wt.eccentricLoad.displayName} (${wt.eccentricLoad.percentage}%)")
+            }
+            is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
+                Timber.d("  Program mode: ${wt.mode.displayName}")
+            }
+        }
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        updateWorkoutParameters(
-            WorkoutParameters(
-                workoutType = firstExercise.workoutType, // Use workout type from the exercise
-                reps = firstSetReps,
-                weightPerCableKg = firstExercise.weightPerCableKg,
-                progressionRegressionKg = firstExercise.progressionKg,
-                isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
-                stopAtTop = stopAtTop.value,   // Use user preference from settings
-                warmupReps = _workoutParameters.value.warmupReps
-            )
+        val params = WorkoutParameters(
+            workoutType = firstExercise.workoutType, // Use workout type from the exercise
+            reps = firstSetReps,
+            weightPerCableKg = firstExercise.weightPerCableKg,
+            progressionRegressionKg = firstExercise.progressionKg,
+            isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
+            stopAtTop = stopAtTop.value,   // Use user preference from settings
+            warmupReps = _workoutParameters.value.warmupReps
         )
+
+        Timber.d("Created WorkoutParameters:")
+        Timber.d("  workoutType.displayName: ${params.workoutType.displayName}")
+        when (val wt = params.workoutType) {
+            is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                Timber.d("  Echo level: ${wt.level.displayName}")
+                Timber.d("  Eccentric load: ${wt.eccentricLoad.displayName}")
+            }
+            else -> {}
+        }
+
+        updateWorkoutParameters(params)
 
         // Mark routine as used
         viewModelScope.launch {
