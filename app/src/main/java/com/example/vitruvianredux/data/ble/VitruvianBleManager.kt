@@ -242,6 +242,8 @@ class VitruvianBleManager(
             monitorCharacteristic = null
             propertyCharacteristic = null
             repNotifyCharacteristic = null
+            workoutCmdCharacteristics.clear()
+            notifyCharacteristics.clear()
 
             // CRITICAL FIX: Update connection state to reflect that characteristics are invalid
             // This prevents the app from trying to send commands with null characteristics
