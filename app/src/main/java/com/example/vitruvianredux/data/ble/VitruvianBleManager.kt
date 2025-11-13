@@ -64,6 +64,7 @@ class VitruvianBleManager(
 
     // Velocity calculation for handle detection (volatile for thread safety)
     @Volatile private var lastPositionA = 0
+    @Volatile private var lastPositionB = 0
     @Volatile private var lastTimestamp = 0L
 
     // State flows
@@ -582,36 +583,56 @@ class VitruvianBleManager(
      */
     private fun analyzeHandleState(metric: WorkoutMetric): HandleState {
         val posA = metric.positionA.toDouble()
-        val velocity = kotlin.math.abs(metric.velocityA)
+        val posB = metric.positionB.toDouble()
+        val velocityA = metric.velocityA
+        val velocityB = metric.velocityB
 
-        // Track position range for post-workout tuning
-        minPositionSeen = minOf(minPositionSeen, posA)
-        maxPositionSeen = maxOf(maxPositionSeen, posA)
+        // Track position range for post-workout tuning (use max of both handles)
+        minPositionSeen = minOf(minPositionSeen, minOf(posA, posB))
+        maxPositionSeen = maxOf(maxPositionSeen, maxOf(posA, posB))
 
         val currentState = _handleState.value
+
+        // Check both handles - support single-handle exercises (Issue #102)
+        val handleAGrabbed = posA > HANDLE_GRABBED_THRESHOLD
+        val handleBGrabbed = posB > HANDLE_GRABBED_THRESHOLD
+        val handleAMoving = velocityA > VELOCITY_THRESHOLD
+        val handleBMoving = velocityB > VELOCITY_THRESHOLD
 
         // Simple hysteresis with velocity check
         return when (currentState) {
             HandleState.Released, HandleState.Moving -> {
-                if (posA > HANDLE_GRABBED_THRESHOLD) {
-                    // Position indicates grabbed - check velocity to confirm user is actively moving
-                    val hasMovement = velocity > VELOCITY_THRESHOLD
-                    Timber.d("GRAB CHECK: pos=$posA > $HANDLE_GRABBED_THRESHOLD, vel=$velocity, moving=$hasMovement")
-                    if (hasMovement) {
-                        Timber.i("GRAB CONFIRMED: pos=$posA, vel=$velocity")
-                        HandleState.Grabbed
+                // Check if EITHER handle is grabbed and moving (for single-handle exercises)
+                val aActive = handleAGrabbed && handleAMoving
+                val bActive = handleBGrabbed && handleBMoving
+
+                if (aActive || bActive) {
+                    val activeHandle = if (aActive && bActive) "both" else if (aActive) "A" else "B"
+                    if (activeHandle == "both") {
+                        Timber.d("GRAB CHECK: handle=both, posA=$posA > $HANDLE_GRABBED_THRESHOLD, velA=$velocityA > $VELOCITY_THRESHOLD, posB=$posB > $HANDLE_GRABBED_THRESHOLD, velB=$velocityB > $VELOCITY_THRESHOLD")
+                        Timber.i("GRAB CONFIRMED: handle=both, posA=$posA, velA=$velocityA, posB=$posB, velB=$velocityB")
                     } else {
-                        // Position extended but no significant movement yet
-                        HandleState.Moving
+                        val activePos = if (aActive) posA else posB
+                        val activeVel = if (aActive) velocityA else velocityB
+                        Timber.d("GRAB CHECK: handle=$activeHandle, pos=$activePos > $HANDLE_GRABBED_THRESHOLD, vel=$activeVel > $VELOCITY_THRESHOLD")
+                        Timber.i("GRAB CONFIRMED: handle=$activeHandle, pos=$activePos, vel=$activeVel")
                     }
+                    HandleState.Grabbed
+                } else if (handleAGrabbed || handleBGrabbed) {
+                    // Position extended but no significant movement yet
+                    HandleState.Moving
                 } else {
                     HandleState.Released
                 }
             }
 
             HandleState.Grabbed -> {
-                if (posA < HANDLE_REST_THRESHOLD) {
-                    Timber.d("RELEASE DETECTED: pos=$posA < $HANDLE_REST_THRESHOLD")
+                // Consider released only if BOTH handles are at rest
+                val aReleased = posA < HANDLE_REST_THRESHOLD
+                val bReleased = posB < HANDLE_REST_THRESHOLD
+
+                if (aReleased && bReleased) {
+                    Timber.d("RELEASE DETECTED: posA=$posA, posB=$posB < $HANDLE_REST_THRESHOLD")
                     HandleState.Released
                 } else {
                     HandleState.Grabbed
@@ -679,7 +700,22 @@ class VitruvianBleManager(
             } else {
                 0.0
             }
+
+            // Calculate velocity for right handle (for single-handle exercises)
+            val velocityB = if (lastTimestamp > 0L) {
+                val deltaTime = (currentTime - lastTimestamp) / 1000.0  // Convert to seconds
+                val deltaPos = positionB - lastPositionB
+                if (deltaTime > 0) {
+                    Math.abs(deltaPos / deltaTime)  // Absolute velocity
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            }
+
             lastPositionA = positionA
+            lastPositionB = positionB
             lastTimestamp = currentTime
 
             // ENHANCED LOGGING FOR FORCE DISPLAY DEBUGGING
@@ -694,7 +730,7 @@ class VitruvianBleManager(
                 Timber.d("LoadB (kg): $loadB")
                 Timber.d("Total Load: ${loadA + loadB} kg")
                 Timber.d("PositionA: $positionA, PositionB: $positionB")
-                Timber.d("VelocityA: $velocityA")
+                Timber.d("VelocityA: $velocityA, VelocityB: $velocityB")
                 Timber.d("Ticks: $ticks")
                 Timber.d("==========================")
             }
@@ -706,7 +742,8 @@ class VitruvianBleManager(
                 positionA = positionA,
                 positionB = positionB,
                 ticks = ticks,
-                velocityA = velocityA
+                velocityA = velocityA,
+                velocityB = velocityB
             )
 
             // Log monitor data to ConnectionLogger (sampled)
