@@ -193,7 +193,8 @@ data class WorkoutMetric(
     val positionA: Int,
     val positionB: Int,
     val ticks: Int = 0,
-    val velocityA: Double = 0.0  // Velocity for handle detection (official app protocol)
+    val velocityA: Double = 0.0,  // Velocity for handle detection (official app protocol)
+    val velocityB: Double = 0.0   // Velocity for right handle detection (for single-handle exercises)
 ) {
     val totalLoad: Float get() = loadA + loadB
 }
