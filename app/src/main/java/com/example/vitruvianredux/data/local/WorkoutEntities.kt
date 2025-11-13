@@ -27,7 +27,7 @@ data class WorkoutSessionEntity(
     val stopAtTop: Boolean,
     // Echo mode configuration (added in v13)
     val eccentricLoad: Int = 100,  // Percentage (0, 50, 75, 100, 125, 150)
-    val echoLevel: Int = 2,  // 1=Hard, 2=Harder, 3=Hardest, 4=Epic
+    val echoLevel: Int = 1,  // 0=Hard, 1=Harder, 2=Hardest, 3=Epic (stores levelValue)
     // Exercise tracking (added in v15)
     val exerciseId: String? = null  // Exercise library ID for PR tracking
 )
@@ -100,7 +100,7 @@ data class RoutineExerciseEntity(
     val mode: String = "OldSchool",
     // Echo-specific configuration
     val eccentricLoad: Int = 100,
-    val echoLevel: Int = 2,
+    val echoLevel: Int = 1,  // 0=Hard, 1=Harder, 2=Hardest, 3=Epic (stores levelValue)
     val progressionKg: Float = 0f,
     val restSeconds: Int = 60,
     val notes: String = "",

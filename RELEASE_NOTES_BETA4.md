@@ -19,6 +19,29 @@ Beta 4 is a stability and quality-of-life release focusing on bug fixes, UI impr
 
 ---
 
+## 🔄 Beta 4 Patches
+
+### Patch 2: Issue #108 Fix (November 12, 2025)
+**Fixed:** Echo mode settings not persisting correctly
+- **APK:** `VitruvianRedux-Beta4-Issue108Fix-20251112.apk`
+- **Root Cause:** Incorrect enum mapping using array indices instead of levelValue property
+- **Impact:** Echo difficulty level and eccentric load now save and load correctly
+- **Files Modified:** WorkoutRepository.kt, WorkoutEntities.kt, VitruvianBleManager.kt
+- **Full Details:** See RELEASE_NOTES_ISSUE108.md
+
+### Patch 1: Enhanced Log Sharing (November 12, 2025)
+**Added:** Diagnostic instrumentation for Issue #95 + enhanced log sharing
+- **APK:** `VitruvianRedux-Beta4-Patch1-20251112.apk`
+- **Features:**
+  - Log export auto-fills email to VitruvianRedux@gmail.com
+  - Pre-populated bug report template (device info, issue description)
+  - Diagnostic logging for BLE characteristic lifecycle
+- **Purpose:** Gather diagnostic data to identify root cause of connection command failures
+- **Status:** Diagnostic build (Issue #95 not yet fixed)
+- **Full Details:** See DISTRIBUTION_PACKAGE.md
+
+---
+
 ## 🆕 New Features
 
 ### Hardware Detection System

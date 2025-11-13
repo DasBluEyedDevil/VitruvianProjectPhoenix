@@ -183,6 +183,25 @@ object ProtocolBuilder {
         // Get Echo parameters for this level
         val echoParams = getEchoParams(level, eccentricPct)
 
+        // LOG: Echo frame construction details
+        timber.log.Timber.d("━━━━━━━━━━ ECHO FRAME CONSTRUCTION ━━━━━━━━━━")
+        timber.log.Timber.d("Input Parameters:")
+        timber.log.Timber.d("  level: ${level.displayName} (levelValue=${level.levelValue})")
+        timber.log.Timber.d("  eccentricPct: $eccentricPct%")
+        timber.log.Timber.d("  warmupReps: $warmupReps")
+        timber.log.Timber.d("  targetReps: $targetReps")
+        timber.log.Timber.d("  isJustLift: $isJustLift")
+        timber.log.Timber.d("")
+        timber.log.Timber.d("Echo Parameters (calculated):")
+        timber.log.Timber.d("  eccentricPct: ${echoParams.eccentricPct}%")
+        timber.log.Timber.d("  concentricPct: ${echoParams.concentricPct}%")
+        timber.log.Timber.d("  gain: ${echoParams.gain}")
+        timber.log.Timber.d("  cap: ${echoParams.cap}")
+        timber.log.Timber.d("  smoothing: ${echoParams.smoothing}")
+        timber.log.Timber.d("  floor: ${echoParams.floor}")
+        timber.log.Timber.d("  negLimit: ${echoParams.negLimit}")
+        timber.log.Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         // Eccentric % at 0x08 (u16)
         buffer.putShort(0x08, echoParams.eccentricPct.toShort())
 
@@ -203,6 +222,11 @@ object ProtocolBuilder {
 
         // Neg limit at 0x1C (f32)
         buffer.putFloat(0x1c, echoParams.negLimit)
+
+        // LOG: Frame bytes at key offsets
+        timber.log.Timber.d("Frame bytes:")
+        timber.log.Timber.d("  0x08-0x09 (eccentric u16): 0x${"%02X".format(frame[0x08])} ${"%02X".format(frame[0x09])} = ${buffer.getShort(0x08)}")
+        timber.log.Timber.d("  0x0A-0x0B (concentric u16): 0x${"%02X".format(frame[0x0A])} ${"%02X".format(frame[0x0B])} = ${buffer.getShort(0x0A)}")
 
         return frame
     }
