@@ -275,24 +275,6 @@ class VitruvianBleManager(
         }
 
         @Deprecated("Using deprecated Nordic BLE API")
-        override fun onDeviceNotSupported() {
-            val timestamp = System.currentTimeMillis()
-            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            Timber.e("❌ onDeviceNotSupported() CALLED! [$timestamp]")
-            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-            connectionLogger?.logError(
-                currentDeviceName ?: "Unknown",
-                currentDeviceAddress ?: "Unknown",
-                "DEVICE_NOT_SUPPORTED",
-                "Device does not have required BLE services/characteristics"
-            )
-
-            // Update connection state with specific error
-            _connectionState.value = ConnectionStatus.Error("Device not supported - missing required BLE services")
-        }
-
-        @Deprecated("Using deprecated Nordic BLE API")
         @Suppress("DEPRECATION")
         override fun initialize() {
             super.initialize()

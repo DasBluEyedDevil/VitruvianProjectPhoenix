@@ -458,7 +458,7 @@ private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
     setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
     workoutType = when (mode) {
         "Echo" -> WorkoutType.Echo(
-            level = EchoLevel.values().getOrNull(echoLevel) ?: EchoLevel.HARDER,
+            level = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
             eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
         )
         "OldSchool" -> WorkoutType.Program(ProgramMode.OldSchool)
@@ -469,7 +469,7 @@ private fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(
         else -> WorkoutType.Program(ProgramMode.OldSchool)
     },
     eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
-    echoLevel = EchoLevel.values().getOrNull(echoLevel) ?: EchoLevel.HARDER,
+    echoLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
     progressionKg = progressionKg,
     restSeconds = restSeconds,
     notes = notes,
