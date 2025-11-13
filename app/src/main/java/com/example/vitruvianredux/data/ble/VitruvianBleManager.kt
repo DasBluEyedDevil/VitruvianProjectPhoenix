@@ -560,10 +560,15 @@ class VitruvianBleManager(
 
                 if (aActive || bActive) {
                     val activeHandle = if (aActive && bActive) "both" else if (aActive) "A" else "B"
-                    val activePos = if (aActive) posA else posB
-                    val activeVel = if (aActive) velocityA else velocityB
-                    Timber.d("GRAB CHECK: handle=$activeHandle, pos=$activePos > $HANDLE_GRABBED_THRESHOLD, vel=$activeVel > $VELOCITY_THRESHOLD")
-                    Timber.i("GRAB CONFIRMED: handle=$activeHandle, pos=$activePos, vel=$activeVel")
+                    if (activeHandle == "both") {
+                        Timber.d("GRAB CHECK: handle=both, posA=$posA > $HANDLE_GRABBED_THRESHOLD, velA=$velocityA > $VELOCITY_THRESHOLD, posB=$posB > $HANDLE_GRABBED_THRESHOLD, velB=$velocityB > $VELOCITY_THRESHOLD")
+                        Timber.i("GRAB CONFIRMED: handle=both, posA=$posA, velA=$velocityA, posB=$posB, velB=$velocityB")
+                    } else {
+                        val activePos = if (aActive) posA else posB
+                        val activeVel = if (aActive) velocityA else velocityB
+                        Timber.d("GRAB CHECK: handle=$activeHandle, pos=$activePos > $HANDLE_GRABBED_THRESHOLD, vel=$activeVel > $VELOCITY_THRESHOLD")
+                        Timber.i("GRAB CONFIRMED: handle=$activeHandle, pos=$activePos, vel=$activeVel")
+                    }
                     HandleState.Grabbed
                 } else if (handleAGrabbed || handleBGrabbed) {
                     // Position extended but no significant movement yet
