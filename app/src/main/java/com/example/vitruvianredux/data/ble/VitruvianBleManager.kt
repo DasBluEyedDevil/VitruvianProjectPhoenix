@@ -237,10 +237,58 @@ class VitruvianBleManager(
                 "onServicesInvalidated() called - all characteristics will be nulled"
             )
 
+            // NULL all characteristics
             nusRxCharacteristic = null
             monitorCharacteristic = null
             propertyCharacteristic = null
             repNotifyCharacteristic = null
+            workoutCmdCharacteristics.clear()
+            notifyCharacteristics.clear()
+
+            // CRITICAL FIX: Update connection state to reflect that characteristics are invalid
+            // This prevents the app from trying to send commands with null characteristics
+            Timber.e("⚠️ Updating connection state to Disconnected due to service invalidation")
+            _connectionState.value = ConnectionStatus.Disconnected
+
+            // Stop all polling since characteristics are now invalid
+            stopPolling()
+        }
+
+        @Deprecated("Using deprecated Nordic BLE API")
+        override fun onDeviceDisconnected() {
+            val timestamp = System.currentTimeMillis()
+            Timber.w("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.w("🔌 onDeviceDisconnected() CALLED! [$timestamp]")
+            Timber.w("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+            connectionLogger?.logDisconnected(
+                currentDeviceName ?: "Unknown",
+                currentDeviceAddress ?: "Unknown"
+            )
+
+            // Update connection state
+            _connectionState.value = ConnectionStatus.Disconnected
+
+            // Stop all polling
+            stopPolling()
+        }
+
+        @Deprecated("Using deprecated Nordic BLE API")
+        override fun onDeviceNotSupported() {
+            val timestamp = System.currentTimeMillis()
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.e("❌ onDeviceNotSupported() CALLED! [$timestamp]")
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+            connectionLogger?.logError(
+                currentDeviceName ?: "Unknown",
+                currentDeviceAddress ?: "Unknown",
+                "DEVICE_NOT_SUPPORTED",
+                "Device does not have required BLE services/characteristics"
+            )
+
+            // Update connection state with specific error
+            _connectionState.value = ConnectionStatus.Error("Device not supported - missing required BLE services")
         }
 
         @Deprecated("Using deprecated Nordic BLE API")
