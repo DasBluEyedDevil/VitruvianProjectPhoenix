@@ -734,22 +734,17 @@ class MainViewModel @Inject constructor(
                 Timber.d("Preparing for Just Lift: Resetting from ${currentState::class.simpleName} to Idle")
                 resetForNewWorkout()
                 _workoutState.value = WorkoutState.Idle
-                enableHandleDetection()
-                _workoutParameters.value = _workoutParameters.value.copy(
-                    isJustLift = true,
-                    useAutoStart = true,
-                    selectedExerciseId = null
-                )
-                Timber.d("Just Lift ready: State=Idle, AutoStart=enabled")
             } else {
                 Timber.d("Just Lift already in Idle state, ensuring auto-start is enabled")
-                enableHandleDetection()
-                _workoutParameters.value = _workoutParameters.value.copy(
-                    isJustLift = true,
-                    useAutoStart = true,
-                    selectedExerciseId = null
-                )
             }
+            
+            enableHandleDetection()
+            _workoutParameters.value = _workoutParameters.value.copy(
+                isJustLift = true,
+                useAutoStart = true,
+                selectedExerciseId = null
+            )
+            Timber.d("Just Lift ready: State=Idle, AutoStart=enabled")
         }
     }
 
