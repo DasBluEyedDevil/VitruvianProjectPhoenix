@@ -1480,37 +1480,57 @@ fun CurrentExerciseCard(
                     currentExercise.setReps.joinToString(", ")
                 }
 
-                // Display individual set weights if they differ, otherwise show single weight
-                val baseWeightText = if (currentExercise.setWeightsPerCableKg.isNotEmpty()) {
-                    val displayWeights = currentExercise.setWeightsPerCableKg.map { kgToDisplay(it) }
-                    val minWeight = displayWeights.minOrNull() ?: 0f
-                    val maxWeight = displayWeights.maxOrNull() ?: 0f
-                    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-
-                    if (minWeight == maxWeight) {
-                        "%.1f %s".format(minWeight, weightSuffix)
-                    } else {
-                        "%.1f-%.1f %s".format(minWeight, maxWeight, weightSuffix)
+                // For Echo mode, show "Adaptive" instead of weight (Issue #109)
+                val descriptionText = if (currentExercise.workoutType is WorkoutType.Echo) {
+                    // Echo mode: Show reps, cable config, and mode - no weight
+                    val cableText = when (currentExercise.cableConfig) {
+                        CableConfiguration.SINGLE -> " (Single)"
+                        CableConfiguration.DOUBLE -> " (Double)"
+                        else -> ""
                     }
+                    "$repsText reps$cableText - ${currentExercise.workoutType.displayName} - Adaptive"
                 } else {
-                    formatWeight(currentExercise.weightPerCableKg)
-                }
+                    // Non-Echo mode: Show reps, weight, cable config, and mode
+                    val baseWeightText = if (currentExercise.setWeightsPerCableKg.isNotEmpty()) {
+                        val displayWeights = currentExercise.setWeightsPerCableKg.map { kgToDisplay(it) }
+                        val minWeight = displayWeights.minOrNull() ?: 0f
+                        val maxWeight = displayWeights.maxOrNull() ?: 0f
+                        val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
 
-                val weightText = when (currentExercise.cableConfig) {
-                    CableConfiguration.SINGLE -> "$baseWeightText (Single)"
-                    CableConfiguration.DOUBLE -> "$baseWeightText/cable (Double)"
-                    else -> baseWeightText
+                        if (minWeight == maxWeight) {
+                            "%.1f %s".format(minWeight, weightSuffix)
+                        } else {
+                            "%.1f-%.1f %s".format(minWeight, maxWeight, weightSuffix)
+                        }
+                    } else {
+                        formatWeight(currentExercise.weightPerCableKg)
+                    }
+
+                    val weightText = when (currentExercise.cableConfig) {
+                        CableConfiguration.SINGLE -> "$baseWeightText (Single)"
+                        CableConfiguration.DOUBLE -> "$baseWeightText/cable (Double)"
+                        else -> baseWeightText
+                    }
+
+                    "$repsText @ $weightText - ${currentExercise.workoutType.displayName}"
                 }
 
                 Text(
-                    text = "$repsText @ $weightText - ${currentExercise.workoutType.displayName}",
+                    text = descriptionText,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             } else {
                 // Just Lift mode - show basic details
+                // For Echo mode, show "Adaptive" instead of weight (Issue #109)
+                val descriptionText = if (workoutParameters.workoutType is WorkoutType.Echo) {
+                    "${workoutParameters.reps} reps - ${workoutParameters.workoutType.displayName} - Adaptive"
+                } else {
+                    "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.workoutType.displayName}"
+                }
+
                 Text(
-                    text = "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.workoutType.displayName}",
+                    text = descriptionText,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
