@@ -82,10 +82,10 @@ fun RestTimerCard(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            // REST TIME Header
+            // REST TIME Header - Material 3 Expressive
             Text(
                 text = "REST TIME",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was labelLarge)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.5.sp
@@ -118,19 +118,19 @@ fun RestTimerCard(
                 )
             }
 
-            // UP NEXT section
+            // UP NEXT section - Material 3 Expressive
             Text(
                 text = "UP NEXT",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was labelMedium)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.2.sp
             )
 
-            // Next exercise name or completion message
+            // Next exercise name or completion message - Material 3 Expressive
             Text(
                 text = if (isLastExercise) "Workout Complete" else nextExerciseName,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger (was titleLarge)
                 fontWeight = FontWeight.Bold,
                 color = if (isLastExercise) 
                     MaterialTheme.colorScheme.primary 
@@ -151,11 +151,12 @@ fun RestTimerCard(
             if (!isLastExercise && (nextExerciseWeight != null || nextExerciseReps != null)) {
                 Spacer(modifier = Modifier.height(Spacing.small))
 
-                // Parameters card
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.fillMaxWidth()
+                // Parameters card - Material 3 Expressive
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Material 3 Expressive: Higher elevation
                 ) {
                     Column(
                         modifier = Modifier
@@ -165,7 +166,7 @@ fun RestTimerCard(
                     ) {
                         Text(
                             "WORKOUT PARAMETERS",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelSmall)
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.sp
@@ -234,34 +235,42 @@ fun RestTimerCard(
                     .padding(bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                // Skip Rest button (primary action)
+                // Skip Rest button (primary action) - Material 3 Expressive
                 Button(
                     onClick = onSkipRest,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
+                        pressedElevation = 2.dp
+                    )
                 ) {
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = "Skip rest",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon (was 20dp)
                     )
                     Spacer(modifier = Modifier.width(Spacing.small))
                     Text(
                         text = if (isLastExercise) "Continue" else "Skip Rest",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was labelLarge)
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                // End Workout button (secondary/destructive action)
+                // End Workout button (secondary/destructive action) - Material 3 Expressive
                 TextButton(
                     onClick = onEndWorkout,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                 ) {
                     Icon(
                         Icons.Default.Close,
@@ -272,7 +281,8 @@ fun RestTimerCard(
                     Spacer(modifier = Modifier.width(Spacing.small))
                     Text(
                         text = "End Workout",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was labelMedium)
+                        fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
                         color = MaterialTheme.colorScheme.error
                     )
                 }
@@ -304,7 +314,7 @@ fun WorkoutParamItem(
     ) {
         Icon(
             icon,
-            contentDescription = null,
+            contentDescription = "Rest timer status",
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.primary
         )

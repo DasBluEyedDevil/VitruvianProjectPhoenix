@@ -145,7 +145,7 @@ fun SingleExerciseScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.FitnessCenter,
-                        contentDescription = null,
+                        contentDescription = "Exercise icon",
                         modifier = Modifier.size(80.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -158,11 +158,22 @@ fun SingleExerciseScreen(
                     Spacer(Modifier.height(Spacing.medium))
                     Button(
                         onClick = { showExercisePicker = true },
-                        modifier = Modifier.fillMaxWidth(0.8f).height(56.dp)
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(56.dp), // Material 3 Expressive: Taller button
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
+                            pressedElevation = 2.dp
+                        )
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null)
+                        Icon(Icons.Default.Search, contentDescription = "Search exercises", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
                         Spacer(Modifier.width(Spacing.small))
-                        Text("Select Exercise")
+                        Text(
+                            "Select Exercise",
+                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

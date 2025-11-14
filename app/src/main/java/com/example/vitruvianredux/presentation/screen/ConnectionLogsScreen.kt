@@ -119,7 +119,7 @@ fun ConnectionLogsScreen(
                     leadingIcon = {
                         Icon(
                             Icons.Default.Warning,
-                            contentDescription = null,
+                            contentDescription = "Error log level",
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -153,7 +153,7 @@ fun ConnectionLogsScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.Info,
-                            contentDescription = null,
+                            contentDescription = "No connection logs available",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )

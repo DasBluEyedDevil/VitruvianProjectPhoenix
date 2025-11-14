@@ -158,11 +158,12 @@ fun ExercisePickerDialog(
                 .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
                 .padding(horizontal = 16.dp)
         ) {
-            // Title (only show in bottom sheet mode, not in fullscreen mode where TopAppBar has the title)
+            // Title (only show in bottom sheet mode, not in fullscreen mode where TopAppBar has the title) - Material 3 Expressive
             if (!fullScreen) {
                 Text(
                     text = "Select Exercise",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
+                    fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
             }
@@ -350,7 +351,9 @@ fun ExercisePickerDialog(
     } else {
         ModalBottomSheet(
             onDismissRequest = onDismiss,
-            modifier = modifier
+            modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Material 3 Expressive: Very rounded for bottom sheets
         ) {
             PickerContent()
         }
@@ -581,7 +584,9 @@ fun ExerciseVideoDialog(
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        modifier = modifier
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Material 3 Expressive: Very rounded for bottom sheets
     ) {
         Column(
             modifier = Modifier
@@ -599,7 +604,8 @@ fun ExerciseVideoDialog(
             ) {
                 Text(
                     text = exerciseName,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
+                    fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onDismiss) {

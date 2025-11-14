@@ -62,7 +62,7 @@ fun RoutineBuilderDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
             color = Color.Transparent
         ) {
             Box(modifier = Modifier.fillMaxSize().background(backgroundGradient)) {
@@ -134,8 +134,8 @@ fun RoutineBuilderDialog(
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.small),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                shape = RoundedCornerShape(16.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
                                 border = BorderStroke(1.dp, Color(0xFFF5F3FF))
                             ) {
                                 Box(modifier = Modifier.fillMaxWidth().padding(Spacing.large), contentAlignment = Alignment.Center) {
@@ -214,7 +214,7 @@ fun RoutineBuilderDialog(
                             },
                             modifier = Modifier.weight(1f).height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ) {
                             Text("Save", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         }
@@ -304,8 +304,8 @@ fun ExerciseListItem(
     Card(
         modifier = Modifier.fillMaxWidth().scale(scale),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
         border = BorderStroke(1.dp, Color(0xFFF5F3FF))
     ) {
         Row(

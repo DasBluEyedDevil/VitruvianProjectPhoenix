@@ -47,7 +47,7 @@ fun StatsCard(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = "Statistic icon",
                 modifier = Modifier.size(20.dp),
                 tint = iconColor
             )

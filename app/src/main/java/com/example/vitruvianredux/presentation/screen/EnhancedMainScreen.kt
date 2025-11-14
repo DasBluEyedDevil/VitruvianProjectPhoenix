@@ -403,7 +403,7 @@ fun PermissionRequestScreen(
     ) {
         Icon(
             imageVector = Icons.Default.Info,
-            contentDescription = null,
+            contentDescription = "Connection information",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(64.dp)
         )
@@ -479,7 +479,7 @@ fun DeviceSelectorDialog(
                                     .fillMaxWidth()
                                     .clickable { onDeviceSelected(device) },
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -503,7 +503,7 @@ fun DeviceSelectorDialog(
                                     }
                                     Icon(
                                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null,
+                                        contentDescription = "Navigate to device",
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                 }

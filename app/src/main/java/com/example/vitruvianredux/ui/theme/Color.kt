@@ -16,11 +16,11 @@ val ColorOnLightSurface = Color(0xFF111827)      // Dark text on surface
 val ColorLightSurfaceVariant = Color(0xFFF3F4F6) // Light gray surface variant
 val ColorOnLightSurfaceVariant = Color(0xFF6B7280) // Gray-500 text
 
-// Purple Accent Colors
-val PrimaryPurple = Color(0xFFBB86FC)           // Primary purple (Material 3 style)
-val SecondaryPurple = Color(0xFF9965F4)         // Deeper purple
-val TertiaryPurple = Color(0xFFE0BBF7)          // Light purple for highlights
-val PurpleAccent = Color(0xFF7E57C2)            // Accent purple for buttons
+// Purple Accent Colors - Material 3 Expressive (More Vibrant)
+val PrimaryPurple = Color(0xFF9333EA)           // More vibrant purple (Material 3 Expressive)
+val SecondaryPurple = Color(0xFF7E22CE)         // Deeper, richer purple
+val TertiaryPurple = Color(0xFFA855F7)          // More saturated purple for highlights
+val PurpleAccent = Color(0xFF9333EA)            // Vibrant accent purple for buttons
 
 // TopAppBar Colors (darker for better contrast)
 val TopAppBarDark = Color(0xFF1A0E26)           // Very dark purple for dark mode header
