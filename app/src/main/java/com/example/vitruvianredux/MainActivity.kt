@@ -37,8 +37,8 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // Ensure system windows are not drawn behind content to avoid black overlay issues
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Enable edge-to-edge display for proper Material 3 insets handling
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()

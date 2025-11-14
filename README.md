@@ -44,7 +44,7 @@ This app enables local control of Vitruvian Trainer machines after the company's
 - [x] Comprehensive unit and integration tests
 
 ### Planned Features
-- [x] Live charting visualization (Vico Charts, Compose Charts, Charty)
+- [x] Live charting visualization (Vico Charts, Compose Charts)
 - [x] CSV export functionality
 - [ ] Unit switching (kg/lb)
 - [ ] Dark mode toggle
@@ -60,10 +60,9 @@ This app enables local control of Vitruvian Trainer machines after the company's
 - **BLE:** Nordic BLE Library (v2.7.1)
 - **Database:** Room with DAO pattern
 - **Preferences:** DataStore
-- **Charting:** 
-  - Vico Charts (v2.1.3) - Modern Compose-native charts with Material 3 support
+- **Charting:**
+  - Vico Charts (v2.1.3) - Modern Compose-native charts with Material 3 support (includes pie/donut charts)
   - Compose Charts (v0.0.13) - Area charts with gradients
-  - Charty (v1.0.0) - Circle/donut charts
   - MPAndroidChart (v3.1.0) - Legacy pie charts (being phased out)
 - **Async:** Kotlin Coroutines + Flow
 - **Image Loading:** Coil

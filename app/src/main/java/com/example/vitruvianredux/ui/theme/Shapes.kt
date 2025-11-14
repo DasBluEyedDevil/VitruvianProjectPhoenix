@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
  * Material 3 Expressive Shape System
  * More rounded, bolder shapes for expressive design
  */
-object ExpressiveShapes {
+object ExpressiveShapeValues {
     // Expressive: More rounded corners than standard Material 3
     val ExtraSmall = RoundedCornerShape(8.dp)   // Standard: 4dp
     val Small = RoundedCornerShape(12.dp)        // Standard: 8dp
@@ -21,10 +21,10 @@ object ExpressiveShapes {
  * Material 3 Expressive Shapes for MaterialTheme
  */
 val ExpressiveShapes = Shapes(
-    extraSmall = ExpressiveShapes.ExtraSmall,
-    small = ExpressiveShapes.Small,
-    medium = ExpressiveShapes.Medium,
-    large = ExpressiveShapes.Large,
-    extraLarge = ExpressiveShapes.ExtraLarge
+    extraSmall = ExpressiveShapeValues.ExtraSmall,
+    small = ExpressiveShapeValues.Small,
+    medium = ExpressiveShapeValues.Medium,
+    large = ExpressiveShapeValues.Large,
+    extraLarge = ExpressiveShapeValues.ExtraLarge
 )
 

@@ -126,6 +126,20 @@ class WorkoutRepository @Inject constructor(
     }
     
     /**
+     * Get metrics for a workout session synchronously (for export)
+     */
+    suspend fun getMetricsForSessionSync(sessionId: String): List<WorkoutMetric> {
+        return workoutDao.getMetricsForSessionSync(sessionId).map { it.toWorkoutMetric() }
+    }
+    
+    /**
+     * Get recent workout sessions synchronously (for export)
+     */
+    suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSession> {
+        return workoutDao.getRecentSessionsSync(limit).map { it.toWorkoutSession() }
+    }
+    
+    /**
      * Delete a workout
      */
     suspend fun deleteWorkout(sessionId: String): Result<Unit> {

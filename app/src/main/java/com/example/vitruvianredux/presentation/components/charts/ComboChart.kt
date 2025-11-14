@@ -12,25 +12,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
+import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.rememberM3VicoTheme
+import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.axis.Axis
-import com.patrykandpatrick.vico.core.cartesian.axis.formatter.DecimalValueFormatter
-import com.patrykandpatrick.vico.core.component.shape.shapes.roundedCornerShape
-import com.patrykandpatrick.vico.core.component.shape.shapes.fullyRoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.size
 
 /**
  * Material 3 Expressive Combo Chart
@@ -81,41 +82,21 @@ fun ComboChart(
             chart = rememberCartesianChart(
                 // Column layer
                 rememberColumnCartesianLayer(
-                    columnWidth = 0.6f,
-                    columnSpacing = 8.dp,
-                    columnShape = roundedCornerShape(12.dp), // Material 3 Expressive: More rounded
-                    columnColors = listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.secondary
-                    )
+                    columnProvider = ColumnCartesianLayer.ColumnProvider.series(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
+                        ).map { color ->
+                            rememberLineComponent(
+                                fill(color),
+                                0.6f.dp
+                            )
+                        }
+                    ),
+                    columnCollectionSpacing = 8.dp
                 ),
                 // Line layer
-                rememberLineCartesianLayer(
-                    pointSize = 8.dp, // Material 3 Expressive: Larger points
-                    pointShape = fullyRoundedCornerShape(),
-                    lineThickness = 4.dp, // Material 3 Expressive: Thicker line
-                    lineColor = MaterialTheme.colorScheme.tertiary,
-                    pointColor = MaterialTheme.colorScheme.tertiary,
-                    pointOuterColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                ),
-                startAxis = rememberStartAxis(
-                    tickLength = 8.dp,
-                    axisLineThickness = 2.dp,
-                    guideline = Axis.Guideline(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                        thickness = 1.dp
-                    ),
-                    valueFormatter = DecimalValueFormatter(maxFractionDigits = 1)
-                ),
-                bottomAxis = rememberBottomAxis(
-                    tickLength = 8.dp,
-                    axisLineThickness = 2.dp,
-                    guideline = Axis.Guideline(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                        thickness = 1.dp
-                    ),
-                    valueFormatter = DecimalValueFormatter(maxFractionDigits = 0)
-                )
+                rememberLineCartesianLayer()
             ),
             modelProducer = modelProducer,
             modifier = modifier

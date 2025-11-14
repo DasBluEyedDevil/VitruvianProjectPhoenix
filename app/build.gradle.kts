@@ -138,8 +138,7 @@ dependencies {
     // Compose Charts - For area charts and gradients
     implementation(libs.compose.charts)
 
-    // Charty - For circle charts
-    implementation(libs.charty)
+    // Note: Charty removed - using Vico Charts for pie/donut charts instead
 
     // Logging - Timber
     implementation(libs.timber)
