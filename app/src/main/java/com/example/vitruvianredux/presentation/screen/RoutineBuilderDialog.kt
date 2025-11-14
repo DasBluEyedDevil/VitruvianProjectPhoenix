@@ -245,7 +245,7 @@ fun RoutineBuilderDialog(
                     setReps = listOf(10, 10, 10),
                     weightPerCableKg = 20f,
                     progressionKg = 0f,
-                    restSeconds = 60,
+                    setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
                     notes = "",
                     workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                     eccentricLoad = EccentricLoad.LOAD_100,
@@ -365,9 +365,10 @@ fun ExerciseListItem(
                             Text(progressionText, style = MaterialTheme.typography.bodySmall, color = if (exercise.progressionKg > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                         }
                     }
-                    if (exercise.restSeconds > 0) {
+                    val firstRest = exercise.setRestSeconds.firstOrNull() ?: 60
+                    if (firstRest > 0) {
                         Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                            Text("${exercise.restSeconds}s rest", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
+                            Text("${firstRest}s rest", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                         }
                     }
                 }

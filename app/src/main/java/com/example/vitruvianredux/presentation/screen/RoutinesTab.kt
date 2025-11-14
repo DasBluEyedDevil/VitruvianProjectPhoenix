@@ -424,7 +424,10 @@ private fun formatEstimatedDuration(routine: Routine): String {
     // Estimate: 30 seconds per rep + rest time
     val totalSets = routine.exercises.sumOf { it.setReps.size }
     val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.filterNotNull().sum() }
-    val totalRestSeconds = routine.exercises.sumOf { it.restSeconds * (it.setReps.size - 1) }
+    val totalRestSeconds = routine.exercises.sumOf { exercise ->
+        // Sum all rest times between sets (one less rest than number of sets)
+        exercise.setRestSeconds.take(exercise.setReps.size - 1).sum()
+    }
     
     val estimatedSeconds = (totalReps * 3) + totalRestSeconds // 3 seconds per rep estimate
     val minutes = estimatedSeconds / 60

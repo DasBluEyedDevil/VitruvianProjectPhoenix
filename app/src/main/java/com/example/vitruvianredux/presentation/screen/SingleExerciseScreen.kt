@@ -79,7 +79,7 @@ fun SingleExerciseScreen(
                             setReps = listOf(10, 10, 10),
                             weightPerCableKg = 20f,
                             progressionKg = 0f,
-                            restSeconds = 60,
+                            setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
                             notes = "",
                             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                             eccentricLoad = EccentricLoad.LOAD_100,
