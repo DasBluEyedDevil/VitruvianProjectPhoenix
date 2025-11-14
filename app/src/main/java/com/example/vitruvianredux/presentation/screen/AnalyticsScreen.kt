@@ -409,7 +409,10 @@ fun DashboardTab(
     }
 
     LazyColumn(
-        modifier = modifier.padding(Spacing.medium),
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
         item {
@@ -959,7 +962,10 @@ fun TrendsTab(
 
 
     LazyColumn(
-        modifier = modifier.padding(Spacing.medium),
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
         item {
