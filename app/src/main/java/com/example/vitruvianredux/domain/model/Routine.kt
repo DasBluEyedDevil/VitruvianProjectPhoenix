@@ -28,7 +28,7 @@ data class RoutineExercise(
     val exercise: Exercise,
     val cableConfig: CableConfiguration,
     val orderIndex: Int,
-    val setReps: List<Int> = listOf(10, 10, 10),
+    val setReps: List<Int?> = listOf(10, 10, 10),
     val weightPerCableKg: Float,
     // Optional per-set weights in kg per cable; when empty, fall back to weightPerCableKg
     val setWeightsPerCableKg: List<Float> = emptyList(),
@@ -41,7 +41,9 @@ data class RoutineExercise(
     val restSeconds: Int = 60,
     val notes: String = "",
     // Optional duration in seconds for duration-based sets
-    val duration: Int? = null
+    val duration: Int? = null,
+    // AMRAP (As Many Reps As Possible) flag - when true, setReps should be null for that set
+    val isAMRAP: Boolean = false
 ) {
     // Computed property for backwards compatibility
     val sets: Int get() = setReps.size

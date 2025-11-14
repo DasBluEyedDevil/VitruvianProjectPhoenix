@@ -1574,9 +1574,29 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
             } else {
                 "${repCount.warmupReps} / ${workoutParameters.warmupReps}"
             }
-            
-            val labelText = if (repCount.isWarmupComplete) "REPS" else "WARMUP"
-            
+
+            // Show AMRAP indicator when in AMRAP mode and warmup is complete
+            if (workoutParameters.isAMRAP && repCount.isWarmupComplete) {
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(bottom = Spacing.small)
+                ) {
+                    Text(
+                        text = "AMRAP",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            val labelText = when {
+                !repCount.isWarmupComplete -> "WARMUP"
+                workoutParameters.isAMRAP -> "REPS (As Many As Possible)"
+                else -> "REPS"
+            }
+
             Text(
                 text = labelText,
                 style = MaterialTheme.typography.titleLarge,

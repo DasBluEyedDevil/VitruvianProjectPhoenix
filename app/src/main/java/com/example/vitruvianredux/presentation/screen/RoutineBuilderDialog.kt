@@ -393,8 +393,13 @@ fun ExerciseListItem(
     }
 }
 
-private fun formatReps(setReps: List<Int>): String {
+private fun formatReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
     val allSame = setReps.all { it == setReps.first() }
-    return if (allSame) "${setReps.size} x ${setReps.first()} reps" else "${setReps.size} sets: ${setReps.joinToString("/")}"
+    return if (allSame) {
+        val reps = setReps.first()
+        if (reps == null) "${setReps.size} x AMRAP" else "${setReps.size} x $reps reps"
+    } else {
+        "${setReps.size} sets: ${setReps.joinToString("/") { it?.toString() ?: "AMRAP" }}"
+    }
 }

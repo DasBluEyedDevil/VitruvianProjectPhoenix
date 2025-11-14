@@ -817,7 +817,8 @@ class MainViewModel @Inject constructor(
                 warmupTarget = params.warmupReps,
                 workingTarget = workingTarget,
                 isJustLift = params.isJustLift,
-                stopAtTop = params.stopAtTop
+                stopAtTop = params.stopAtTop,
+                isAMRAP = params.isAMRAP
             )
             _repCount.value = repCounter.getRepCount()
             resetAutoStopState()
@@ -1265,7 +1266,7 @@ class MainViewModel @Inject constructor(
             Timber.d("  New set index: ${_currentSetIndex.value}")
             Timber.d("  Target reps: $targetReps")
             _workoutParameters.value = workoutParameters.value.copy(
-                reps = targetReps,
+                reps = targetReps ?: 0, // AMRAP sets have null reps
                 // Preserve all other parameters from current exercise
                 progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
                 weightPerCableKg = workoutParameters.value.weightPerCableKg,
@@ -1287,10 +1288,11 @@ class MainViewModel @Inject constructor(
                 Timber.d("  Next exercise: ${nextExercise.exercise.displayName}")
                 _workoutParameters.value = workoutParameters.value.copy(
                     weightPerCableKg = nextExercise.weightPerCableKg,
-                    reps = nextExercise.setReps[0],
+                    reps = nextExercise.setReps[0] ?: 0, // AMRAP sets have null reps
                     workoutType = nextExercise.workoutType,
                     progressionRegressionKg = nextExercise.progressionKg,
-                    selectedExerciseId = nextExercise.exercise.id
+                    selectedExerciseId = nextExercise.exercise.id,
+                    isAMRAP = nextExercise.isAMRAP
                 )
                 Timber.d("???????????????????????????????????????????????????")
                 startWorkout(skipCountdown = true)
@@ -1357,10 +1359,11 @@ class MainViewModel @Inject constructor(
             val nextExercise = routine.exercises[_currentExerciseIndex.value]
             _workoutParameters.value = workoutParameters.value.copy(
                 weightPerCableKg = nextExercise.weightPerCableKg,
-                reps = nextExercise.setReps[0],
+                reps = nextExercise.setReps[0] ?: 0, // AMRAP sets have null reps
                 workoutType = nextExercise.workoutType,
                 progressionRegressionKg = nextExercise.progressionKg,
-                selectedExerciseId = nextExercise.exercise.id
+                selectedExerciseId = nextExercise.exercise.id,
+                isAMRAP = nextExercise.isAMRAP
             )
 
             // Start the next exercise
@@ -1643,12 +1646,13 @@ class MainViewModel @Inject constructor(
 
         val params = WorkoutParameters(
             workoutType = firstExercise.workoutType, // Use workout type from the exercise
-            reps = firstSetReps,
+            reps = firstSetReps ?: 0, // AMRAP sets have null reps, use 0 as placeholder
             weightPerCableKg = firstExercise.weightPerCableKg,
             progressionRegressionKg = firstExercise.progressionKg,
             isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
             stopAtTop = stopAtTop.value,   // Use user preference from settings
-            warmupReps = _workoutParameters.value.warmupReps
+            warmupReps = _workoutParameters.value.warmupReps,
+            isAMRAP = firstExercise.isAMRAP // Pass through AMRAP flag from exercise
         )
 
         Timber.d("Created WorkoutParameters:")

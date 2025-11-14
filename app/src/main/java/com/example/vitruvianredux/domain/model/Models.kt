@@ -180,7 +180,8 @@ data class WorkoutParameters(
     val useAutoStart: Boolean = false, // true for Just Lift, false for others
     val stopAtTop: Boolean = false,  // false = stop at bottom (extended), true = stop at top (contracted)
     val warmupReps: Int = 3,
-    val selectedExerciseId: String? = null
+    val selectedExerciseId: String? = null,
+    val isAMRAP: Boolean = false  // AMRAP (As Many Reps As Possible) - disables auto-stop
 )
 
 /**

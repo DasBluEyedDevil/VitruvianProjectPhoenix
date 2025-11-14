@@ -29,7 +29,7 @@ enum class SetMode {
 data class SetConfiguration(
     val id: String = UUID.randomUUID().toString(), // Stable ID for Compose keys
     val setNumber: Int,
-    val reps: Int = 10,
+    val reps: Int? = 10,  // Nullable to support AMRAP (null = AMRAP)
     val weightPerCable: Float = 15.0f,
     val duration: Int = 30
 )
@@ -109,7 +109,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             SetConfiguration(
                 id = UUID.randomUUID().toString(),
                 setNumber = index + 1,
-                reps = reps,
+                reps = reps ?: 10, // AMRAP sets have null reps, default to 10 for display
                 weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
                 duration = exercise.duration ?: 30
             )
@@ -160,7 +160,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         _echoLevel.value = level
     }
 
-    fun updateReps(setId: String, reps: Int) {
+    fun updateReps(setId: String, reps: Int?) {
         _sets.value = _sets.value.map { set ->
             if (set.id == setId) set.copy(reps = reps) else set
         }
