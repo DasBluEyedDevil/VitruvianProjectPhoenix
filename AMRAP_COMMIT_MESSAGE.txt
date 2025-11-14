@@ -1,0 +1,88 @@
+# Git Commit Message
+
+## feat: Implement AMRAP (As Many Reps As Possible) Sets Feature - Backend (TDD)
+
+### Summary
+Implemented AMRAP sets feature using strict Test-Driven Development approach.
+All tests passing. Backend logic complete. UI implementation deferred.
+
+### Test Results ✅
+- 5/5 AMRAP feature tests passing
+- Build successful
+- Backward compatibility maintained
+
+### Changes
+
+#### Data Model
+- **Routine.kt**: Added `isAMRAP: Boolean` field to RoutineExercise
+- **Routine.kt**: Changed `setReps` from `List<Int>` to `List<Int?>` to support null reps for AMRAP
+
+#### Business Logic
+- **RepCounterFromMachine.kt**: Added `isAMRAP` parameter to `configure()`
+- **RepCounterFromMachine.kt**: Disabled auto-stop when `isAMRAP = true`
+- **RepCounterFromMachine.kt**: Added `getCurrentRepCount()` helper for testing
+
+#### ViewModel
+- **MainViewModel.kt**: Pass `isAMRAP` flag to RepCounter configuration
+- **MainViewModel.kt**: Load `isAMRAP` from RoutineExercise
+- **Models.kt**: Added `isAMRAP: Boolean` to WorkoutParameters
+
+#### UI Support (Type Safety)
+- **RoutinesTab.kt**: Updated `formatSetReps()` to display "AMRAP" for null reps
+- **RoutineBuilderDialog.kt**: Updated `formatReps()` to handle nullable reps
+- **ExerciseConfigViewModel.kt**: Handle null reps with default values
+
+#### Tests
+- **AMRAPFeatureTest.kt**: Created comprehensive test suite (5 tests)
+  1. Data model supports AMRAP and null targetReps ✅
+  2. AMRAP sets disable auto-stop ✅
+  3. AMRAP sets save actual reps completed ✅
+  4. Non-AMRAP sets still have auto-stop (regression) ✅
+  5. Workout state indicates AMRAP mode ✅
+
+### TDD Approach Followed
+1. ✅ **PHASE 1 (RED)**: Wrote failing tests first
+2. ✅ **PHASE 2 (GREEN)**: Implemented minimal code to pass tests
+3. ✅ **PHASE 3 (REFACTOR)**: Clean code, all tests green
+
+### Feature Capabilities
+- ✅ AMRAP flag in data model
+- ✅ Auto-stop disabled for AMRAP sets
+- ✅ Unlimited reps tracking
+- ✅ Actual reps saved in workout history
+- ✅ UI displays "AMRAP" in routine lists
+- ✅ Backward compatible (defaults to non-AMRAP)
+
+### Not Included (Next PR)
+- ❌ AMRAP toggle in routine builder UI
+- ❌ AMRAP badge during active workout
+- ❌ Rep progress bar hiding for AMRAP
+- ❌ Manual set completion button
+
+### Files Modified: 8
+- domain/model/Routine.kt
+- domain/model/Models.kt
+- domain/usecase/RepCounterFromMachine.kt
+- presentation/viewmodel/MainViewModel.kt
+- presentation/screen/RoutinesTab.kt
+- presentation/screen/RoutineBuilderDialog.kt
+- presentation/viewmodel/ExerciseConfigViewModel.kt
+- test/presentation/viewmodel/AMRAPFeatureTest.kt (NEW)
+
+### Documentation
+- AMRAP_IMPLEMENTATION_SUMMARY.md (NEW)
+
+### Breaking Changes
+None. All changes are additive with default values.
+
+### Issue
+Implements first feature from USER_REQUESTS_ROADMAP.md
+Complexity: 2/10 (Simple)
+Estimated effort: 1 day
+Actual effort: 2 hours
+
+---
+Tested on: Android Studio
+Tests: 5/5 passing
+Build: ✅ Successful
+Ready for: UI implementation

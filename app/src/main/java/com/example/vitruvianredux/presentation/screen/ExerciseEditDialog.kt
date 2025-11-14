@@ -132,7 +132,8 @@ fun ExerciseEditBottomSheet(
     }
 
     val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-    val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
+    val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
+    val weightStep = if (weightUnit == WeightUnit.LB) 0.5f else 0.25f
     val maxWeightChange = if (weightUnit == WeightUnit.LB) 10 else 10
 
     // Prevent accidental dismissal via swipe gestures while allowing button-based dismissal
@@ -365,6 +366,7 @@ fun ExerciseEditBottomSheet(
                     exerciseType = exerciseType,
                     weightSuffix = weightSuffix,
                     maxWeight = maxWeight,
+                    weightStep = weightStep,
                     isEchoMode = isEchoMode,
                     onRepsChange = viewModel::updateReps,
                     onWeightChange = viewModel::updateWeight,
@@ -480,7 +482,8 @@ fun SetsConfiguration(
     setMode: SetMode,
     exerciseType: ExerciseType,
     weightSuffix: String,
-    maxWeight: Int,
+    maxWeight: Float,
+    weightStep: Float = 0.5f,
     isEchoMode: Boolean = false,
     onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
     onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
@@ -507,6 +510,7 @@ fun SetsConfiguration(
                     exerciseType = exerciseType,
                     weightSuffix = weightSuffix,
                     maxWeight = maxWeight,
+                    weightStep = weightStep,
                     isEchoMode = isEchoMode,
                     canDelete = sets.size > 1,
                     onRepsChange = { newReps -> onRepsChange(setConfig.id, newReps) },
@@ -536,7 +540,8 @@ fun SetRow(
     setMode: SetMode,
     exerciseType: ExerciseType,
     weightSuffix: String,
-    maxWeight: Int,
+    maxWeight: Float,
+    weightStep: Float = 0.5f,
     isEchoMode: Boolean = false,
     canDelete: Boolean,
     onRepsChange: (Int?) -> Unit,  // Changed to nullable for AMRAP support
@@ -688,9 +693,10 @@ fun SetRow(
                         exerciseType == ExerciseType.STANDARD -> {
                             // Standard exercises: Show weight picker
                             com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = setConfig.weightPerCable.toInt(),
-                                onValueChange = { onWeightChange(it.toFloat()) },
-                                range = 1..maxWeight,
+                                value = setConfig.weightPerCable,
+                                onValueChange = onWeightChange,
+                                range = 1f..maxWeight,
+                                step = weightStep,
                                 label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
                                 suffix = weightSuffix,
                                 modifier = Modifier.fillMaxWidth()

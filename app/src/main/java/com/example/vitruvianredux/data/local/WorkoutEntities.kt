@@ -108,7 +108,9 @@ data class RoutineExerciseEntity(
     val restSeconds: Int = 60,
     val notes: String = "",
     // Optional duration in seconds for duration-based sets
-    val duration: Int? = null
+    val duration: Int? = null,
+    // Per-set rest times as JSON array (e.g., "[60,90,120]" for 3 sets with different rest times)
+    val setRestSeconds: String = "[]"
 )
 
 /**

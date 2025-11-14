@@ -424,6 +424,73 @@ object AppModule {
     }
 
     /**
+     * Migration from version 15 to 16: Add routine tracking to workout_sessions
+     * Adds routineSessionId and routineName for grouping routine sets in history
+     */
+    private val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add routineSessionId column
+            database.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN routineSessionId TEXT DEFAULT NULL
+            """.trimIndent())
+
+            // Add routineName column
+            database.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN routineName TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 16 to 17: Add per-set rest time support
+     * Adds setRestSeconds as JSON array to routine_exercises, migrating existing restSeconds values
+     */
+    internal val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add new setRestSeconds column (JSON array of integers)
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN setRestSeconds TEXT NOT NULL DEFAULT '[]'
+            """.trimIndent())
+
+            // Migrate existing data: Convert single restSeconds to array
+            // For each routine exercise, create array with restSeconds repeated for each set
+            // We need to use Kotlin-based logic since SQLite version varies across Android devices
+
+            // Get all routine exercises
+            val cursor = database.query("SELECT id, restSeconds, setReps FROM routine_exercises")
+
+            val updates = mutableListOf<Pair<String, String>>()
+
+            while (cursor.moveToNext()) {
+                val id = cursor.getString(0)
+                val restSeconds = cursor.getInt(1)
+                val setReps = cursor.getString(2)
+
+                // Count number of sets by counting commas + 1
+                val numSets = if (setReps.isEmpty()) 3 else setReps.split(",").size
+
+                // Create JSON array with restSeconds repeated for each set
+                val setRestSecondsJson = List(numSets) { restSeconds }.joinToString(",", "[", "]")
+
+                updates.add(id to setRestSecondsJson)
+            }
+            cursor.close()
+
+            // Apply updates
+            for ((id, setRestSecondsJson) in updates) {
+                database.execSQL("""
+                    UPDATE routine_exercises
+                    SET setRestSeconds = ?
+                    WHERE id = ?
+                """, arrayOf(setRestSecondsJson, id))
+            }
+        }
+    }
+
+    /**
      * Migration from version 7 to 8: Fix routine_exercises schema
      * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
      */
@@ -515,7 +582,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
         .fallbackToDestructiveMigration()  // Allow destructive migration for beta (will delete and recreate DB if migration missing)
         .build()
     }
