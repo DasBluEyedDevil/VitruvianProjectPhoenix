@@ -892,30 +892,14 @@ class MainViewModel @Inject constructor(
 
     fun stopWorkout() {
         viewModelScope.launch {
-            val timestamp = System.currentTimeMillis()
-            val currentState = _workoutState.value
-            
-            Timber.d("STOP_DEBUG: ============================================")
-            Timber.d("STOP_DEBUG: [$timestamp] stopWorkout() called from UI")
-            Timber.d("STOP_DEBUG: Current workout state: $currentState")
-            Timber.d("STOP_DEBUG: Current rep count: warmup=${_repCount.value.warmupReps}, working=${_repCount.value.workingReps}")
-            Timber.d("STOP_DEBUG: Loaded routine: ${_loadedRoutine.value?.name ?: "None"}")
-            Timber.d("STOP_DEBUG: ============================================")
-            
             // Cancel any running rest timer to prevent auto-restart
             restTimerJob?.cancel()
             restTimerJob = null
 
             // CRITICAL SAFETY: Stop all active polling and data collection
             // This ensures the machine fully exits workout mode
-            val beforeRepoStop = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$beforeRepoStop] About to call bleRepository.stopWorkout()")
-            
             // Stop hardware immediately (this will stop monitor/property polling in BLE layer)
             bleRepository.stopWorkout()
-            
-            val afterRepoStop = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$afterRepoStop] bleRepository.stopWorkout() completed (took ${afterRepoStop - beforeRepoStop}ms)")
             
             // Stop foreground service
             WorkoutForegroundService.stopWorkoutService(getApplication())
@@ -923,7 +907,6 @@ class MainViewModel @Inject constructor(
 
             // Mark as completed - NO AUTOPLAY
             _workoutState.value = WorkoutState.Completed
-            Timber.d("STOP_DEBUG: Workout state changed to: ${_workoutState.value}")
 
             // Save current progress
             saveWorkoutSession()
@@ -931,10 +914,6 @@ class MainViewModel @Inject constructor(
             // Reset state
             repCounter.reset()
             resetAutoStopState()
-
-            val finalTimestamp = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$finalTimestamp] stopWorkout() complete - Total time: ${finalTimestamp - timestamp}ms")
-            Timber.d("STOP_DEBUG: ============================================")
         }
     }
 

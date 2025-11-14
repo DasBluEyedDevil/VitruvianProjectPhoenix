@@ -130,10 +130,16 @@ dependencies {
     // Chart Library - MPAndroidChart
     implementation(libs.mpandroidchart)
 
-    // Vico Charts - Modern Compose charting library
+    // Vico Charts - Modern Compose charting library (upgraded to stable 2.1.3)
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
     implementation(libs.vico.core)
+
+    // Compose Charts - For area charts and gradients
+    implementation(libs.compose.charts)
+
+    // Charty - For circle charts
+    implementation(libs.charty)
 
     // Logging - Timber
     implementation(libs.timber)

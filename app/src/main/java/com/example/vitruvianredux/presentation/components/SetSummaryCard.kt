@@ -43,9 +43,9 @@ fun SetSummaryCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -62,7 +62,7 @@ fun SetSummaryCard(
             ) {
                 Icon(
                     Icons.Default.CheckCircle,
-                    contentDescription = null,
+                    contentDescription = "Set completed",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(32.dp)
                 )
@@ -135,7 +135,7 @@ fun SetSummaryCard(
                 Spacer(modifier = Modifier.width(Spacing.small))
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
+                    contentDescription = "Continue to next set",
                     modifier = Modifier.size(20.dp)
                 )
             }

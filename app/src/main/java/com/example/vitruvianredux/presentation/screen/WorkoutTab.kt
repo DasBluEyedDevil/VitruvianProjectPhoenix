@@ -164,10 +164,10 @@ fun WorkoutTab(
                     if (showWorkoutSetupCard) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(16.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                         ) {
                             Column(
                                 modifier = Modifier
@@ -176,18 +176,29 @@ fun WorkoutTab(
                             ) {
                                 Text(
                                     "Workout Setup",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.height(Spacing.small))
                                 Button(
                                     onClick = onShowWorkoutSetupDialog,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp), // Material 3 Expressive: Taller button
+                                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = 4.dp,
+                                        pressedElevation = 2.dp
+                                    )
                                 ) {
-                                    Icon(Icons.Default.Settings, contentDescription = "Configure workout")
+                                    Icon(Icons.Default.Settings, contentDescription = "Configure workout settings")
                                     Spacer(modifier = Modifier.width(Spacing.small))
-                                    Text("Setup Workout")
+                                    Text(
+                                        "Setup Workout",
+                                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -197,9 +208,9 @@ fun WorkoutTab(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -210,7 +221,7 @@ fun WorkoutTab(
                         ) {
                             Icon(
                                 Icons.Default.Warning,
-                                contentDescription = null,
+                                contentDescription = "Workout error",
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(48.dp)
                             )
@@ -240,10 +251,10 @@ fun WorkoutTab(
                 is WorkoutState.Completed -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -254,7 +265,7 @@ fun WorkoutTab(
                         ) {
                             Icon(
                                 Icons.Default.CheckCircle,
-                                contentDescription = null,
+                                contentDescription = "Workout completed",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(48.dp)
                             )
@@ -308,9 +319,20 @@ fun WorkoutTab(
 
                                         Button(
                                             onClick = onStartNextExercise,
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(56.dp), // Material 3 Expressive: Taller button
+                                            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                                            elevation = ButtonDefaults.buttonElevation(
+                                                defaultElevation = 4.dp,
+                                                pressedElevation = 2.dp
+                                            )
                                         ) {
-                                            Text("Start Next Exercise")
+                                            Text(
+                                                "Start Next Exercise",
+                                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                 }
@@ -318,11 +340,22 @@ fun WorkoutTab(
                                 // Last exercise or not a routine - show "Start New Workout"
                                 Button(
                                     onClick = onResetForNewWorkout,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(56.dp), // Material 3 Expressive: Taller button
+                                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                                    elevation = ButtonDefaults.buttonElevation(
+                                        defaultElevation = 4.dp,
+                                        pressedElevation = 2.dp
+                                    )
                                 ) {
                                     Icon(Icons.Default.Refresh, contentDescription = "Start new workout")
                                     Spacer(modifier = Modifier.width(Spacing.small))
-                                    Text("Start New Workout")
+                                    Text(
+                                        "Start New Workout",
+                                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -331,10 +364,10 @@ fun WorkoutTab(
                 is WorkoutState.Active -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Material 3 Expressive: Use primary container for active state
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -343,9 +376,9 @@ fun WorkoutTab(
                         ) {
                             Text(
                                 "Workout Active",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
 
@@ -489,12 +522,12 @@ fun WorkoutSetupDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
         title = {
             Text(
                 "Workout Setup",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger (was titleLarge)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -506,13 +539,13 @@ fun WorkoutSetupDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                // Exercise Selection Card
+                // Exercise Selection Card - Material 3 Expressive
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -521,7 +554,7 @@ fun WorkoutSetupDialog(
                     ) {
                         Text(
                             "Exercise",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -584,7 +617,7 @@ fun WorkoutSetupDialog(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("Echo Mode")
-                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Navigate to next exercise")
                                 }
                             },
                             onClick = {
@@ -600,7 +633,7 @@ fun WorkoutSetupDialog(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text("TUT")
-                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Navigate to next exercise")
                                 }
                             },
                             onClick = {
@@ -612,13 +645,13 @@ fun WorkoutSetupDialog(
                     }
                 }
 
-                // Weight Picker - Show "Adaptive" for Echo mode, otherwise CompactNumberPicker
+                // Weight Picker - Material 3 Expressive
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -628,7 +661,7 @@ fun WorkoutSetupDialog(
                         if (workoutParameters.workoutType is WorkoutType.Echo) {
                             Text(
                                 "Weight per cable",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -658,13 +691,13 @@ fun WorkoutSetupDialog(
                     }
                 }
 
-                // Reps Picker
+                // Reps Picker - Material 3 Expressive
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -683,7 +716,7 @@ fun WorkoutSetupDialog(
                         } else {
                             Text(
                                 "Target reps",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -712,10 +745,10 @@ fun WorkoutSetupDialog(
                 ) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -724,7 +757,7 @@ fun WorkoutSetupDialog(
                         ) {
                             Text(
                                 "Progression/Regression",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1003,9 +1036,9 @@ fun ModeSubSelectorDialog(
         "TUT" -> {
             AlertDialog(
                 onDismissRequest = onDismiss,
-                title = { Text("Select TUT Variant") },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(16.dp),
+                title = { Text("Select TUT Variant", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }, // Material 3 Expressive: Larger
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+                shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
                 text = {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(Spacing.small)
@@ -1055,9 +1088,9 @@ fun ModeSubSelectorDialog(
 
             AlertDialog(
                 onDismissRequest = onDismiss,
-                title = { Text("Echo Mode Configuration") },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(16.dp),
+                title = { Text("Echo Mode Configuration", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }, // Material 3 Expressive: Larger
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+                shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
                 text = {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(Spacing.small)
@@ -1171,10 +1204,10 @@ fun ConnectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -1183,7 +1216,7 @@ fun ConnectionCard(
         ) {
             Text(
                 "Connection",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -1276,11 +1309,11 @@ fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
             containerColor = if (autoStopState.isActive) {
                 MaterialTheme.colorScheme.errorContainer
             } else {
-                MaterialTheme.colorScheme.surfaceVariant
+                MaterialTheme.colorScheme.surfaceContainerHighest // Material 3 Expressive: Higher contrast
             }
         ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Material 3 Expressive: Higher elevation (was 2dp)
     ) {
         Column(
             modifier = Modifier
@@ -1294,7 +1327,7 @@ fun JustLiftAutoStopCard(autoStopState: AutoStopUiState) {
             ) {
                 Icon(
                     imageVector = Icons.Default.PanTool,
-                    contentDescription = null,
+                    contentDescription = "Hands on handles indicator",
                     tint = if (autoStopState.isActive) {
                         MaterialTheme.colorScheme.onErrorContainer
                     } else {
@@ -1451,10 +1484,10 @@ fun CurrentExerciseCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -1464,7 +1497,7 @@ fun CurrentExerciseCard(
             // Exercise name
             Text(
                 text = currentExercise?.exercise?.name ?: exerciseEntity?.name ?: "Exercise",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger (was titleLarge)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -1558,10 +1591,10 @@ fun CurrentExerciseCard(
 fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Material 3 Expressive: Use primary container for emphasis
+        shape = RoundedCornerShape(24.dp), // Material 3 Expressive: Very rounded for important card (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp), // Material 3 Expressive: Very high elevation for emphasis (was 4dp)
+        border = BorderStroke(3.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border for emphasis (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -1622,10 +1655,10 @@ fun LiveMetricsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -1634,7 +1667,7 @@ fun LiveMetricsCard(
         ) {
             Text(
                 "Live Metrics",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.small))

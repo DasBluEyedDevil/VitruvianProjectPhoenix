@@ -162,10 +162,10 @@ fun JustLiftScreen(
                 // Mode Selection Card
                 var isModePressed by remember { mutableStateOf(false) }
                 val modeScale by animateFloatAsState(
-                    targetValue = if (isModePressed) 0.99f else 1f,
+                    targetValue = if (isModePressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.99f)
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = 400f
+                        dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+                        stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
                     ),
                     label = "modeScale"
                 )
@@ -174,10 +174,10 @@ fun JustLiftScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .scale(modeScale),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isModePressed) 2.dp else 4.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isModePressed) 8.dp else 12.dp), // Material 3 Expressive: Higher elevation (was 4/8dp)
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -186,7 +186,7 @@ fun JustLiftScreen(
                     ) {
                         Text(
                             "Workout Mode",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -202,7 +202,7 @@ fun JustLiftScreen(
                                 onClick = { selectedMode = WorkoutMode.OldSchool },
                                 label = { Text("Old School") },
                                 leadingIcon = if (selectedMode is WorkoutMode.OldSchool) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    { Icon(Icons.Default.Check, contentDescription = "Selected workout mode", modifier = Modifier.size(18.dp)) }
                             } else null
                             )
                             FilterChip(
@@ -210,7 +210,7 @@ fun JustLiftScreen(
                                 onClick = { selectedMode = WorkoutMode.Pump },
                                 label = { Text("Pump") },
                                 leadingIcon = if (selectedMode is WorkoutMode.Pump) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    { Icon(Icons.Default.Check, contentDescription = "Selected workout mode", modifier = Modifier.size(18.dp)) }
                             } else null
                             )
                             FilterChip(
@@ -218,7 +218,7 @@ fun JustLiftScreen(
                                 onClick = { selectedMode = WorkoutMode.Echo(echoLevel) },
                                 label = { Text("Echo") },
                                 leadingIcon = if (selectedMode is WorkoutMode.Echo) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                                    { Icon(Icons.Default.Check, contentDescription = "Selected workout mode", modifier = Modifier.size(18.dp)) }
                             } else null
                             )
                         }
@@ -232,7 +232,7 @@ fun JustLiftScreen(
                                 is WorkoutMode.Echo -> "Adaptive resistance with echo feedback."
                                 else -> selectedMode.displayName
                             },
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -249,13 +249,13 @@ fun JustLiftScreen(
                 // OLD SCHOOL & PUMP: Weight per cable, Progression/Regression, Rest Time
                 val isOldSchoolOrPump = selectedMode is WorkoutMode.OldSchool || selectedMode is WorkoutMode.Pump
                 if (isOldSchoolOrPump) {
-                    // Weight per Cable Card
+                    // Weight per Cable Card - Material 3 Expressive
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -289,13 +289,13 @@ fun JustLiftScreen(
                         }
                     }
 
-                    // Weight Change Per Rep Card
+                    // Weight Change Per Rep Card - Material 3 Expressive
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -326,13 +326,13 @@ fun JustLiftScreen(
                 // ECHO MODE: Eccentric Load, Echo Level, Rest Time
                 val isEchoMode = selectedMode is WorkoutMode.Echo
                 if (isEchoMode) {
-                    // Eccentric Load Card
+                    // Eccentric Load Card - Material 3 Expressive
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -381,13 +381,13 @@ fun JustLiftScreen(
                         }
                     }
 
-                    // Echo Level Card
+                    // Echo Level Card - Material 3 Expressive
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -396,7 +396,7 @@ fun JustLiftScreen(
                         ) {
                             Text(
                                 "Echo Level",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -476,8 +476,8 @@ fun ActiveStatusCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Material 3 Expressive: Higher elevation (was 4dp)
     ) {
         Column(
             modifier = Modifier
@@ -492,7 +492,7 @@ fun ActiveStatusCard(
                     is WorkoutState.Completed -> "Workout Complete"
                     else -> "Workout Status"
                 },
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -517,14 +517,25 @@ fun ActiveStatusCard(
 
                 Button(
                     onClick = onStopWorkout,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
+                        pressedElevation = 2.dp
                     )
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = null)
+                    Icon(Icons.Default.Close, contentDescription = "Close workout")
                     Spacer(modifier = Modifier.width(Spacing.small))
-                    Text("Stop Workout")
+                    Text(
+                        "Stop Workout",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -556,8 +567,8 @@ fun AutoStartStopCard(
                     else -> MaterialTheme.colorScheme.tertiaryContainer // More visible than secondaryContainer
                 }
             ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
             border = BorderStroke(2.dp, if (isIdle) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline)
         ) {
             Column(
@@ -572,7 +583,7 @@ fun AutoStartStopCard(
                 ) {
                     Icon(
                         imageVector = if (isIdle) Icons.Default.PlayCircle else Icons.Default.PanTool,
-                        contentDescription = null,
+                        contentDescription = if (isIdle) "Start workout" else "Hands on handles",
                         modifier = Modifier.size(32.dp),
                         tint = when {
                             autoStartCountdown != null -> MaterialTheme.colorScheme.onPrimaryContainer

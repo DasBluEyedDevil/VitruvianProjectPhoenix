@@ -200,10 +200,10 @@ fun WorkoutCard(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.97f)
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = 400f
+            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+            stiffness = Spring.StiffnessLow // Material 3 Expressive: Lower stiffness for springy feel (was 400f)
         ),
         label = "scale"
     )
@@ -216,35 +216,35 @@ fun WorkoutCard(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest // Expressive: Higher contrast
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPressed) 2.dp else 4.dp
+            defaultElevation = if (isPressed) 4.dp else 8.dp // Material 3 Expressive: Higher elevation (was 2/4dp)
         ),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF)) // purple-50 border
+        border = BorderStroke(2.dp, Color(0xFFF5F3FF)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp), // Material 3 Expressive: More padding (was 16dp)
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Compact Gradient Icon Container (64dp)
+            // Material 3 Expressive: Larger Gradient Icon Container (72dp)
             Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .shadow(4.dp, RoundedCornerShape(12.dp))
-                    .background(gradient, RoundedCornerShape(12.dp)),
+                    .size(72.dp) // Material 3 Expressive: Larger (was 64dp)
+                    .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                    .background(gradient, RoundedCornerShape(20.dp)), // Material 3 Expressive: More rounded (was 16dp)
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = "Select $title workout",
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp) // Material 3 Expressive: Larger icon (was 32dp)
                 )
             }
 
@@ -255,22 +255,22 @@ fun WorkoutCard(
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // Compact Arrow Icon
+            // Material 3 Expressive: Larger Arrow Icon
             Surface(
                 shape = RoundedCornerShape(50),
-                color = Color(0xFFF5F3FF), // purple-50
-                modifier = Modifier.size(36.dp)
+                color = MaterialTheme.colorScheme.primaryContainer, // Material 3 Expressive: Use theme color
+                modifier = Modifier.size(40.dp) // Material 3 Expressive: Larger (was 36dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -279,8 +279,8 @@ fun WorkoutCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Navigate",
-                        tint = Color(0xFF9333EA), // purple-500
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer, // Use theme color
+                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 16dp)
                     )
                 }
             }
@@ -322,10 +322,10 @@ fun HomeActiveProgramCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, Color(0xFFF5F3FF)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -371,18 +371,29 @@ fun HomeActiveProgramCard(
 
                 Spacer(modifier = Modifier.height(Spacing.medium))
 
-                // Start Routine button - only enable if we have the full routine details
+                // Start Routine button - Material 3 Expressive styling
                 Button(
                     onClick = { onStartRoutine(todayRoutineId) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button (was default)
                     enabled = todayRoutine != null,
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
+                        pressedElevation = 2.dp
                     )
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Start routine")
                     Spacer(modifier = Modifier.width(Spacing.small))
-                    Text("Start Routine")
+                    Text(
+                        "Start Routine",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             } else {
                 // Rest day

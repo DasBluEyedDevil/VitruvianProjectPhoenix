@@ -17,8 +17,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.data.Data
 import timber.log.Timber
@@ -88,6 +91,15 @@ class VitruvianBleManager(
 
     private val _handleState = MutableStateFlow<HandleState>(HandleState.Released)
     val handleState: StateFlow<HandleState> = _handleState.asStateFlow()
+
+    // Command response flow - captures opcodes from incoming notifications
+    // Used to wait for specific responses during initialization handshake
+    private val _commandResponses = MutableSharedFlow<UByte>(
+        replay = 0,
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    private val commandResponses: SharedFlow<UByte> = _commandResponses.asSharedFlow()
 
     // Just Lift detection parameters - Simple position-based
     private val HANDLE_GRABBED_THRESHOLD = 8.0  // Position > 8.0 = handles grabbed
@@ -326,9 +338,19 @@ class VitruvianBleManager(
                         handleRepNotification(data)
                     }
                 } else {
-                    // Generic handler for other notifications (just log them)
+                    // Generic handler for other notifications - capture command responses
                     setNotificationCallback(characteristic).with { _, data ->
-                        Timber.d("[notify ${characteristic.uuid}] ${data.value?.size ?: 0} bytes")
+                        val bytes = data.value
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            // Parse opcode from first byte (command responses start with opcode)
+                            val opcode = bytes[0].toUByte()
+                            Timber.d("[notify ${characteristic.uuid}] ${bytes.size} bytes, opcode=0x${opcode.toString(16).uppercase().padStart(2, '0')}")
+                            
+                            // Emit opcode to response flow for awaitResponse() to catch
+                            _commandResponses.tryEmit(opcode)
+                        } else {
+                            Timber.d("[notify ${characteristic.uuid}] empty data")
+                        }
                     }
                 }
 
@@ -788,6 +810,35 @@ class VitruvianBleManager(
             Timber.d("🔥 Emitted rep event: success=$emitted, subscribers=${_repEvents.subscriptionCount.value}")
         } catch (e: Exception) {
             Timber.e(e, "Error parsing rep notification")
+        }
+    }
+
+    /**
+     * Wait for a specific command response opcode
+     * Used during initialization handshake to ensure proper protocol ordering
+     * 
+     * @param expectedOpcode The opcode to wait for (e.g., 0x0Bu for INIT_RESPONSE)
+     * @param timeoutMs Timeout in milliseconds (default 5 seconds)
+     * @return true if response received, false if timeout
+     */
+    suspend fun awaitResponse(expectedOpcode: UByte, timeoutMs: Long = 5000L): Boolean {
+        return try {
+            val opcodeHex = expectedOpcode.toString(16).uppercase().padStart(2, '0')
+            Timber.d("⏳ Waiting for response opcode 0x$opcodeHex (timeout: ${timeoutMs}ms)")
+            val result = withTimeoutOrNull(timeoutMs) {
+                commandResponses.filter { it == expectedOpcode }.first()
+            }
+            if (result != null) {
+                Timber.d("✅ Received expected response opcode 0x$opcodeHex")
+                true
+            } else {
+                Timber.w("⏱️ Timeout waiting for response opcode 0x$opcodeHex")
+                false
+            }
+        } catch (e: Exception) {
+            val opcodeHex = expectedOpcode.toString(16).uppercase().padStart(2, '0')
+            Timber.e(e, "Error waiting for response opcode 0x$opcodeHex")
+            false
         }
     }
 

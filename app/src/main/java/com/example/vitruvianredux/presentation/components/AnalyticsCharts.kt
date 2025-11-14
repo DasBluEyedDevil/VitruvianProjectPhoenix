@@ -23,14 +23,23 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.common.rememberM3VicoTheme
+import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
+import com.patrykandpatrick.vico.core.cartesian.axis.Axis
+import com.patrykandpatrick.vico.core.cartesian.axis.AxisPosition
+import com.patrykandpatrick.vico.core.cartesian.axis.formatter.DecimalValueFormatter
+import com.patrykandpatrick.vico.core.component.shape.shapes.roundedCornerShape
+import com.patrykandpatrick.vico.core.component.shape.shapes.fullyRoundedCornerShape
+import androidx.compose.ui.graphics.Color as ComposeColor
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
  * Line chart showing weight progression over time for a specific exercise
+ * Enhanced with Material 3 Expressive theming and better interactions
  */
 @Composable
 fun WeightProgressionChart(
@@ -39,6 +48,7 @@ fun WeightProgressionChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
+    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
     remember(prs) {
@@ -52,15 +62,37 @@ fun WeightProgressionChart(
         }
     }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(250.dp)
-    )
+    ProvideVicoTheme(vicoTheme) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(
+                    pointSize = 8.dp, // Material 3 Expressive: Larger points
+                    pointShape = fullyRoundedCornerShape(), // Material 3 Expressive: Fully rounded
+                    lineThickness = 4.dp, // Material 3 Expressive: Thicker line
+                    lineColor = MaterialTheme.colorScheme.primary, // Material 3 Expressive: Use theme color
+                    pointColor = MaterialTheme.colorScheme.primary,
+                    pointOuterColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                ),
+                startAxis = rememberStartAxis(
+                    labelRotationDegrees = 0f,
+                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
+                    axisLineThickness = 2.dp, // Material 3 Expressive: Thicker axis line
+                    guideline = Axis.Guideline(
+                        value = 0f,
+                        lineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        lineThickness = 1.dp
+                    )
+                ),
+                bottomAxis = rememberBottomAxis(
+                    labelRotationDegrees = 0f,
+                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
+                    axisLineThickness = 2.dp // Material 3 Expressive: Thicker axis line
+                ),
+            ),
+            modelProducer = modelProducer,
+            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+        )
+    }
 }
 
 /**
@@ -154,12 +186,14 @@ fun MuscleGroupDistributionChart(
 
 /**
  * Column chart showing PR count by workout mode using Vico
+ * Enhanced with Material 3 Expressive theming and better styling
  */
 @Composable
 fun WorkoutModeDistributionChart(
     personalRecords: List<PersonalRecord>,
     modifier: Modifier = Modifier
 ) {
+    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
     remember(personalRecords) {
@@ -173,19 +207,46 @@ fun WorkoutModeDistributionChart(
         }
     }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(),
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(250.dp)
-    )
+    ProvideVicoTheme(vicoTheme) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberColumnCartesianLayer(
+                    columnWidth = 0.6f, // Material 3 Expressive: Wider columns
+                    columnSpacing = 8.dp, // Material 3 Expressive: More spacing
+                    columnShape = roundedCornerShape(12.dp), // Material 3 Expressive: More rounded columns
+                    columnColors = listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.tertiary,
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ),
+                startAxis = rememberStartAxis(
+                    labelRotationDegrees = 0f,
+                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
+                    axisLineThickness = 2.dp, // Material 3 Expressive: Thicker axis line
+                    guideline = Axis.Guideline(
+                        value = 0f,
+                        lineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        lineThickness = 1.dp
+                    )
+                ),
+                bottomAxis = rememberBottomAxis(
+                    labelRotationDegrees = 0f,
+                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
+                    axisLineThickness = 2.dp // Material 3 Expressive: Thicker axis line
+                ),
+            ),
+            modelProducer = modelProducer,
+            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+        )
+    }
 }
 
 /**
  * Line chart showing total volume (weight * reps) over time using Vico
+ * Enhanced with Material 3 Expressive theming and gradient area fill
  */
 @Composable
 fun TotalVolumeChart(
@@ -194,6 +255,7 @@ fun TotalVolumeChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
+    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
     remember(workoutSessions) {
@@ -217,13 +279,35 @@ fun TotalVolumeChart(
         }
     }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(250.dp)
-    )
+    ProvideVicoTheme(vicoTheme) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(
+                    pointSize = 8.dp, // Material 3 Expressive: Larger points
+                    pointShape = fullyRoundedCornerShape(), // Material 3 Expressive: Fully rounded
+                    lineThickness = 4.dp, // Material 3 Expressive: Thicker line
+                    lineColor = MaterialTheme.colorScheme.primary, // Material 3 Expressive: Use theme color
+                    pointColor = MaterialTheme.colorScheme.primary,
+                    pointOuterColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                ),
+                startAxis = rememberStartAxis(
+                    labelRotationDegrees = 0f,
+                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
+                    axisLineThickness = 2.dp, // Material 3 Expressive: Thicker axis line
+                    guideline = Axis.Guideline(
+                        value = 0f,
+                        lineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        lineThickness = 1.dp
+                    )
+                ),
+                bottomAxis = rememberBottomAxis(
+                    labelRotationDegrees = 0f,
+                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
+                    axisLineThickness = 2.dp // Material 3 Expressive: Thicker axis line
+                ),
+            ),
+            modelProducer = modelProducer,
+            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+        )
+    }
 }

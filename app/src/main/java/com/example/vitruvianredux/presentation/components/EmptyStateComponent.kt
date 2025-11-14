@@ -45,7 +45,7 @@ fun EmptyState(
             // Icon
             Icon(
                 imageVector = icon,
-                contentDescription = null, // Decorative icon
+                contentDescription = "Empty state",
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )

@@ -197,8 +197,8 @@ private fun PRCelebrationContent(
             ) {
                 repeat(3) {
                     Icon(
-                        Icons.Default.Star,
-                        contentDescription = null,
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Personal record achievement",
                         tint = Color(0xFFFFD700),
                         modifier = Modifier
                             .size(32.dp)
