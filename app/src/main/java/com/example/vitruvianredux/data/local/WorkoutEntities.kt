@@ -29,7 +29,10 @@ data class WorkoutSessionEntity(
     val eccentricLoad: Int = 100,  // Percentage (0, 50, 75, 100, 125, 150)
     val echoLevel: Int = 1,  // 0=Hard, 1=Harder, 2=Hardest, 3=Epic (stores levelValue)
     // Exercise tracking (added in v15)
-    val exerciseId: String? = null  // Exercise library ID for PR tracking
+    val exerciseId: String? = null,  // Exercise library ID for PR tracking
+    // Routine tracking (for grouping sets from the same routine)
+    val routineSessionId: String? = null,  // Unique ID for this routine session
+    val routineName: String? = null  // Name of the routine being performed
 )
 
 /**

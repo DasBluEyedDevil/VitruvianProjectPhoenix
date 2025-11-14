@@ -36,7 +36,7 @@ import java.util.*
 
 @Composable
 fun HistoryTab(
-    workoutHistory: List<WorkoutSession>,
+    groupedWorkoutHistory: List<com.example.vitruvianredux.presentation.viewmodel.HistoryItem>,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     onDeleteWorkout: (String) -> Unit,
@@ -88,7 +88,7 @@ fun HistoryTab(
         }
         Spacer(modifier = Modifier.height(Spacing.medium))
 
-        if (workoutHistory.isEmpty()) {
+        if (groupedWorkoutHistory.isEmpty()) {
             EmptyState(
                 icon = Icons.Default.History,
                 title = "No Workout History Yet",
@@ -98,14 +98,32 @@ fun HistoryTab(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(Spacing.small)
             ) {
-                items(workoutHistory, key = { it.id }) { session ->
-                    WorkoutHistoryCard(
-                        session = session,
-                        weightUnit = weightUnit,
-                        formatWeight = formatWeight,
-                        exerciseRepository = exerciseRepository,
-                        onDelete = { onDeleteWorkout(session.id) }
-                    )
+                items(groupedWorkoutHistory.size, key = { index ->
+                    when (val item = groupedWorkoutHistory[index]) {
+                        is com.example.vitruvianredux.presentation.viewmodel.SingleSessionHistoryItem -> item.session.id
+                        is com.example.vitruvianredux.presentation.viewmodel.GroupedRoutineHistoryItem -> item.routineSessionId
+                    }
+                }) { index ->
+                    when (val item = groupedWorkoutHistory[index]) {
+                        is com.example.vitruvianredux.presentation.viewmodel.SingleSessionHistoryItem -> {
+                            WorkoutHistoryCard(
+                                session = item.session,
+                                weightUnit = weightUnit,
+                                formatWeight = formatWeight,
+                                exerciseRepository = exerciseRepository,
+                                onDelete = { onDeleteWorkout(item.session.id) }
+                            )
+                        }
+                        is com.example.vitruvianredux.presentation.viewmodel.GroupedRoutineHistoryItem -> {
+                            GroupedRoutineCard(
+                                groupedItem = item,
+                                weightUnit = weightUnit,
+                                formatWeight = formatWeight,
+                                exerciseRepository = exerciseRepository,
+                                onDelete = { sessionId -> onDeleteWorkout(sessionId) }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -337,6 +355,300 @@ fun WorkoutHistoryCard(
         if (isPressed) {
             kotlinx.coroutines.delay(100)
             isPressed = false
+        }
+    }
+}
+
+/**
+ * Card showing a grouped routine session with multiple exercises
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GroupedRoutineCard(
+    groupedItem: com.example.vitruvianredux.presentation.viewmodel.GroupedRoutineHistoryItem,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
+    onDelete: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = 400f
+        ),
+        label = "scale"
+    )
+
+    Card(
+        onClick = { isExpanded = !isExpanded },
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            // Header Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    // Gradient Icon Box
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .shadow(4.dp, RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
+                                ),
+                                RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.List,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(Spacing.medium))
+                    Column(modifier = Modifier.weight(1f)) {
+                        // Routine name
+                        Text(
+                            groupedItem.routineName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
+                        // Date/time
+                        Text(
+                            formatRelativeTimestamp(groupedItem.timestamp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Duration badge
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.padding(start = Spacing.small)
+                ) {
+                    Text(
+                        formatDuration(groupedItem.totalDuration),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Stats Grid (2x2 layout)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                EnhancedMetricItem(
+                    icon = Icons.Default.Check,
+                    label = "Total Reps",
+                    value = groupedItem.totalReps.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+                EnhancedMetricItem(
+                    icon = Icons.Default.FitnessCenter,
+                    label = "Exercises",
+                    value = groupedItem.exerciseCount.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                EnhancedMetricItem(
+                    icon = Icons.AutoMirrored.Filled.List,
+                    label = "Sets",
+                    value = groupedItem.sessions.size.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+                EnhancedMetricItem(
+                    icon = Icons.Default.Info,
+                    label = "Expand",
+                    value = if (isExpanded) "▲" else "▼",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Expanded section showing individual sets
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(Spacing.medium))
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                Text(
+                    "Individual Sets (${groupedItem.sessions.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                groupedItem.sessions.forEach { session ->
+                    WorkoutSessionCard(
+                        session = session,
+                        weightUnit = weightUnit,
+                        formatWeight = formatWeight,
+                        exerciseRepository = exerciseRepository,
+                        onDelete = { onDelete(session.id) }
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Divider
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Action Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { showDeleteDialog = true },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete routine session",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete All Sets")
+                }
+            }
+        }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Routine Session?") },
+            text = { Text("This will delete all ${groupedItem.sessions.size} sets from this routine. This action cannot be undone.") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // Delete all sessions in the routine
+                        groupedItem.sessions.forEach { session ->
+                            onDelete(session.id)
+                        }
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
+}
+
+/**
+ * Compact version of WorkoutHistoryCard for displaying within the expanded GroupedRoutineCard
+ */
+@Composable
+fun WorkoutSessionCard(
+    session: WorkoutSession,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
+    onDelete: () -> Unit
+) {
+    var exerciseName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(session.exerciseId) {
+        session.exerciseId?.let { id ->
+            exerciseName = exerciseRepository.getExerciseById(id)?.name
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.small),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    exerciseName ?: "Just Lift",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "${formatWeight(session.weightPerCableKg, weightUnit)}/cable • ${session.totalReps} reps • ${session.mode}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                formatDuration(session.duration),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
