@@ -181,6 +181,12 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         }
     }
 
+    fun updateRestTime(setId: String, restSeconds: Int) {
+        _sets.value = _sets.value.map { set ->
+            if (set.id == setId) set.copy(restSeconds = restSeconds) else set
+        }
+    }
+
     fun addSet() {
         val lastSet = _sets.value.lastOrNull()
         val newSet = SetConfiguration(
