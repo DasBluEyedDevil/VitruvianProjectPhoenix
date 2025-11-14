@@ -49,6 +49,7 @@ fun HistoryTab(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(Spacing.medium)
     ) {
         // Header with refresh button
