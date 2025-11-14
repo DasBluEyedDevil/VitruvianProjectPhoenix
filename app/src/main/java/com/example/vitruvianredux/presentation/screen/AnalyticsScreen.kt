@@ -130,8 +130,8 @@ fun AnalyticsScreen(
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    text = { Text("Trends") },
-                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Workout trends") }
+                    text = { Text("Progression") },
+                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = "PR progression") }
                 )
                 Tab(
                     selected = pagerState.currentPage == 2,
@@ -155,9 +155,8 @@ fun AnalyticsScreen(
                         formatWeight = viewModel::formatWeight,
                         modifier = Modifier.fillMaxSize()
                     )
-                    1 -> TrendsTab(
+                    1 -> ProgressionTab(
                         personalRecords = personalRecords,
-                        allWorkoutSessions = allWorkoutSessions,
                         exerciseRepository = viewModel.exerciseRepository,
                         weightUnit = weightUnit,
                         formatWeight = viewModel::formatWeight,
@@ -462,9 +461,9 @@ fun DashboardTab(
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
-                    label = "Total PRs",
-                    value = personalRecords.size.toString(),
-                    icon = Icons.Default.Star,
+                    label = "Total Sets",
+                    value = allWorkoutSessions.size.toString(),
+                    icon = Icons.Default.FitnessCenter,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -545,6 +544,92 @@ fun DashboardTab(
                         Spacer(modifier = Modifier.height(Spacing.small))
                         MuscleGroupDistributionChart(
                             muscleGroupCounts = muscleGroupCounts,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+
+        // Total Volume Over Time Chart
+        if (allWorkoutSessions.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.BarChart,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text(
+                                "Volume Over Time",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        TotalVolumeChart(
+                            workoutSessions = allWorkoutSessions,
+                            weightUnit = weightUnit,
+                            formatWeight = formatWeight,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+
+        // Workout Mode Distribution Chart
+        if (personalRecords.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Equalizer,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text(
+                                "Workout Mode Distribution",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        WorkoutModeDistributionChart(
+                            personalRecords = personalRecords,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -724,12 +809,11 @@ fun PersonalRecordCard(
 }
 
 /**
- * Trends tab - shows workout trends over time.
+ * Progression tab - shows PR progression for each exercise.
  */
 @Composable
-fun TrendsTab(
+fun ProgressionTab(
     personalRecords: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
-    allWorkoutSessions: List<WorkoutSession>,
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
@@ -767,119 +851,15 @@ fun TrendsTab(
     ) {
         item {
             Text(
-                "PR Progression",
+                "Personal Records",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.small))
         }
 
-        // Summary statistics
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.medium)
-                ) {
-                    Text(
-                        "Overall Stats",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.medium))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        StatItem(
-                            label = "Total PRs",
-                            value = personalRecords.size.toString(),
-                            icon = Icons.Default.Star
-                        )
-                        StatItem(
-                            label = "Exercises",
-                            value = prsByExercise.size.toString(),
-                            icon = Icons.Default.Check
-                        )
-                        StatItem(
-                            label = "Max Per Cable",
-                            value = formatWeight(
-                                personalRecords.maxOfOrNull { it.weightPerCableKg } ?: 0f,
-                                weightUnit
-                            ),
-                            icon = Icons.Default.Star
-                        )
-                    }
-                }
-            }
-        }
-
-        // Total Volume Over Time Chart
-        if (allWorkoutSessions.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.medium)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.TrendingUp,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text(
-                                "Total Volume Over Time",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        TotalVolumeChart(
-                            workoutSessions = allWorkoutSessions,
-                            weightUnit = weightUnit,
-                            formatWeight = formatWeight,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-        }
-
         // Personal Records List (ranked by weight)
         if (prsByExercise.isNotEmpty()) {
-            item {
-                Text(
-                    "Personal Bests",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(Spacing.small))
-            }
-
             // Get ranked PRs (highest weight per exercise)
             val rankedPrs = prsByExercise.toList()
                 .sortedByDescending { (_, prs) -> prs.maxOf { it.weightPerCableKg } }
