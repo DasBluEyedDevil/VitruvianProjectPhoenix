@@ -371,6 +371,7 @@ fun ExerciseEditBottomSheet(
                     onRepsChange = viewModel::updateReps,
                     onWeightChange = viewModel::updateWeight,
                     onDurationChange = viewModel::updateDuration,
+                    onRestChange = viewModel::updateRestTime,
                     onAddSet = viewModel::addSet,
                     onDeleteSet = viewModel::deleteSet
                 )
@@ -488,6 +489,7 @@ fun SetsConfiguration(
     onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
     onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
     onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
+    onRestChange: (String, Int) -> Unit, // Per-set rest time
     onAddSet: () -> Unit,
     onDeleteSet: (Int) -> Unit
 ) {
@@ -516,6 +518,7 @@ fun SetsConfiguration(
                     onRepsChange = { newReps -> onRepsChange(setConfig.id, newReps) },
                     onWeightChange = { newWeight -> onWeightChange(setConfig.id, newWeight) },
                     onDurationChange = { newDuration -> onDurationChange(setConfig.id, newDuration) },
+                    onRestChange = { newRest -> onRestChange(setConfig.id, newRest) },
                     onDelete = { onDeleteSet(index) } // Still use index for deletion since it removes by position
                 )
             }
@@ -547,6 +550,7 @@ fun SetRow(
     onRepsChange: (Int?) -> Unit,  // Changed to nullable for AMRAP support
     onWeightChange: (Float) -> Unit,
     onDurationChange: (Int) -> Unit,
+    onRestChange: (Int) -> Unit,  // Per-set rest time
     onDelete: () -> Unit
 ) {
     Card(
@@ -728,6 +732,18 @@ fun SetRow(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Rest Time picker (per-set)
+            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                value = setConfig.restSeconds,
+                onValueChange = onRestChange,
+                range = 10..300,
+                label = if (setConfig.setNumber == 1) "Rest Time" else "",
+                suffix = "sec",
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
