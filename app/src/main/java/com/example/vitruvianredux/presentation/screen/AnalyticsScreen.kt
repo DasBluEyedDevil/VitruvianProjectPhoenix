@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Analytics screen with three tabs: History, Personal Bests, and Trends.
+ * Analytics screen with three tabs: Dashboard, Trends, and History.
  * Provides comprehensive view of workout data and progress.
  */
 @Composable
@@ -48,6 +48,7 @@ fun AnalyticsScreen(
     themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
     val workoutHistory by viewModel.workoutHistory.collectAsState()
+    val groupedWorkoutHistory by viewModel.groupedWorkoutHistory.collectAsState()
     val personalRecords by viewModel.allPersonalRecords.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
@@ -119,20 +120,20 @@ fun AnalyticsScreen(
                 Tab(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                    text = { Text("History") },
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Workout history") }
+                    text = { Text("Dashboard") },
+                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard overview") }
                 )
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    text = { Text("Personal Bests") },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Personal records") }
+                    text = { Text("Trends") },
+                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = "Workout trends") }
                 )
                 Tab(
                     selected = pagerState.currentPage == 2,
                     onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
-                    text = { Text("Trends") },
-                    icon = { Icon(Icons.Default.Info, contentDescription = "Workout trends") }
+                    text = { Text("History") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Workout history") }
                 )
             }
 
@@ -142,27 +143,28 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 when (page) {
-                    0 -> HistoryTab(
+                    0 -> DashboardTab(
+                        viewModel = viewModel,
+                        personalRecords = personalRecords,
                         workoutHistory = workoutHistory,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    1 -> TrendsTab(
+                        personalRecords = personalRecords,
+                        exerciseRepository = viewModel.exerciseRepository,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    2 -> HistoryTab(
+                        groupedWorkoutHistory = groupedWorkoutHistory,
                         weightUnit = weightUnit,
                         formatWeight = viewModel::formatWeight,
                         onDeleteWorkout = { viewModel.deleteWorkout(it) },
                         exerciseRepository = viewModel.exerciseRepository,
                         onRefresh = { /* Workout history refreshes automatically via StateFlow */ },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    1 -> PersonalBestsTab(
-                        personalRecords = personalRecords,
-                        exerciseRepository = viewModel.exerciseRepository,
-                        weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    2 -> TrendsTab(
-                        personalRecords = personalRecords,
-                        exerciseRepository = viewModel.exerciseRepository,
-                        weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -354,6 +356,241 @@ fun AnalyticsScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             shape = MaterialTheme.shapes.medium
         )
+    }
+}
+
+/**
+ * Dashboard tab - shows key statistics, calendar heatmap, and muscle group visualization.
+ */
+@Composable
+fun DashboardTab(
+    viewModel: MainViewModel,
+    personalRecords: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
+    workoutHistory: List<WorkoutSession>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    modifier: Modifier = Modifier
+) {
+    val completedWorkouts by viewModel.completedWorkouts.collectAsState()
+    val workoutStreak by viewModel.workoutStreak.collectAsState()
+    val allWorkoutSessions by viewModel.allWorkoutSessions.collectAsState()
+
+    // Calculate total volume (weight * reps)
+    val totalVolume = remember(allWorkoutSessions) {
+        allWorkoutSessions.sumOf { session ->
+            (session.weightPerCableKg * session.totalReps * 2).toDouble() // *2 for both cables
+        }.toFloat()
+    }
+
+    // Fetch exercise repository for muscle group calculations
+    val exerciseRepository = viewModel.exerciseRepository
+
+    // Calculate muscle group distribution
+    val muscleGroupCounts = remember { mutableStateMapOf<String, Int>() }
+    LaunchedEffect(personalRecords) {
+        val counts = mutableMapOf<String, Int>()
+        personalRecords.groupBy { it.exerciseId }.forEach { (exerciseId, _) ->
+            val exercise = withContext(Dispatchers.IO) {
+                try {
+                    exerciseRepository.getExerciseById(exerciseId)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            exercise?.muscleGroups?.split(",")?.forEach { group ->
+                val trimmedGroup = group.trim()
+                if (trimmedGroup.isNotBlank()) {
+                    counts[trimmedGroup] = counts.getOrDefault(trimmedGroup, 0) + 1
+                }
+            }
+        }
+        muscleGroupCounts.clear()
+        muscleGroupCounts.putAll(counts)
+    }
+
+    LazyColumn(
+        modifier = modifier.padding(Spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+    ) {
+        item {
+            Text(
+                "Dashboard",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(Spacing.small))
+        }
+
+        // Key Statistics - 2x2 Grid
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                StatCard(
+                    label = "Total Workouts",
+                    value = completedWorkouts.toString(),
+                    icon = Icons.Default.FitnessCenter,
+                    modifier = Modifier.weight(1f)
+                )
+                StatCard(
+                    label = "Workout Streak",
+                    value = "$workoutStreak days",
+                    icon = Icons.Default.LocalFireDepartment,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                StatCard(
+                    label = "Total Volume",
+                    value = formatWeight(totalVolume, weightUnit),
+                    icon = Icons.Default.TrendingUp,
+                    modifier = Modifier.weight(1f)
+                )
+                StatCard(
+                    label = "Total PRs",
+                    value = personalRecords.size.toString(),
+                    icon = Icons.Default.Star,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // Calendar Heatmap Placeholder
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.medium)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text(
+                            "Workout Consistency",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                    Text(
+                        "Calendar heatmap coming soon",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Muscle Group Distribution
+        if (personalRecords.isNotEmpty() && muscleGroupCounts.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Accessibility,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text(
+                                "Muscle Group Distribution",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        MuscleGroupDistributionChart(
+                            muscleGroupCounts = muscleGroupCounts,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Stat card for the dashboard.
+ */
+@Composable
+fun StatCard(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .shadow(4.dp, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(Spacing.small))
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
     }
 }
 
@@ -782,6 +1019,45 @@ fun TrendsTab(
                         )
                     }
                 }
+            }
+        }
+
+        // Personal Records List (ranked by weight)
+        if (prsByExercise.isNotEmpty()) {
+            item {
+                Text(
+                    "Personal Bests",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(Spacing.small))
+            }
+
+            // Get ranked PRs (highest weight per exercise)
+            val rankedPrs = prsByExercise.toList()
+                .sortedByDescending { (_, prs) -> prs.maxOf { it.weightPerCableKg } }
+
+            items(rankedPrs.size) { index ->
+                val (exerciseId, prs) = rankedPrs[index]
+                val bestPr = prs.maxWith(compareBy({ it.weightPerCableKg }, { it.reps }))
+                val exerciseName = exerciseNames[exerciseId] ?: "Loading..."
+                PersonalRecordCard(
+                    rank = index + 1,
+                    exerciseName = exerciseName,
+                    pr = bestPr,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(Spacing.medium))
+                Text(
+                    "Progression Details",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(Spacing.small))
             }
         }
 
