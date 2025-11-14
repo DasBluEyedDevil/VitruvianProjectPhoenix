@@ -24,6 +24,7 @@ import no.nordicsemi.android.ble.data.Data
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -141,6 +142,10 @@ class VitruvianBleManager(
             }
             Timber.d("=== End Service Discovery ===")
 
+            // DIAGNOSTIC: Try to read firmware version from Device Information Service (DIS)
+            // This is NON-BLOCKING and purely for logging/diagnostics
+            tryReadFirmwareVersion(gatt)
+
             // Get the NUS service
             val nusService = gatt.getService(BleConstants.NUS_SERVICE_UUID)
             if (nusService == null) {
@@ -216,6 +221,106 @@ class VitruvianBleManager(
             Timber.d("Collected ${workoutCmdCharacteristics.size} workout command characteristics")
 
             return true
+        }
+
+        /**
+         * Try to read firmware version from Device Information Service (DIS)
+         * This is purely diagnostic - failures are logged but don't affect connection
+         *
+         * @param gatt The GATT instance with discovered services
+         */
+        private fun tryReadFirmwareVersion(gatt: BluetoothGatt) {
+            try {
+                // Device Information Service UUID (standard BLE service)
+                val DIS_SERVICE_UUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb")
+                val FIRMWARE_REVISION_UUID = UUID.fromString("00002a26-0000-1000-8000-00805f9b34fb")
+                val SOFTWARE_REVISION_UUID = UUID.fromString("00002a28-0000-1000-8000-00805f9b34fb")
+                val MODEL_NUMBER_UUID = UUID.fromString("00002a24-0000-1000-8000-00805f9b34fb")
+
+                // Try to get Device Information Service
+                val deviceInfoService = gatt.getService(DIS_SERVICE_UUID)
+                if (deviceInfoService == null) {
+                    Timber.d("Device Information Service (DIS) not available - cannot read firmware version")
+                    return
+                }
+
+                Timber.d("Device Information Service found - attempting to read firmware/model info...")
+
+                // Try to read firmware revision (most important for diagnostics)
+                val firmwareChar = deviceInfoService.getCharacteristic(FIRMWARE_REVISION_UUID)
+                if (firmwareChar != null) {
+                    readCharacteristic(firmwareChar)
+                        .with { _, data ->
+                            try {
+                                val firmwareVersion = data.getStringValue(0) ?: "Unknown"
+                                Timber.i("╔════════════════════════════════════════╗")
+                                Timber.i("║  🔧 FIRMWARE VERSION: $firmwareVersion")
+                                Timber.i("╚════════════════════════════════════════╝")
+
+                                // Log to connection logger for user reports
+                                connectionLogger?.log(
+                                    eventType = "FIRMWARE_DETECTED",
+                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                                    deviceName = currentDeviceName,
+                                    deviceAddress = currentDeviceAddress,
+                                    message = "Firmware Version: $firmwareVersion"
+                                )
+                            } catch (e: Exception) {
+                                Timber.w("Failed to parse firmware version: ${e.message}")
+                            }
+                        }
+                        .fail { _, status ->
+                            Timber.d("Failed to read firmware version (status: $status) - this is OK, continuing")
+                        }
+                        .enqueue()
+                } else {
+                    Timber.d("Firmware revision characteristic not found in DIS")
+                }
+
+                // Try to read model number (helpful for identifying device variant)
+                val modelChar = deviceInfoService.getCharacteristic(MODEL_NUMBER_UUID)
+                if (modelChar != null) {
+                    readCharacteristic(modelChar)
+                        .with { _, data ->
+                            try {
+                                val modelNumber = data.getStringValue(0) ?: "Unknown"
+                                Timber.i("📱 Model Number: $modelNumber")
+                                connectionLogger?.log(
+                                    eventType = "MODEL_NUMBER",
+                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                                    deviceName = currentDeviceName,
+                                    deviceAddress = currentDeviceAddress,
+                                    message = "Model: $modelNumber"
+                                )
+                            } catch (e: Exception) {
+                                Timber.w("Failed to parse model number: ${e.message}")
+                            }
+                        }
+                        .fail { _, _ -> /* Silently ignore */ }
+                        .enqueue()
+                }
+
+                // Try to read software revision (additional diagnostic info)
+                val softwareChar = deviceInfoService.getCharacteristic(SOFTWARE_REVISION_UUID)
+                if (softwareChar != null) {
+                    readCharacteristic(softwareChar)
+                        .with { _, data ->
+                            try {
+                                val softwareVersion = data.getStringValue(0) ?: "Unknown"
+                                Timber.i("💾 Software Revision: $softwareVersion")
+                            } catch (e: Exception) {
+                                Timber.w("Failed to parse software revision: ${e.message}")
+                            }
+                        }
+                        .fail { _, _ -> /* Silently ignore */ }
+                        .enqueue()
+                }
+
+            } catch (e: Exception) {
+                // Catch any unexpected errors to ensure this diagnostic code never crashes
+                Timber.w("Exception while trying to read firmware version: ${e.message}")
+                Timber.w("This is OK - firmware detection is optional")
+            }
         }
 
         @Deprecated("Using deprecated Nordic BLE API")
