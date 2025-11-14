@@ -263,11 +263,12 @@ fun JustLiftScreen(
                                 .padding(Spacing.medium)
                         ) {
                             val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-                            val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
+                            val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
+                            val weightStep = if (weightUnit == WeightUnit.LB) 0.5f else 0.25f
                             val displayWeight = if (weightUnit == WeightUnit.LB) {
-                                (weightPerCable * 2.20462f).toInt() // Convert kg to lbs
+                                weightPerCable * 2.20462f // Convert kg to lbs
                             } else {
-                                weightPerCable.toInt()
+                                weightPerCable
                             }
 
                             CompactNumberPicker(
@@ -276,10 +277,11 @@ fun JustLiftScreen(
                                     weightPerCable = if (weightUnit == WeightUnit.LB) {
                                         newValue / 2.20462f
                                     } else {
-                                        newValue.toFloat()
+                                        newValue
                                     }
                                 },
-                                range = 1..maxWeight,
+                                range = 1f..maxWeight,
+                                step = weightStep,
                                 label = "Weight per Cable",
                                 suffix = weightSuffix,
                                 modifier = Modifier.fillMaxWidth()

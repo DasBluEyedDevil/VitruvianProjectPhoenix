@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
  * Room database for workout history
  *
  * Version history:
+ * - v17: Added setRestSeconds (JSON array) to routine_exercises for per-set rest time configuration
  * - v16: Added routineSessionId and routineName to workout_sessions for grouping routine sets in history
  * - v15: Added exerciseId to workout_sessions for PR tracking
  * - v14: Added ConnectionLogEntity for Bluetooth connection debugging
@@ -34,7 +35,7 @@ import androidx.room.TypeConverters
         ProgramDayEntity::class,
         ConnectionLogEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
