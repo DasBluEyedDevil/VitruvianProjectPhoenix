@@ -23,17 +23,9 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.component.rememberShapeComponent
-import com.patrykandpatrick.vico.compose.common.component.rememberTextComponent
-import com.patrykandpatrick.vico.compose.common.of
-import com.patrykandpatrick.vico.compose.common.shader.color
-import com.patrykandpatrick.vico.compose.common.shape.rounded
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.common.Dimensions
-import com.patrykandpatrick.vico.core.common.shader.DynamicShader
-import com.patrykandpatrick.vico.core.common.shape.Shape
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,8 +39,6 @@ fun WeightProgressionChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
-
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
     remember(prs) {
@@ -64,26 +54,9 @@ fun WeightProgressionChart(
 
     CartesianChartHost(
         chart = rememberCartesianChart(
-            rememberLineCartesianLayer(
-                lines = listOf(
-                    com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineSpec(
-                        shader = DynamicShader.color(primaryColor),
-                        backgroundShader = DynamicShader.color(androidx.compose.ui.graphics.Color(primaryColor).copy(alpha = 0.2f).toArgb())
-                    )
-                )
-            ),
-            startAxis = rememberStartAxis(
-                label = rememberTextComponent(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    margins = Dimensions.of(end = 8.dp)
-                )
-            ),
-            bottomAxis = rememberBottomAxis(
-                label = rememberTextComponent(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    margins = Dimensions.of(top = 8.dp)
-                )
-            ),
+            rememberLineCartesianLayer(),
+            startAxis = rememberStartAxis(),
+            bottomAxis = rememberBottomAxis(),
         ),
         modelProducer = modelProducer,
         modifier = modifier.height(250.dp)
@@ -187,8 +160,6 @@ fun WorkoutModeDistributionChart(
     personalRecords: List<PersonalRecord>,
     modifier: Modifier = Modifier
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
-
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
     remember(personalRecords) {
@@ -204,25 +175,9 @@ fun WorkoutModeDistributionChart(
 
     CartesianChartHost(
         chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(
-                columns = listOf(
-                    com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnSpec(
-                        shader = DynamicShader.color(primaryColor)
-                    )
-                )
-            ),
-            startAxis = rememberStartAxis(
-                label = rememberTextComponent(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    margins = Dimensions.of(end = 8.dp)
-                )
-            ),
-            bottomAxis = rememberBottomAxis(
-                label = rememberTextComponent(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    margins = Dimensions.of(top = 8.dp)
-                )
-            ),
+            rememberColumnCartesianLayer(),
+            startAxis = rememberStartAxis(),
+            bottomAxis = rememberBottomAxis(),
         ),
         modelProducer = modelProducer,
         modifier = modifier.height(250.dp)
@@ -239,8 +194,6 @@ fun TotalVolumeChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
-
     val modelProducer = remember { CartesianChartModelProducer.build() }
 
     remember(workoutSessions) {
@@ -266,26 +219,9 @@ fun TotalVolumeChart(
 
     CartesianChartHost(
         chart = rememberCartesianChart(
-            rememberLineCartesianLayer(
-                lines = listOf(
-                    com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineSpec(
-                        shader = DynamicShader.color(primaryColor),
-                        backgroundShader = DynamicShader.color(androidx.compose.ui.graphics.Color(primaryColor).copy(alpha = 0.2f).toArgb())
-                    )
-                )
-            ),
-            startAxis = rememberStartAxis(
-                label = rememberTextComponent(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    margins = Dimensions.of(end = 8.dp)
-                )
-            ),
-            bottomAxis = rememberBottomAxis(
-                label = rememberTextComponent(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    margins = Dimensions.of(top = 8.dp)
-                )
-            ),
+            rememberLineCartesianLayer(),
+            startAxis = rememberStartAxis(),
+            bottomAxis = rememberBottomAxis(),
         ),
         modelProducer = modelProducer,
         modifier = modifier.height(250.dp)
