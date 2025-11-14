@@ -392,11 +392,11 @@ fun StatItem(label: String, value: String) {
     }
 }
 
-private fun formatSetReps(setReps: List<Int>): String {
+private fun formatSetReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
 
     // Group consecutive identical reps
-    val groups = mutableListOf<Pair<Int, Int>>() // Pair of (count, reps)
+    val groups = mutableListOf<Pair<Int, String>>() // Pair of (count, reps as string)
     var currentReps = setReps[0]
     var currentCount = 1
 
@@ -404,14 +404,14 @@ private fun formatSetReps(setReps: List<Int>): String {
         if (setReps[i] == currentReps) {
             currentCount++
         } else {
-            groups.add(Pair(currentCount, currentReps))
+            groups.add(Pair(currentCount, currentReps?.toString() ?: "AMRAP"))
             currentReps = setReps[i]
             currentCount = 1
         }
     }
-    groups.add(Pair(currentCount, currentReps))
+    groups.add(Pair(currentCount, currentReps?.toString() ?: "AMRAP"))
 
-    // Format as "3×10, 2×8"
+    // Format as "3×10, 2×8" or "3×AMRAP"
     return groups.joinToString(", ") { (count, reps) -> "${count}×${reps}" }
 }
 
@@ -423,7 +423,7 @@ private fun formatDate(timestamp: Long): String {
 private fun formatEstimatedDuration(routine: Routine): String {
     // Estimate: 30 seconds per rep + rest time
     val totalSets = routine.exercises.sumOf { it.setReps.size }
-    val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.sum() }
+    val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.filterNotNull().sum() }
     val totalRestSeconds = routine.exercises.sumOf { it.restSeconds * (it.setReps.size - 1) }
     
     val estimatedSeconds = (totalReps * 3) + totalRestSeconds // 3 seconds per rep estimate

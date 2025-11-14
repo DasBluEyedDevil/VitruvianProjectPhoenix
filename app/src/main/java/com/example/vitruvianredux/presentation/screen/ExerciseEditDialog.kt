@@ -482,7 +482,7 @@ fun SetsConfiguration(
     weightSuffix: String,
     maxWeight: Int,
     isEchoMode: Boolean = false,
-    onRepsChange: (String, Int) -> Unit, // Changed: setId instead of index
+    onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
     onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
     onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
     onAddSet: () -> Unit,
@@ -539,7 +539,7 @@ fun SetRow(
     maxWeight: Int,
     isEchoMode: Boolean = false,
     canDelete: Boolean,
-    onRepsChange: (Int) -> Unit,
+    onRepsChange: (Int?) -> Unit,  // Changed to nullable for AMRAP support
     onWeightChange: (Float) -> Unit,
     onDurationChange: (Int) -> Unit,
     onDelete: () -> Unit
@@ -581,6 +581,29 @@ fun SetRow(
 
             Spacer(modifier = Modifier.height(Spacing.small))
 
+            // AMRAP toggle (only shown for REPS mode, not DURATION)
+            if (setMode == SetMode.REPS) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Switch(
+                        checked = setConfig.reps == null,
+                        onCheckedChange = { isAMRAP ->
+                            onRepsChange(if (isAMRAP) null else 10)
+                        }
+                    )
+                    Text(
+                        text = "AMRAP (As Many Reps As Possible)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (setConfig.reps == null) FontWeight.Bold else FontWeight.Normal,
+                        color = if (setConfig.reps == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.small))
+            }
+
             // Reps/Duration and Weight (or Bodyweight label) side-by-side
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -589,14 +612,40 @@ fun SetRow(
                 // Reps or Duration picker
                 Box(modifier = Modifier.weight(1f)) {
                     if (setMode == SetMode.REPS) {
-                        com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                            value = setConfig.reps,
-                            onValueChange = onRepsChange,
-                            range = 1..50,
-                            label = if (setConfig.setNumber == 1) "Reps" else "",
-                            suffix = "reps",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Show reps picker ONLY if NOT AMRAP
+                        if (setConfig.reps != null) {
+                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                                value = setConfig.reps,
+                                onValueChange = onRepsChange,
+                                range = 1..50,
+                                label = if (setConfig.setNumber == 1) "Reps" else "",
+                                suffix = "reps",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            // Show AMRAP label when reps is null
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Target",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
+                                Text(
+                                    "AMRAP",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     } else {
                         com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                             value = setConfig.duration,
