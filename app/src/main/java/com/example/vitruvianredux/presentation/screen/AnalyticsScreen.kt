@@ -14,6 +14,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -36,6 +37,8 @@ import com.example.vitruvianredux.presentation.components.MuscleGroupDistributio
 import com.example.vitruvianredux.presentation.components.charts.MuscleGroupCircleChart
 import com.example.vitruvianredux.presentation.components.WorkoutModeDistributionChart
 import com.example.vitruvianredux.presentation.components.TotalVolumeChart
+import com.example.vitruvianredux.presentation.components.ExercisePRTracker
+import com.example.vitruvianredux.presentation.components.*
 import com.example.vitruvianredux.presentation.screen.InsightsTab
 import com.example.vitruvianredux.util.CsvExporter
 import kotlinx.coroutines.Dispatchers
@@ -101,94 +104,128 @@ fun AnalyticsScreen(
                 .fillMaxSize()
         ) {
             // Tab Row with gradient indicator and swipe support - Material 3 Expressive
-            TabRow(
+            PrimaryTabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
-                contentColor = MaterialTheme.colorScheme.primary,
-                indicator = { tabPositions ->
-                    val currentTab = tabPositions.getOrNull(pagerState.currentPage)
-                    if (currentTab != null) {
-                        Box(
-                            modifier = Modifier
-                                .tabIndicatorOffset(currentTab)
-                                .height(8.dp) // Material 3 Expressive: Thicker indicator (was 6dp)
-                                .shadow(4.dp, RoundedCornerShape(4.dp)) // Material 3 Expressive: More shadow (was 2dp, 3dp)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
-                                    ),
-                                    RoundedCornerShape(4.dp) // Material 3 Expressive: More rounded (was 3dp)
-                                )
-                        )
-                    }
+                contentColor = MaterialTheme.colorScheme.onSurface, // Use theme-aware color instead of hard-coded primary
+                indicator = {
+                    TabRowDefaults.PrimaryIndicator(
+                        modifier = Modifier
+                            .tabIndicatorOffset(pagerState.currentPage)
+                            .height(8.dp), // Material 3 Expressive: Thicker indicator
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             ) {
                 Tab(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                    text = { Text("Dashboard") },
-                    icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard overview") }
+                    text = { 
+                        Text(
+                            "Progression",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            color = if (pagerState.currentPage == 0)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    icon = { 
+                        Icon(
+                            Icons.AutoMirrored.Filled.TrendingUp, 
+                            contentDescription = "PR progression",
+                            tint = if (pagerState.currentPage == 0)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 )
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    text = { Text("Progression") },
-                    icon = { Icon(Icons.Default.TrendingUp, contentDescription = "PR progression") }
+                    text = { 
+                        Text(
+                            "History",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            color = if (pagerState.currentPage == 1)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    icon = { 
+                        Icon(
+                            Icons.AutoMirrored.Filled.List, 
+                            contentDescription = "Workout history",
+                            tint = if (pagerState.currentPage == 1)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 )
                 Tab(
                     selected = pagerState.currentPage == 2,
                     onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
-                    text = { Text("History") },
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Workout history") }
-                )
-                Tab(
-                    selected = pagerState.currentPage == 3,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(3) } },
-                    text = { Text("Insights") },
-                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "Analytics insights") }
+                    text = { 
+                        Text(
+                            "Insights",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            color = if (pagerState.currentPage == 2)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    icon = { 
+                        Icon(
+                            Icons.Default.AutoAwesome, 
+                            contentDescription = "Analytics insights",
+                            tint = if (pagerState.currentPage == 2)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 )
             }
 
             // Tab Content with Swipe Support
-            HorizontalPager(
-                state = pagerState,
-                pageCount = 4, // Material 3 Expressive: Added Insights tab
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (page) {
-                    0 -> DashboardTab(
-                        viewModel = viewModel,
-                        personalRecords = personalRecords,
-                        workoutHistory = workoutHistory,
-                        weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    1 -> ProgressionTab(
-                        personalRecords = personalRecords,
-                        exerciseRepository = viewModel.exerciseRepository,
-                        weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    2 -> HistoryTab(
-                        groupedWorkoutHistory = groupedWorkoutHistory,
-                        weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
-                        onDeleteWorkout = { viewModel.deleteWorkout(it) },
-                        exerciseRepository = viewModel.exerciseRepository,
-                        onRefresh = { /* Workout history refreshes automatically via StateFlow */ },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    3 -> InsightsTab(
-                        prs = personalRecords,
-                        workoutSessions = workoutHistory,
-                        weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            when (page) {
+                0 -> ProgressionTab(
+                    personalRecords = personalRecords,
+                    exerciseRepository = viewModel.exerciseRepository,
+                    weightUnit = weightUnit,
+                    formatWeight = viewModel::formatWeight,
+                    modifier = Modifier.fillMaxSize()
+                )
+                1 -> HistoryTab(
+                    groupedWorkoutHistory = groupedWorkoutHistory,
+                    weightUnit = weightUnit,
+                    formatWeight = viewModel::formatWeight,
+                    onDeleteWorkout = { viewModel.deleteWorkout(it) },
+                    exerciseRepository = viewModel.exerciseRepository,
+                    onRefresh = { /* Workout history refreshes automatically via StateFlow */ },
+                    modifier = Modifier.fillMaxSize()
+                )
+                2 -> InsightsTab(
+                    prs = personalRecords,
+                    workoutSessions = workoutHistory,
+                    exerciseRepository = viewModel.exerciseRepository,
+                    weightUnit = weightUnit,
+                    formatWeight = viewModel::formatWeight,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
+        }
         }
 
         // Auto-connect UI overlays (same as other screens)
@@ -464,41 +501,25 @@ fun DashboardTab(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    val completedWorkouts by viewModel.completedWorkouts.collectAsState()
     val workoutStreak by viewModel.workoutStreak.collectAsState()
     val allWorkoutSessions by viewModel.allWorkoutSessions.collectAsState()
-
-    // Calculate total volume (weight * reps)
-    val totalVolume = remember(allWorkoutSessions) {
-        allWorkoutSessions.sumOf { session ->
-            (session.weightPerCableKg * session.totalReps * 2).toDouble() // *2 for both cables
-        }.toFloat()
-    }
-
-    // Fetch exercise repository for muscle group calculations
     val exerciseRepository = viewModel.exerciseRepository
 
-    // Calculate muscle group distribution
-    val muscleGroupCounts = remember { mutableStateMapOf<String, Int>() }
+    // Fetch exercise names
+    val exerciseNames = remember { mutableStateMapOf<String, String>() }
     LaunchedEffect(personalRecords) {
-        val counts = mutableMapOf<String, Int>()
-        personalRecords.groupBy { it.exerciseId }.forEach { (exerciseId, _) ->
-            val exercise = withContext(Dispatchers.IO) {
-                try {
-                    exerciseRepository.getExerciseById(exerciseId)
-                } catch (e: Exception) {
-                    null
+        personalRecords.map { it.exerciseId }.distinct().forEach { exerciseId ->
+            if (!exerciseNames.containsKey(exerciseId)) {
+                val exercise = withContext(Dispatchers.IO) {
+                    try {
+                        exerciseRepository.getExerciseById(exerciseId)
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-            }
-            exercise?.muscleGroups?.split(",")?.forEach { group ->
-                val trimmedGroup = group.trim()
-                if (trimmedGroup.isNotBlank()) {
-                    counts[trimmedGroup] = counts.getOrDefault(trimmedGroup, 0) + 1
-                }
+                exerciseNames[exerciseId] = exercise?.name ?: "Unknown Exercise"
             }
         }
-        muscleGroupCounts.clear()
-        muscleGroupCounts.putAll(counts)
     }
 
     LazyColumn(
@@ -511,229 +532,138 @@ fun DashboardTab(
         item {
             Text(
                 "Dashboard",
-                style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineSmall)
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(Spacing.small))
         }
 
-        // Key Statistics - 2x2 Grid
+        // **NEW: Strength Score - Hero Metric**
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                StatCard(
-                    label = "Total Workouts",
-                    value = completedWorkouts.toString(),
-                    icon = Icons.Default.FitnessCenter,
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    label = "Workout Streak",
-                    value = "$workoutStreak days",
-                    icon = Icons.Default.LocalFireDepartment,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            StrengthScoreCard(
+                personalRecords = personalRecords,
+                workoutSessions = allWorkoutSessions,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
+        // **NEW: This Week Stats**
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                StatCard(
-                    label = "Total Volume",
-                    value = formatWeight(totalVolume, weightUnit),
-                    icon = Icons.Default.TrendingUp,
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    label = "Total Sets",
-                    value = allWorkoutSessions.size.toString(),
-                    icon = Icons.Default.FitnessCenter,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            ThisWeekStatsCard(
+                workoutSessions = allWorkoutSessions,
+                personalRecords = personalRecords,
+                weightUnit = weightUnit,
+                formatWeight = formatWeight,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
-        // Calendar Heatmap
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.medium)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.CalendarToday,
-                            contentDescription = "Workout consistency calendar",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp) // Material 3 Expressive: Larger icon (was 24dp)
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.small))
-                        Text(
-                            "Workout Consistency",
-                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(Spacing.medium))
-                    WorkoutCalendarHeatmap(
-                        workoutSessions = allWorkoutSessions,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
-
-        // Muscle Group Distribution - Material 3 Expressive
-        if (personalRecords.isNotEmpty() && muscleGroupCounts.isNotEmpty()) {
+        // Workout Streak (Keep - it's motivating)
+        if (workoutStreak != null && workoutStreak!! > 0) {
             item {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    ),
+                    shape = RoundedCornerShape(20.dp)
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(Spacing.medium)
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.Default.Accessibility,
-                                contentDescription = "Muscle group distribution",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp) // Material 3 Expressive: Larger icon (was 24dp)
+                                Icons.Default.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = Color(0xFFFF6B00),
+                                modifier = Modifier.size(40.dp)
                             )
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text(
-                                "Muscle Group Distribution",
-                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        // Use Material 3 Expressive Circle Chart instead of MPAndroidChart
-                        if (muscleGroupCounts.isNotEmpty()) {
-                            MuscleGroupCircleChart(
-                                data = muscleGroupCounts.map { (group, count) ->
-                                    group to count.toFloat()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                onSegmentClick = { group, value ->
-                                    // Optional: Handle segment click for drill-down
-                                }
-                            )
-                        } else {
-                            // Fallback to MPAndroidChart if needed for compatibility
-                            MuscleGroupDistributionChart(
-                                muscleGroupCounts = muscleGroupCounts,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "${workoutStreak} Day Streak!",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Keep it going!",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Total Volume Over Time Chart - Material 3 Expressive
-        if (allWorkoutSessions.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.medium)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.BarChart,
-                                contentDescription = "Total volume over time",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp) // Material 3 Expressive: Larger icon (was 24dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text(
-                                "Volume Over Time",
-                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        TotalVolumeChart(
-                            workoutSessions = allWorkoutSessions,
-                            weightUnit = weightUnit,
-                            formatWeight = formatWeight,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-        }
-
-        // Workout Mode Distribution Chart - Material 3 Expressive
+        // **NEW: Recent PRs**
         if (personalRecords.isNotEmpty()) {
             item {
+                RecentPRsCard(
+                    personalRecords = personalRecords,
+                    exerciseNames = exerciseNames,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        // **NEW: Top Exercises**
+        if (personalRecords.isNotEmpty()) {
+            item {
+                TopExercisesCard(
+                    personalRecords = personalRecords,
+                    exerciseNames = exerciseNames,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        // Empty state
+        if (personalRecords.isEmpty()) {
+            item {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ),
+                    shape = RoundedCornerShape(20.dp)
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(Spacing.medium)
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Equalizer,
-                                contentDescription = "Workout mode distribution",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp) // Material 3 Expressive: Larger icon (was 24dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text(
-                                "Workout Mode Distribution",
-                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        WorkoutModeDistributionChart(
-                            personalRecords = personalRecords,
-                            modifier = Modifier.fillMaxWidth()
+                        Icon(
+                            Icons.Default.FitnessCenter,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Start Your Journey",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Complete workouts to see your progress and PRs here",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -947,99 +877,63 @@ fun ProgressionTab(
     }
 
 
-    LazyColumn(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(Spacing.medium),
-        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
-        item {
-            Text(
-                "Personal Records",
-                style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineSmall)
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(Spacing.small))
-        }
+        // **Exercise-specific PR Tracker - The ONLY feature on this tab**
+        ExercisePRTracker(
+            personalRecords = personalRecords,
+            exerciseNames = exerciseNames,
+            weightUnit = weightUnit,
+            formatWeight = formatWeight,
+            modifier = Modifier.fillMaxWidth()
+        )
 
-        // Personal Records List (ranked by weight)
+        // Summary stats at bottom
         if (prsByExercise.isNotEmpty()) {
-            // Get ranked PRs (highest weight per exercise)
-            val rankedPrs = prsByExercise.toList()
-                .sortedByDescending { (_, prs) -> prs.maxOf { it.weightPerCableKg } }
-
-            items(rankedPrs.size) { index ->
-                val (exerciseId, prs) = rankedPrs[index]
-                val bestPr = prs.maxWith(compareBy({ it.weightPerCableKg }, { it.reps }))
-                val exerciseName = exerciseNames[exerciseId] ?: "Loading..."
-                PersonalRecordCard(
-                    rank = index + 1,
-                    exerciseName = exerciseName,
-                    pr = bestPr,
-                    weightUnit = weightUnit,
-                    formatWeight = formatWeight
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(Spacing.medium))
-                Text(
-                    "Progression Details",
-                    style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was titleLarge)
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(Spacing.small))
-            }
-        }
-
-        if (prsByExercise.isEmpty()) {
-            item {
-                Card(
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.large),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = "No PR history available",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(56.dp) // Material 3 Expressive: Larger icon (was 48dp)
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.small))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "No PR history yet",
-                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                            fontWeight = FontWeight.Bold
+                            text = prsByExercise.size.toString(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            "Complete workouts to track your progress over time",
-                            style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
+                            text = "Exercises",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-        } else {
-            // Show PR progression by exercise
-            prsByExercise.forEach { (exerciseId, prs) ->
-                item {
-                    ExerciseProgressionCard(
-                        exerciseName = exerciseNames[exerciseId] ?: "Loading...",
-                        prs = prs,
-                        weightUnit = weightUnit,
-                        formatWeight = formatWeight
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = personalRecords.size.toString(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                        Text(
+                            text = "Total PRs",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

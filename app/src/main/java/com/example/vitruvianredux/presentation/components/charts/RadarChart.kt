@@ -28,6 +28,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.size
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -61,6 +64,13 @@ fun RadarChart(
         label to animatedValue
     }
 
+    val colorScheme = MaterialTheme.colorScheme
+    val outlineColor = colorScheme.outline
+    val primaryColor = colorScheme.primary
+    val primaryContainerColor = colorScheme.primaryContainer
+    val onSurfaceColor = colorScheme.onSurface
+    val onSurfaceVariantColor = colorScheme.onSurfaceVariant
+    
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -77,7 +87,7 @@ fun RadarChart(
         for (i in 1..5) {
             val gridRadius = radius * (i / 5f)
             drawCircle(
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                color = outlineColor.copy(alpha = 0.2f),
                 radius = gridRadius,
                 center = Offset(centerX, centerY),
                 style = Stroke(width = 1.dp.toPx())
@@ -91,7 +101,7 @@ fun RadarChart(
             val y = centerY + radius * sin(angle).toFloat()
             
             drawLine(
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                color = outlineColor.copy(alpha = 0.3f),
                 start = Offset(centerX, centerY),
                 end = Offset(x, y),
                 strokeWidth = 1.dp.toPx()
@@ -118,14 +128,14 @@ fun RadarChart(
         // Fill area with gradient-like effect
         drawPath(
             path = dataPath,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+            color = primaryContainerColor.copy(alpha = 0.4f),
             style = Fill
         )
 
         // Draw data outline
         drawPath(
             path = dataPath,
-            color = MaterialTheme.colorScheme.primary,
+            color = primaryColor,
             style = Stroke(
                 width = 4.dp.toPx(), // Material 3 Expressive: Thicker line
                 cap = androidx.compose.ui.graphics.StrokeCap.Round,
@@ -141,12 +151,12 @@ fun RadarChart(
             val y = centerY + distance * sin(angle).toFloat()
             
             drawCircle(
-                color = MaterialTheme.colorScheme.primary,
+                color = primaryColor,
                 radius = 8.dp.toPx(), // Material 3 Expressive: Larger points
                 center = Offset(x, y)
             )
             drawCircle(
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = primaryContainerColor,
                 radius = 4.dp.toPx(),
                 center = Offset(x, y)
             )
@@ -162,7 +172,7 @@ fun RadarChart(
                 
                 drawContext.canvas.nativeCanvas.apply {
                     val textPaint = Paint().apply {
-                        color = MaterialTheme.colorScheme.onSurface.toArgb()
+                        color = onSurfaceColor.toArgb()
                         textSize = 12.sp.toPx()
                         textAlign = Paint.Align.CENTER
                         isFakeBoldText = true

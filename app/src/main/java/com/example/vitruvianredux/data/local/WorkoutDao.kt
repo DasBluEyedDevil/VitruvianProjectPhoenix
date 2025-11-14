@@ -38,6 +38,12 @@ interface WorkoutDao {
     @Query("SELECT * FROM workout_metrics WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun getMetricsForSession(sessionId: String): Flow<List<WorkoutMetricEntity>>
     
+    @Query("SELECT * FROM workout_metrics WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    suspend fun getMetricsForSessionSync(sessionId: String): List<WorkoutMetricEntity>
+    
+    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSessionEntity>
+    
     @Query("DELETE FROM workout_metrics WHERE sessionId = :sessionId")
     suspend fun deleteMetricsForSession(sessionId: String)
     

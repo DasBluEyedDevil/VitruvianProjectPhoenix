@@ -3,9 +3,12 @@ package com.example.vitruvianredux.presentation.screen
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -92,6 +95,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -297,8 +301,9 @@ fun WorkoutCard(
 
 /**
  * Compact Active Program Card for HomeScreen.
- * Shows today's workout exercises with simple format.
+ * Shows today's workout exercises with expandable/collapsible format.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeActiveProgramCard(
     program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
@@ -308,6 +313,8 @@ fun HomeActiveProgramCard(
     kgToDisplay: (Float, WeightUnit) -> Float,
     onStartRoutine: (String) -> Unit
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
+    
     val today = LocalDate.now().dayOfWeek
     // Use Java DayOfWeek.value directly (MONDAY=1, TUESDAY=2, ..., SUNDAY=7)
     // This matches what ProgramBuilder saves: day.value
@@ -322,10 +329,10 @@ fun HomeActiveProgramCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-        border = BorderStroke(2.dp, Color(0xFFF5F3FF)) // Material 3 Expressive: Thicker border (was 1dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, Color(0xFFF5F3FF))
     ) {
         Column(
             modifier = Modifier
@@ -335,65 +342,111 @@ fun HomeActiveProgramCard(
             if (hasWorkoutToday) {
                 // Show exercises if routine is loaded
                 todayRoutine?.let { routine ->
-                    // Show all exercises with simple format: "Exercise Name | X Reps | X lbs | Mode"
-                    routine.exercises.forEach { exercise ->
-                        // Display all set reps (e.g., "10, 10, 12")
-                        val repsText = exercise.setReps.joinToString(", ")
-
-                        // Display individual set weights if they differ, otherwise show single weight
-                        val weightDisplay = if (exercise.setWeightsPerCableKg.isNotEmpty()) {
-                            val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit) }
-                            val minWeight = displayWeights.minOrNull() ?: 0f
-                            val maxWeight = displayWeights.maxOrNull() ?: 0f
-                            val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-
-                            if (minWeight == maxWeight) {
-                                "%.1f %s".format(minWeight, weightSuffix)
-                            } else {
-                                "%.1f-%.1f %s".format(minWeight, maxWeight, weightSuffix)
-                            }
-                        } else {
-                            formatWeight(exercise.weightPerCableKg, weightUnit)
-                        }
-
-                        // Get mode display name
-                        val modeText = exercise.workoutType.displayName
-
+                    // Expand/Collapse button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isExpanded = !isExpanded },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "${exercise.exercise.name} | $repsText | $weightDisplay | $modeText",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = if (isExpanded) "Today's Routine" else "Today's Routine",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                    
+                    if (isExpanded) {
+                        // Expanded view: Show all exercises with detailed format
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+                        ) {
+                            routine.exercises.forEach { exercise ->
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
+                                ) {
+                                    // Exercise name
+                                    Text(
+                                        text = exercise.exercise.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    
+                                    // Mode
+                                    Text(
+                                        text = "(${exercise.workoutType.displayName} Mode)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    
+                                    // Sets with weights
+                                    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+                                    exercise.setReps.forEachIndexed { index, reps ->
+                                        val weight = if (exercise.setWeightsPerCableKg.isNotEmpty() && index < exercise.setWeightsPerCableKg.size) {
+                                            kgToDisplay(exercise.setWeightsPerCableKg[index], weightUnit)
+                                        } else {
+                                            kgToDisplay(exercise.weightPerCableKg, weightUnit)
+                                        }
+                                        Text(
+                                            text = "${reps ?: "AMRAP"} x ${"%.1f".format(weight)} $weightSuffix",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Collapsed view: Show only exercise names
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
+                        ) {
+                            routine.exercises.forEach { exercise ->
+                                Text(
+                                    text = exercise.exercise.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
 
-                Spacer(modifier = Modifier.height(Spacing.medium))
+                    Spacer(modifier = Modifier.height(Spacing.medium))
 
-                // Start Routine button - Material 3 Expressive styling
-                Button(
-                    onClick = { onStartRoutine(todayRoutineId) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp), // Material 3 Expressive: Taller button (was default)
-                    enabled = todayRoutine != null,
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
-                        pressedElevation = 2.dp
-                    )
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Start routine")
-                    Spacer(modifier = Modifier.width(Spacing.small))
-                    Text(
-                        "Start Routine",
-                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
-                        fontWeight = FontWeight.Bold
-                    )
+                    // Start Routine button
+                    Button(
+                        onClick = { onStartRoutine(todayRoutineId) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        enabled = todayRoutine != null,
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 4.dp,
+                            pressedElevation = 2.dp
+                        )
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Start routine")
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text(
+                            "Start Routine",
+                            style = MaterialTheme.typography.titleMedium, // Reduced from titleLarge
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             } else {
                 // Rest day

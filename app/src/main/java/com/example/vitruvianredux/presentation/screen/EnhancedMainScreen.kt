@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +64,17 @@ fun EnhancedMainScreen(
             currentRoute = backStackEntry.destination.route ?: NavigationRoutes.Home.route
         }
     }
+    
+    // Helper function to determine if current route is a "Workouts" route
+    val isWorkoutsRoute = remember(currentRoute) {
+        currentRoute == NavigationRoutes.Home.route ||
+        currentRoute == NavigationRoutes.JustLift.route ||
+        currentRoute == NavigationRoutes.SingleExercise.route ||
+        currentRoute == NavigationRoutes.DailyRoutines.route ||
+        currentRoute == NavigationRoutes.ActiveWorkout.route ||
+        currentRoute == NavigationRoutes.WeeklyPrograms.route ||
+        currentRoute.startsWith(NavigationRoutes.ProgramBuilder.route.replace("/{programId}", ""))
+    }
 
     // Request BLE permissions (REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward notifications to BLE device!)
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -82,23 +94,39 @@ fun EnhancedMainScreen(
     val permissionState = rememberMultiplePermissionsState(permissions)
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // Let components handle their own insets
         topBar = {
             TopAppBar(
+                modifier = Modifier.statusBarsPadding(), // Handle status bar for edge-to-edge
                 title = {
-                    Text(
-                        text = "Vitruvian: Project Phoenix",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFFCC9600), // Darker Gold
-                                    Color(0xFFCC5428), // Darker Orange
-                                    Color(0xFFB22D00), // Darker Red-Orange
-                                    Color(0xFFCC9600)  // Darker Gold
-                                )
-                            ),
-                            fontWeight = FontWeight.Bold
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        Text(
+                            text = "Vitruvian",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFEAB308), // Bright Gold
+                                        Color(0xFFF59E0B)  // Amber
+                                    )
+                                ),
+                                fontWeight = FontWeight.Bold
+                            )
                         )
-                    )
+                        Text(
+                            text = "Project Phoenix",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFF97316), // Orange
+                                        Color(0xFFEF4444)  // Red
+                                    )
+                                ),
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (isDarkMode) TopAppBarDark else TopAppBarLight,
@@ -180,10 +208,19 @@ fun EnhancedMainScreen(
             )
         },
         bottomBar = {
-            BottomAppBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.height(80.dp)
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
+                Column(
+                    modifier = Modifier.navigationBarsPadding()
+                ) {
+                    BottomAppBar(
+                        containerColor = Color.Transparent,
+                        modifier = Modifier.height(80.dp),
+                        tonalElevation = 0.dp
+                    ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround,
@@ -213,7 +250,7 @@ fun EnhancedMainScreen(
                                 tint = if (currentRoute == NavigationRoutes.Analytics.route)
                                     MaterialTheme.colorScheme.primary
                                 else
-                                    MaterialTheme.colorScheme.outline
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
@@ -222,7 +259,7 @@ fun EnhancedMainScreen(
                             color = if (currentRoute == NavigationRoutes.Analytics.route)
                                 MaterialTheme.colorScheme.primary
                             else
-                                MaterialTheme.colorScheme.outline,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Visible
                         )
@@ -252,7 +289,10 @@ fun EnhancedMainScreen(
                                 }
                             },
                             modifier = Modifier.size(64.dp),
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            containerColor = if (isWorkoutsRoute)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceContainerHighest,
                             elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
                         ) {
                             Column(
@@ -260,22 +300,30 @@ fun EnhancedMainScreen(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    imageVector = if (currentRoute == NavigationRoutes.Home.route)
+                                    imageVector = if (isWorkoutsRoute)
                                         Icons.Filled.Home
                                     else
                                         Icons.Outlined.Home,
                                     contentDescription = "Workouts",
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(28.dp),
+                                    tint = if (isWorkoutsRoute)
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     "Workouts",
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isWorkoutsRoute)
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                         // Active indicator
-                        if (currentRoute == NavigationRoutes.Home.route) {
+                        if (isWorkoutsRoute) {
                             Spacer(modifier = Modifier.height(4.dp))
                             androidx.compose.foundation.Canvas(
                                 modifier = Modifier
@@ -314,7 +362,7 @@ fun EnhancedMainScreen(
                                 tint = if (currentRoute == NavigationRoutes.Settings.route)
                                     MaterialTheme.colorScheme.primary
                                 else
-                                    MaterialTheme.colorScheme.outline
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
@@ -323,7 +371,7 @@ fun EnhancedMainScreen(
                             color = if (currentRoute == NavigationRoutes.Settings.route)
                                 MaterialTheme.colorScheme.primary
                             else
-                                MaterialTheme.colorScheme.outline,
+                                MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Visible
                         )
@@ -340,6 +388,8 @@ fun EnhancedMainScreen(
                                 )
                             }
                         }
+                    }
+                }
                     }
                 }
             }
@@ -410,9 +460,10 @@ fun PermissionRequestScreen(
         Spacer(modifier = Modifier.height(Spacing.medium))
         Text(
             "Bluetooth permissions required",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(Spacing.small))
         Text(
@@ -422,7 +473,7 @@ fun PermissionRequestScreen(
                     append(" Notification permission is needed to keep workouts running in the background.")
                 }
             },
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )

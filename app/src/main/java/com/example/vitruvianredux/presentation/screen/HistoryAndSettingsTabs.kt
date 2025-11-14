@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -996,75 +998,70 @@ fun SettingsTab(
             }
         }
 
-    // Color Scheme Section - Material 3 Expressive
+    // Color Scheme Section - Compact with visual previews
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+            .shadow(8.dp, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
     ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.medium)
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
-                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .size(48.dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp))
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1))
                             ),
-                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                            RoundedCornerShape(20.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) { 
                     Icon(
                         Icons.Default.ColorLens,
-                        contentDescription = "Theme color settings",
+                        contentDescription = "LED color scheme",
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                        modifier = Modifier.size(24.dp)
                     ) 
                 }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "LED Color Scheme",
-                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-                Spacer(modifier = Modifier.height(Spacing.small))
-
-                val colorSchemes = listOf(
-                    "Blue", "Green", "Teal", "Yellow", "Pink", "Red", "Purple"
-                )
-
-                colorSchemes.forEachIndexed { index, name ->
-                    TextButton(
-                        onClick = { onColorSchemeChange(index) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(name, color = MaterialTheme.colorScheme.onSurface)
-                            Icon(
-                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = "Navigate to settings",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+            
+            Spacer(modifier = Modifier.height(Spacing.medium))
+            
+            // Compact horizontal scrollable color chips
+            val colorSchemes = com.example.vitruvianredux.util.ColorSchemes.ALL
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                colorSchemes.forEachIndexed { index, scheme ->
+                    ColorSchemeChip(
+                        scheme = scheme,
+                        isSelected = false, // TODO: Add selected state tracking if needed
+                        onClick = { onColorSchemeChange(index) }
+                    )
                 }
             }
         }
+    }
 
     // Data Management Section - Material 3 Expressive
     Card(
@@ -1397,4 +1394,105 @@ private fun formatDuration(millis: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
+}
+
+/**
+ * Compact color scheme chip with visual preview
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ColorSchemeChip(
+    scheme: com.example.vitruvianredux.util.ColorScheme,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "scale"
+    )
+    
+    // Convert RGB colors to Compose Color
+    val composeColors = scheme.colors.map { rgbColor ->
+        Color(rgbColor.r, rgbColor.g, rgbColor.b)
+    }
+    
+    // Create gradient from the color scheme
+    val gradientColors = if (composeColors.size >= 2) {
+        composeColors
+    } else {
+        listOf(composeColors.firstOrNull() ?: Color.Gray, Color.DarkGray)
+    }
+    
+    Surface(
+        onClick = {
+            isPressed = true
+            onClick()
+        },
+        modifier = Modifier
+            .width(80.dp)
+            .height(100.dp)
+            .scale(scale)
+            .shadow(if (isSelected) 8.dp else 4.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = if (isSelected) 3.dp else 2.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        ),
+        tonalElevation = if (isSelected) 4.dp else 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(gradientColors),
+                    RoundedCornerShape(16.dp)
+                )
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Color preview (gradient box)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(
+                        Brush.horizontalGradient(gradientColors),
+                        RoundedCornerShape(8.dp)
+                    )
+            )
+            
+            // Color name
+            Text(
+                text = scheme.name,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            
+            // Selected indicator
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+    
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
 }

@@ -31,6 +31,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -70,6 +74,9 @@ fun GaugeChart(
         else -> MaterialTheme.colorScheme.tertiary
     }
 
+    val surfaceContainerHighestColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    
     Column(modifier = modifier) {
         Canvas(
             modifier = Modifier
@@ -83,7 +90,7 @@ fun GaugeChart(
         
         // Background arc (unfilled portion)
         drawArc(
-            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            color = surfaceContainerHighestColor,
             startAngle = 180f,
             sweepAngle = 180f,
             useCenter = false,
@@ -133,7 +140,7 @@ fun GaugeChart(
         // Center text
         drawContext.canvas.nativeCanvas.apply {
             val textPaint = Paint().apply {
-                color = MaterialTheme.colorScheme.onSurface.toArgb()
+                color = onSurfaceColor.toArgb()
                 textSize = 48.sp.toPx()
                 textAlign = Paint.Align.CENTER
                 isFakeBoldText = true

@@ -53,6 +53,7 @@ fun WorkoutTab(
     hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
     loadedRoutine: Routine? = null,
     currentExerciseIndex: Int = 0,
+    autoplayEnabled: Boolean = false,
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     formatWeight: (Float, WeightUnit) -> String,
@@ -451,7 +452,8 @@ fun WorkoutTab(
                     repCount = workoutState.repCount,
                     weightUnit = weightUnit,
                     formatWeight = formatWeight,
-                    onContinue = onProceedFromSummary
+                    onContinue = onProceedFromSummary,
+                    autoplayEnabled = autoplayEnabled
                 )
             }
             is WorkoutState.Resting -> {
@@ -582,7 +584,7 @@ fun WorkoutSetupDialog(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
+                            .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                         colors = OutlinedTextFieldDefaults.colors()
                     )
                     ExposedDropdownMenu(
@@ -1116,7 +1118,7 @@ fun ModeSubSelectorDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
+                                    .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
                                 expanded = showEchoLevelMenu,
@@ -1149,7 +1151,7 @@ fun ModeSubSelectorDialog(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
+                                    .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
                                 expanded = showEccentricMenu,

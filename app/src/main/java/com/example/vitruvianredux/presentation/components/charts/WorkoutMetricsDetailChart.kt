@@ -11,18 +11,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.common.rememberM3VicoTheme
+import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import com.patrykandpatrick.vico.core.cartesian.axis.Axis
-import com.patrykandpatrick.vico.core.cartesian.axis.AxisPosition
-import com.patrykandpatrick.vico.core.cartesian.axis.formatter.DecimalValueFormatter
-import com.patrykandpatrick.vico.core.component.shape.shapes.fullyRoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.size
 import kotlin.math.abs
 
 /**
@@ -111,32 +111,7 @@ fun WorkoutMetricsDetailChart(
     ProvideVicoTheme(rememberM3VicoTheme()) {
         CartesianChartHost(
             chart = rememberCartesianChart(
-                rememberLineCartesianLayer(
-                    pointSize = 6.dp, // Material 3 Expressive: Larger points
-                    pointShape = fullyRoundedCornerShape(),
-                    lineThickness = 3.dp, // Material 3 Expressive: Thicker lines
-                    lineColor = MaterialTheme.colorScheme.primary,
-                    pointColor = MaterialTheme.colorScheme.primary,
-                    pointOuterColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                ),
-                startAxis = rememberStartAxis(
-                    tickLength = 8.dp, // Material 3 Expressive: Longer ticks
-                    axisLineThickness = 2.dp, // Material 3 Expressive: Thicker axis lines
-                    guideline = Axis.Guideline(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                        thickness = 1.dp
-                    ),
-                    valueFormatter = DecimalValueFormatter(maxFractionDigits = 1)
-                ),
-                bottomAxis = rememberBottomAxis(
-                    tickLength = 8.dp,
-                    axisLineThickness = 2.dp,
-                    guideline = Axis.Guideline(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                        thickness = 1.dp
-                    ),
-                    valueFormatter = DecimalValueFormatter(maxFractionDigits = 0)
-                )
+                rememberLineCartesianLayer()
             ),
             modelProducer = modelProducer,
             modifier = modifier

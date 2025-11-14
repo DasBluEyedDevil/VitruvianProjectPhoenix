@@ -20,7 +20,9 @@ import javax.inject.Inject
 @HiltViewModel
 class ConnectionLogsViewModel @Inject constructor(
     private val connectionLogDao: ConnectionLogDao,
-    private val connectionLogger: ConnectionLogger
+    private val connectionLogger: ConnectionLogger,
+    private val workoutRepository: com.example.vitruvianredux.data.repository.WorkoutRepository,
+    private val exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository
 ) : ViewModel() {
 
     // Filter state
@@ -177,8 +179,186 @@ class ConnectionLogsViewModel @Inject constructor(
             appendLine("═══════════════════════════════════════════════════════")
             appendLine("                  END OF LOG")
             appendLine("═══════════════════════════════════════════════════════")
+            appendLine()
+            
+            // Add force data from most recent 3 exercises
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine("         FORCE DATA - RECENT 3 EXERCISES")
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine()
+            
+            try {
+                val recentSessions = workoutRepository.getRecentSessionsSync(limit = 3)
+                if (recentSessions.isEmpty()) {
+                    appendLine("No recent workout sessions found.")
+                } else {
+                    recentSessions.forEachIndexed { index, session ->
+                        val exerciseName = session.exerciseId?.let { exerciseId ->
+                            try {
+                                exerciseRepository.getExerciseById(exerciseId)?.name ?: exerciseId
+                            } catch (e: Exception) {
+                                exerciseId
+                            }
+                        } ?: "Unknown Exercise"
+                        
+                        appendLine("─── Exercise ${index + 1}: $exerciseName ───")
+                        appendLine("Session ID: ${session.id}")
+                        appendLine("Timestamp: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date(session.timestamp))}")
+                        appendLine("Mode: ${session.mode}")
+                        appendLine("Total Reps: ${session.totalReps}")
+                        appendLine()
+                        
+                        val metrics = workoutRepository.getMetricsForSessionSync(session.id)
+                        if (metrics.isEmpty()) {
+                            appendLine("  No metrics data available for this session.")
+                        } else {
+                            val repForceData = analyzeRepForces(metrics)
+                            if (repForceData.isEmpty()) {
+                                appendLine("  Unable to detect rep boundaries from position data.")
+                            } else {
+                                repForceData.forEachIndexed { repIndex, repData ->
+                                    appendLine("  Rep ${repIndex + 1}:")
+                                    appendLine("    Upward Force (Cable A): min=${"%.2f".format(repData.upwardMinA)} kg, max=${"%.2f".format(repData.upwardMaxA)} kg, avg=${"%.2f".format(repData.upwardAvgA)} kg")
+                                    appendLine("    Upward Force (Cable B): min=${"%.2f".format(repData.upwardMinB)} kg, max=${"%.2f".format(repData.upwardMaxB)} kg, avg=${"%.2f".format(repData.upwardAvgB)} kg")
+                                    appendLine("    Downward Force (Cable A): min=${"%.2f".format(repData.downwardMinA)} kg, max=${"%.2f".format(repData.downwardMaxA)} kg, avg=${"%.2f".format(repData.downwardAvgA)} kg")
+                                    appendLine("    Downward Force (Cable B): min=${"%.2f".format(repData.downwardMinB)} kg, max=${"%.2f".format(repData.downwardMaxB)} kg, avg=${"%.2f".format(repData.downwardAvgB)} kg")
+                                    appendLine("    Total Upward Force: min=${"%.2f".format(repData.upwardMinA + repData.upwardMinB)} kg, max=${"%.2f".format(repData.upwardMaxA + repData.upwardMaxB)} kg")
+                                    appendLine("    Total Downward Force: min=${"%.2f".format(repData.downwardMinA + repData.downwardMinB)} kg, max=${"%.2f".format(repData.downwardMaxA + repData.downwardMaxB)} kg")
+                                }
+                            }
+                        }
+                        appendLine()
+                    }
+                }
+            } catch (e: Exception) {
+                appendLine("Error retrieving force data: ${e.message}")
+                appendLine()
+            }
+            
+            appendLine("═══════════════════════════════════════════════════════")
+            appendLine("              END OF FORCE DATA SECTION")
+            appendLine("═══════════════════════════════════════════════════════")
         }
     }
+    
+    /**
+     * Analyze metrics to extract rep-level force data
+     * Detects reps by position changes (upward = position increasing, downward = position decreasing)
+     */
+    private fun analyzeRepForces(metrics: List<com.example.vitruvianredux.domain.model.WorkoutMetric>): List<RepForceData> {
+        if (metrics.size < 10) return emptyList() // Need minimum data points
+        
+        val repForceDataList = mutableListOf<RepForceData>()
+        
+        // Use average position (A and B) to detect movement direction
+        val avgPositions = metrics.map { (it.positionA + it.positionB) / 2 }
+        
+        // Find rep boundaries by detecting position peaks and valleys
+        val repBoundaries = mutableListOf<Int>()
+        repBoundaries.add(0) // Start of first rep
+        
+        for (i in 1 until avgPositions.size - 1) {
+            val prevPos = avgPositions[i - 1]
+            val currPos = avgPositions[i]
+            val nextPos = avgPositions[i + 1]
+            
+            // Detect peak (local maximum) - end of upward phase, start of downward
+            if (currPos > prevPos && currPos > nextPos && currPos > 500) {
+                repBoundaries.add(i)
+            }
+            // Detect valley (local minimum) - end of downward phase, start of upward
+            else if (currPos < prevPos && currPos < nextPos && currPos > 0) {
+                repBoundaries.add(i)
+            }
+        }
+        
+        repBoundaries.add(metrics.size - 1) // End of last rep
+        
+        // Process each rep
+        for (repIndex in 0 until repBoundaries.size - 1) {
+            val repStart = repBoundaries[repIndex]
+            val repEnd = repBoundaries[repIndex + 1]
+            
+            if (repEnd - repStart < 5) continue // Skip very short segments
+            
+            val repMetrics = metrics.subList(repStart, repEnd)
+            val repPositions = repMetrics.map { (it.positionA + it.positionB) / 2 }
+            
+            if (repPositions.isEmpty()) continue
+            
+            // Split rep into upward (concentric) and downward (eccentric) phases
+            val upwardMetrics = mutableListOf<com.example.vitruvianredux.domain.model.WorkoutMetric>()
+            val downwardMetrics = mutableListOf<com.example.vitruvianredux.domain.model.WorkoutMetric>()
+            
+            var wasIncreasing = false
+            for (i in 1 until repMetrics.size) {
+                val prevPos = repPositions[i - 1]
+                val currPos = repPositions[i]
+                val isIncreasing = currPos > prevPos
+                
+                if (isIncreasing && !wasIncreasing) {
+                    // Transition to upward phase
+                    upwardMetrics.add(repMetrics[i])
+                } else if (!isIncreasing && wasIncreasing) {
+                    // Transition to downward phase
+                    downwardMetrics.add(repMetrics[i])
+                } else if (isIncreasing) {
+                    upwardMetrics.add(repMetrics[i])
+                } else {
+                    downwardMetrics.add(repMetrics[i])
+                }
+                
+                wasIncreasing = isIncreasing
+            }
+            
+            // Calculate force statistics for upward phase
+            val upwardForcesA = upwardMetrics.map { it.loadA }
+            val upwardForcesB = upwardMetrics.map { it.loadB }
+            
+            // Calculate force statistics for downward phase
+            val downwardForcesA = downwardMetrics.map { it.loadA }
+            val downwardForcesB = downwardMetrics.map { it.loadB }
+            
+            if (upwardForcesA.isNotEmpty() || downwardForcesA.isNotEmpty()) {
+                repForceDataList.add(
+                    RepForceData(
+                        upwardMinA = upwardForcesA.minOrNull() ?: 0f,
+                        upwardMaxA = upwardForcesA.maxOrNull() ?: 0f,
+                        upwardAvgA = upwardForcesA.average().toFloat(),
+                        upwardMinB = upwardForcesB.minOrNull() ?: 0f,
+                        upwardMaxB = upwardForcesB.maxOrNull() ?: 0f,
+                        upwardAvgB = upwardForcesB.average().toFloat(),
+                        downwardMinA = downwardForcesA.minOrNull() ?: 0f,
+                        downwardMaxA = downwardForcesA.maxOrNull() ?: 0f,
+                        downwardAvgA = downwardForcesA.average().toFloat(),
+                        downwardMinB = downwardForcesB.minOrNull() ?: 0f,
+                        downwardMaxB = downwardForcesB.maxOrNull() ?: 0f,
+                        downwardAvgB = downwardForcesB.average().toFloat()
+                    )
+                )
+            }
+        }
+        
+        return repForceDataList
+    }
+    
+    /**
+     * Data class for rep-level force statistics
+     */
+    private data class RepForceData(
+        val upwardMinA: Float,
+        val upwardMaxA: Float,
+        val upwardAvgA: Float,
+        val upwardMinB: Float,
+        val upwardMaxB: Float,
+        val upwardAvgB: Float,
+        val downwardMinA: Float,
+        val downwardMaxA: Float,
+        val downwardAvgA: Float,
+        val downwardMinB: Float,
+        val downwardMaxB: Float,
+        val downwardAvgB: Float
+    )
 
     /**
      * Clean up old logs (older than specified days)

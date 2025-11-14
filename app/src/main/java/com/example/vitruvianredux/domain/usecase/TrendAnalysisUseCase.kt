@@ -28,27 +28,27 @@ class TrendAnalysisUseCase {
 
         val sumX = xValues.sum()
         val sumY = yValues.sum()
-        val sumXY = xValues.zip(yValues).sumOf { (x, y) -> x * y }
-        val sumX2 = xValues.sumOf { it * it }
-        val sumY2 = yValues.sumOf { it * it }
+        val sumXY = xValues.zip(yValues).sumOf { (x, y) -> (x * y).toDouble() }
+        val sumX2 = xValues.sumOf { (it * it).toDouble() }
+        val sumY2 = yValues.sumOf { (it * it).toDouble() }
 
         val slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
         val intercept = (sumY - slope * sumX) / n
 
         // Calculate R-squared (coefficient of determination)
         val yMean = sumY / n
-        val ssTotal = yValues.sumOf { (it - yMean).pow(2) }
+        val ssTotal = yValues.sumOf { (it - yMean).pow(2).toDouble() }.toFloat()
         val ssResidual = xValues.zip(yValues).sumOf { (x, y) ->
             val predicted = slope * x + intercept
-            (y - predicted).pow(2)
-        }
-        val rSquared = if (ssTotal > 0) {
+            (y - predicted).pow(2).toDouble()
+        }.toFloat()
+        val rSquared = if (ssTotal.compareTo(0f) > 0) {
             1f - (ssResidual / ssTotal)
         } else {
             0f
         }
 
-        return LinearRegressionResult(slope, intercept, rSquared, yMean)
+        return LinearRegressionResult(slope.toFloat(), intercept.toFloat(), rSquared, yMean)
     }
 
     /**
