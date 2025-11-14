@@ -38,6 +38,28 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.ceil
 
+/**
+ * Sealed class hierarchy for workout history items
+ * Allows displaying both single workout sessions and grouped routine sessions
+ */
+sealed class HistoryItem {
+    abstract val timestamp: Long
+}
+
+data class SingleSessionHistoryItem(val session: WorkoutSession) : HistoryItem() {
+    override val timestamp: Long = session.timestamp
+}
+
+data class GroupedRoutineHistoryItem(
+    val routineSessionId: String,
+    val routineName: String,
+    val sessions: List<WorkoutSession>,
+    val totalDuration: Long,
+    val totalReps: Int,
+    val exerciseCount: Int,
+    override val timestamp: Long
+) : HistoryItem()
+
 @HiltViewModel
 class MainViewModel @Inject constructor(
     application: Application,
@@ -162,6 +184,27 @@ class MainViewModel @Inject constructor(
                 initialValue = emptyList()
             )
 
+    // Grouped workout history for the History tab
+    val groupedWorkoutHistory: StateFlow<List<HistoryItem>> = allWorkoutSessions.map { sessions ->
+        val groupedByRoutine = sessions.filter { it.routineSessionId != null }
+            .groupBy { it.routineSessionId!! }
+            .map { (id, sessionList) ->
+                GroupedRoutineHistoryItem(
+                    routineSessionId = id,
+                    routineName = sessionList.first().routineName ?: "Unnamed Routine",
+                    sessions = sessionList.sortedBy { it.timestamp },
+                    totalDuration = sessionList.sumOf { it.duration },
+                    totalReps = sessionList.sumOf { it.totalReps },
+                    exerciseCount = sessionList.mapNotNull { it.exerciseId }.distinct().count(),
+                    timestamp = sessionList.minOf { it.timestamp }
+                )
+            }
+        val singleSessions = sessions.filter { it.routineSessionId == null }
+            .map { SingleSessionHistoryItem(it) }
+
+        (groupedByRoutine + singleSessions).sortedByDescending { it.timestamp }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // All personal records for analytics
     val allPersonalRecords: StateFlow<List<PersonalRecord>> =
         personalRecordRepository.getAllPRsGrouped()
@@ -257,6 +300,10 @@ class MainViewModel @Inject constructor(
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
     private val collectedMetrics = mutableListOf<WorkoutMetric>()
+
+    // Routine tracking (for grouping sets from the same routine)
+    private var currentRoutineSessionId: String? = null
+    private var currentRoutineName: String? = null
 
     // Auto-stop tracking for Just Lift
     private var autoStopStartTime: Long? = null
@@ -1255,6 +1302,8 @@ class MainViewModel @Inject constructor(
                 _loadedRoutine.value = null  // CRITICAL: Clear routine to prevent infinite loop
                 _currentSetIndex.value = 0
                 _currentExerciseIndex.value = 0
+                currentRoutineSessionId = null
+                currentRoutineName = null
                 repCounter.reset()
                 resetAutoStopState()
                 Timber.d("???????????????????????????????????????????????????")
@@ -1361,7 +1410,9 @@ class MainViewModel @Inject constructor(
             stopAtTop = params.stopAtTop,
             eccentricLoad = eccentricLoad,
             echoLevel = echoLevel,
-            exerciseId = params.selectedExerciseId
+            exerciseId = params.selectedExerciseId,
+            routineSessionId = currentRoutineSessionId,
+            routineName = currentRoutineName
         )
 
         workoutRepository.saveSession(session)
@@ -1558,6 +1609,10 @@ class MainViewModel @Inject constructor(
         _currentExerciseIndex.value = 0
         _currentSetIndex.value = 0
 
+        // Generate a new routine session ID for grouping all sets from this routine
+        currentRoutineSessionId = java.util.UUID.randomUUID().toString()
+        currentRoutineName = routine.name
+
         // Load parameters from first exercise
         val firstExercise = routine.exercises[0]
         val firstSetReps = firstExercise.setReps.firstOrNull() ?: 10
@@ -1686,6 +1741,8 @@ class MainViewModel @Inject constructor(
         _loadedRoutine.value = null
         _currentExerciseIndex.value = 0
         _currentSetIndex.value = 0
+        currentRoutineSessionId = null
+        currentRoutineName = null
         Timber.d("Cleared loaded routine")
     }
 
