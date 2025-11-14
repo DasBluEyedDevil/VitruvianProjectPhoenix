@@ -32,6 +32,7 @@ import com.example.vitruvianredux.ui.theme.Spacing
 import com.example.vitruvianredux.presentation.components.WeightProgressionChart
 import com.example.vitruvianredux.presentation.components.MuscleGroupDistributionChart
 import com.example.vitruvianredux.presentation.components.WorkoutModeDistributionChart
+import com.example.vitruvianredux.presentation.components.TotalVolumeChart
 import com.example.vitruvianredux.util.CsvExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,6 +50,7 @@ fun AnalyticsScreen(
 ) {
     val workoutHistory by viewModel.workoutHistory.collectAsState()
     val groupedWorkoutHistory by viewModel.groupedWorkoutHistory.collectAsState()
+    val allWorkoutSessions by viewModel.allWorkoutSessions.collectAsState()
     val personalRecords by viewModel.allPersonalRecords.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
@@ -153,6 +155,7 @@ fun AnalyticsScreen(
                     )
                     1 -> TrendsTab(
                         personalRecords = personalRecords,
+                        allWorkoutSessions = allWorkoutSessions,
                         exerciseRepository = viewModel.exerciseRepository,
                         weightUnit = weightUnit,
                         formatWeight = viewModel::formatWeight,
@@ -465,7 +468,7 @@ fun DashboardTab(
             }
         }
 
-        // Calendar Heatmap Placeholder
+        // Calendar Heatmap
         item {
             Card(
                 modifier = Modifier
@@ -496,11 +499,10 @@ fun DashboardTab(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    Spacer(modifier = Modifier.height(Spacing.small))
-                    Text(
-                        "Calendar heatmap coming soon",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    WorkoutCalendarHeatmap(
+                        workoutSessions = allWorkoutSessions,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -593,214 +595,6 @@ fun StatCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-        }
-    }
-}
-
-/**
- * Personal Bests tab - shows maximum weight lifted for each exercise.
- */
-@Composable
-fun PersonalBestsTab(
-    personalRecords: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
-    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String,
-    modifier: Modifier = Modifier
-) {
-    // Group PRs by exercise and get exercise names
-    val prsByExercise = remember(personalRecords) {
-        personalRecords.groupBy { it.exerciseId }
-            .mapValues { (_, prs) ->
-                // Get the best PR for this exercise (highest weight, then highest reps)
-                prs.maxWith(compareBy({ it.weightPerCableKg }, { it.reps }))
-            }
-            .toList()
-            .sortedByDescending { (_, pr) -> pr.weightPerCableKg }
-    }
-
-    // Fetch exercise names for display
-    val exerciseNames = remember { mutableStateMapOf<String, String>() }
-    LaunchedEffect(prsByExercise) {
-        prsByExercise.forEach { (exerciseId, _) ->
-            if (!exerciseNames.contains(exerciseId)) {
-                try {
-                    val exercise = exerciseRepository.getExerciseById(exerciseId)
-                    exerciseNames[exerciseId] = exercise?.name ?: "Unknown Exercise"
-                } catch (e: Exception) {
-                    exerciseNames[exerciseId] = "Unknown Exercise"
-                }
-            }
-        }
-    }
-
-    // Calculate muscle group distribution
-    val muscleGroupCounts = remember { mutableStateMapOf<String, Int>() }
-    LaunchedEffect(prsByExercise) {
-        val counts = mutableMapOf<String, Int>()
-        prsByExercise.forEach { (exerciseId, _) ->
-            val exercise = withContext(Dispatchers.IO) {
-                try {
-                    exerciseRepository.getExerciseById(exerciseId)
-                } catch (e: Exception) {
-                    null
-                }
-            }
-            exercise?.muscleGroups?.split(",")?.forEach { group ->
-                val trimmedGroup = group.trim()
-                if (trimmedGroup.isNotBlank()) {
-                    counts[trimmedGroup] = counts.getOrDefault(trimmedGroup, 0) + 1
-                }
-            }
-        }
-        muscleGroupCounts.clear()
-        muscleGroupCounts.putAll(counts)
-    }
-
-    LazyColumn(
-        modifier = modifier.padding(Spacing.medium),
-        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
-    ) {
-        item {
-            Text(
-                "Your Personal Records",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(Spacing.small))
-        }
-
-        // Muscle Group Distribution Chart
-        if (prsByExercise.isNotEmpty() && muscleGroupCounts.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.medium)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text(
-                                "Muscle Group Distribution",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        MuscleGroupDistributionChart(
-                            muscleGroupCounts = muscleGroupCounts,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-
-            // Workout Mode Distribution Chart
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.medium)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Info,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.small))
-                            Text(
-                                "PRs by Workout Mode",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        WorkoutModeDistributionChart(
-                            personalRecords = personalRecords,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-        }
-
-        if (prsByExercise.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.large),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.small))
-                        Text(
-                            "No personal records yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Complete workouts to see your PRs",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        } else {
-            items(prsByExercise.size) { index ->
-                val (exerciseId, pr) = prsByExercise[index]
-                val exerciseName = exerciseNames[exerciseId] ?: "Loading..."
-                PersonalRecordCard(
-                    rank = index + 1,
-                    exerciseName = exerciseName,
-                    pr = pr,
-                    weightUnit = weightUnit,
-                    formatWeight = formatWeight
-                )
-            }
         }
     }
 }
@@ -933,6 +727,7 @@ fun PersonalRecordCard(
 @Composable
 fun TrendsTab(
     personalRecords: List<com.example.vitruvianredux.domain.model.PersonalRecord>,
+    allWorkoutSessions: List<WorkoutSession>,
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
@@ -1022,6 +817,50 @@ fun TrendsTab(
                                 weightUnit
                             ),
                             icon = Icons.Default.Star
+                        )
+                    }
+                }
+            }
+        }
+
+        // Total Volume Over Time Chart
+        if (allWorkoutSessions.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.TrendingUp,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.small))
+                            Text(
+                                "Total Volume Over Time",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        TotalVolumeChart(
+                            workoutSessions = allWorkoutSessions,
+                            weightUnit = weightUnit,
+                            formatWeight = formatWeight,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -1285,4 +1124,141 @@ fun StatItem(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+/**
+ * Calendar heatmap showing workout consistency over the last 12 weeks
+ */
+@Composable
+fun WorkoutCalendarHeatmap(
+    workoutSessions: List<WorkoutSession>,
+    modifier: Modifier = Modifier
+) {
+    // Group workouts by date
+    val workoutsByDate = remember(workoutSessions) {
+        workoutSessions.groupBy { session ->
+            val instant = java.time.Instant.ofEpochMilli(session.timestamp)
+            val date = instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+            date
+        }.mapValues { it.value.size }
+    }
+
+    // Calculate max workouts per day for color intensity
+    val maxWorkoutsPerDay = workoutsByDate.values.maxOrNull() ?: 1
+
+    // Get the last 12 weeks of dates
+    val today = java.time.LocalDate.now()
+    val startDate = today.minusWeeks(11).with(java.time.DayOfWeek.SUNDAY)
+
+    // Group dates by week
+    val weeks = (0..11).map { weekOffset ->
+        val weekStart = startDate.plusWeeks(weekOffset.toLong())
+        (0..6).map { dayOffset ->
+            weekStart.plusDays(dayOffset.toLong())
+        }
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // Legend
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Less",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            // Show 5 levels of intensity
+            (0..4).forEach { level ->
+                val color = when (level) {
+                    0 -> MaterialTheme.colorScheme.surfaceVariant
+                    1 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    2 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    3 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    else -> MaterialTheme.colorScheme.primary
+                }
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(color, RoundedCornerShape(2.dp))
+                )
+                if (level < 4) Spacer(modifier = Modifier.width(2.dp))
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                "More",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Calendar grid
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            weeks.forEach { week ->
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    week.forEach { date ->
+                        val workoutCount = workoutsByDate[date] ?: 0
+                        val color = if (workoutCount == 0) {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        } else {
+                            val intensity = (workoutCount.toFloat() / maxWorkoutsPerDay.toFloat()).coerceIn(0f, 1f)
+                            when {
+                                intensity <= 0.25f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                intensity <= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                intensity <= 0.75f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                else -> MaterialTheme.colorScheme.primary
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(color, RoundedCornerShape(2.dp))
+                        )
+                    }
+                }
+            }
+        }
+
+        // Current streak info
+        Spacer(modifier = Modifier.height(8.dp))
+        val streak = calculateCurrentStreak(workoutsByDate)
+        if (streak > 0) {
+            Text(
+                "🔥 $streak day streak!",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+/**
+ * Calculate current workout streak in days
+ */
+private fun calculateCurrentStreak(workoutsByDate: Map<java.time.LocalDate, Int>): Int {
+    val today = java.time.LocalDate.now()
+    var streak = 0
+    var currentDate = today
+
+    while (workoutsByDate.containsKey(currentDate)) {
+        streak++
+        currentDate = currentDate.minusDays(1)
+    }
+
+    return streak
 }
