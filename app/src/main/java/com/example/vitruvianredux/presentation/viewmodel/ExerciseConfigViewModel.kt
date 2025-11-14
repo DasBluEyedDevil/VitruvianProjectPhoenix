@@ -31,7 +31,8 @@ data class SetConfiguration(
     val setNumber: Int,
     val reps: Int? = 10,  // Nullable to support AMRAP (null = AMRAP)
     val weightPerCable: Float = 15.0f,
-    val duration: Int = 30
+    val duration: Int = 30,
+    val restSeconds: Int = 60 // Add this
 )
 
 @HiltViewModel
@@ -106,25 +107,27 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
 
         val initialSets = exercise.setReps.mapIndexed { index, reps ->
             val perSetWeightKg = exercise.setWeightsPerCableKg.getOrNull(index) ?: exercise.weightPerCableKg
+            val perSetRest = exercise.setRestSeconds.getOrNull(index) ?: 60
             SetConfiguration(
                 id = UUID.randomUUID().toString(),
                 setNumber = index + 1,
                 reps = reps ?: 10, // AMRAP sets have null reps, default to 10 for display
                 weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
-                duration = exercise.duration ?: 30
+                duration = exercise.duration ?: 30,
+                restSeconds = perSetRest
             )
         }.ifEmpty {
             listOf(
-                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 1, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit)),
-                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 2, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit)),
-                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 3, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit))
+                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 1, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit), restSeconds = 60),
+                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 2, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit), restSeconds = 60),
+                SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 3, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit), restSeconds = 60)
             )
         }
         _sets.value = initialSets
 
         _selectedMode.value = exercise.workoutType.toWorkoutMode()
         _weightChange.value = kgToDisplay(exercise.progressionKg, weightUnit).toInt()
-        _rest.value = exercise.restSeconds.coerceIn(0, 300)
+        _rest.value = exercise.setRestSeconds.firstOrNull()?.coerceIn(0, 300) ?: 60 // Use first rest time or default
         _notes.value = exercise.notes
         _eccentricLoad.value = exercise.eccentricLoad
         _echoLevel.value = exercise.echoLevel
@@ -184,7 +187,8 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             setNumber = _sets.value.size + 1,
             reps = lastSet?.reps ?: 10,
             weightPerCable = lastSet?.weightPerCable ?: kgToDisplay(15f, weightUnit),
-            duration = lastSet?.duration ?: 30
+            duration = lastSet?.duration ?: 30,
+            restSeconds = lastSet?.restSeconds ?: 60
         )
         _sets.value = _sets.value + newSet
     }
@@ -208,7 +212,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             eccentricLoad = _eccentricLoad.value,
             echoLevel = _echoLevel.value,
             progressionKg = displayToKg(_weightChange.value.toFloat(), weightUnit),
-            restSeconds = _rest.value,
+            setRestSeconds = _sets.value.map { it.restSeconds }, // Convert per-set rest times
             notes = _notes.value.trim(),
             duration = if (_setMode.value == SetMode.DURATION) _sets.value.firstOrNull()?.duration else null
         )
