@@ -64,12 +64,19 @@ Critical UX issue that affects how users track their workout progress. Database 
 
 ---
 
-#### 2. **Smaller Weight Increments (0.5lb)**
+#### 2. **Smaller Weight Increments (0.5lb)** ✅ **COMPLETE**
 **Request ID:** 6913cadae985d74c66ac4be4
 **Votes:** 1 | **Comments:** 0
+**Completed:** 2025-11-14
 
 **Description:**
 Allow users to set weight increments in 0.5lb steps instead of only 1lb increments.
+
+**Status:** ✅ **IMPLEMENTED**
+**Implementation:** `CompactNumberPicker.kt`, `JustLiftScreen.kt`, `ExerciseEditDialog.kt`
+- Hardware supports 0.5lb precision (32-bit Float, 0.01kg precision from device)
+- UI updated with 0.5lb step for lbs, 0.25kg step for kg
+- Smart formatting shows whole numbers without decimals
 
 **Feasibility:** ✅ **VERY HIGH** (Low complexity, quick win)
 
@@ -99,12 +106,21 @@ Need to verify that Vitruvian hardware actually supports 0.5lb increments. If pr
 
 ---
 
-#### 3. **Add Option for Each Set to Have Its Own Rest Time**
+#### 3. **Add Option for Each Set to Have Its Own Rest Time** ✅ **COMPLETE**
 **Request ID:** 69141e67405831b93d0e0f63
 **Votes:** 0 | **Comments:** 0
+**Completed:** 2025-11-14
 
 **Description:**
 Allow each set within an exercise to have a custom rest timer. Enables programming warm-up sets (shorter rest) and working sets (longer rest) as one workout.
+
+**Status:** ✅ **IMPLEMENTED**
+**Implementation:** Database v17, `Routine.kt`, `ExerciseEditDialog.kt`, `MainViewModel.kt`
+- Database migration v16 → v17 complete (MIGRATION_16_17)
+- Added `setRestSeconds: List<Int>` to RoutineExercise model
+- UI shows per-set rest time pickers (10-300 seconds range)
+- Workflow uses correct rest time after each completed set
+- Helper methods with 60s fallback for safety
 
 **Feasibility:** ✅ **HIGH** (Medium complexity, requires DB migration)
 
