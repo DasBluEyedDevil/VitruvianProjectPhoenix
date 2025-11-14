@@ -77,7 +77,7 @@ class MainViewModelEnhancedTest {
                 setReps = listOf(10, 8, 6),
                 weightPerCableKg = 25f,
                 progressionKg = 0f,
-                restSeconds = 60,
+                setRestSeconds = listOf(60, 60, 60),
                 workoutType = WorkoutMode.OldSchool.toWorkoutType()
             ),
             RoutineExercise(
@@ -88,7 +88,7 @@ class MainViewModelEnhancedTest {
                 setReps = listOf(12, 10, 8),
                 weightPerCableKg = 30f,
                 progressionKg = 0f,
-                restSeconds = 90,
+                setRestSeconds = listOf(90, 90, 90),
                 workoutType = WorkoutMode.OldSchool.toWorkoutType()
             )
         ),
@@ -318,7 +318,7 @@ class MainViewModelEnhancedTest {
             setReps = listOf(2, 2),  // User configured: 2 sets x 2 reps
             weightPerCableKg = 20f,
             progressionKg = 0f,
-            restSeconds = 60,
+            setRestSeconds = listOf(60, 60),
             workoutType = WorkoutMode.OldSchool.toWorkoutType()
         )
 
@@ -356,7 +356,7 @@ class MainViewModelEnhancedTest {
             setReps = listOf(2, 2),  // User configured: 2 sets x 2 reps
             weightPerCableKg = 20f,
             progressionKg = 0f,
-            restSeconds = 60,
+            setRestSeconds = listOf(60, 60),
             workoutType = WorkoutMode.OldSchool.toWorkoutType()
         )
 
@@ -407,7 +407,7 @@ class MainViewModelEnhancedTest {
             setReps = listOf(2, 2),
             weightPerCableKg = 20f,
             progressionKg = 0f,
-            restSeconds = 60,
+            setRestSeconds = listOf(60, 60, 60),
             workoutType = WorkoutMode.OldSchool.toWorkoutType()
         )
 
