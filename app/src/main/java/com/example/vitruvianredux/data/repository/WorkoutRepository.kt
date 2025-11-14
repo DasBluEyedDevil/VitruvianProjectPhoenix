@@ -426,9 +426,10 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
         else -> echoLevel.levelValue
     },
     progressionKg = progressionKg,
-    restSeconds = restSeconds,
+    restSeconds = setRestSeconds.firstOrNull() ?: 60, // Keep for backward compatibility during migration (use first rest time or default)
     notes = notes,
-    duration = duration
+    duration = duration,
+    setRestSeconds = setRestSeconds.toJsonArray() // Convert to JSON array
 )
 
 private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity>) = Routine(
@@ -490,8 +491,21 @@ private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
         echoLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
         progressionKg = progressionKg,
-        restSeconds = restSeconds,
+        setRestSeconds = parseIntListFromJson(setRestSeconds), // Parse JSON array
         notes = notes,
         duration = duration
-    )
+    ).withNormalizedRestTimes() // Ensure array matches number of sets
+}
+
+// Helper functions for JSON array conversion
+private fun List<Int>.toJsonArray(): String {
+    return "[${joinToString(",")}]"
+}
+
+private fun parseIntListFromJson(json: String): List<Int> {
+    if (json.isEmpty() || json == "[]") return emptyList()
+    // Remove brackets and parse comma-separated values
+    val cleaned = json.removePrefix("[").removeSuffix("]").trim()
+    if (cleaned.isEmpty()) return emptyList()
+    return cleaned.split(",").mapNotNull { it.trim().toIntOrNull() }
 }

@@ -38,7 +38,7 @@ data class RoutineExercise(
     val eccentricLoad: EccentricLoad = EccentricLoad.LOAD_100,
     val echoLevel: EchoLevel = EchoLevel.HARDER,
     val progressionKg: Float = 0f,
-    val restSeconds: Int = 60,
+    val setRestSeconds: List<Int> = emptyList(), // NEW: per-set rest times
     val notes: String = "",
     // Optional duration in seconds for duration-based sets
     val duration: Int? = null,
@@ -48,6 +48,24 @@ data class RoutineExercise(
     // Computed property for backwards compatibility
     val sets: Int get() = setReps.size
     val reps: Int get() = setReps.firstOrNull() ?: 10
+    
+    // Helper to get rest time for specific set (with fallback to 60s default)
+    fun getRestForSet(setIndex: Int): Int {
+        return setRestSeconds.getOrNull(setIndex) ?: 60
+    }
+
+    // Helper to ensure rest times array matches number of sets
+    fun withNormalizedRestTimes(): RoutineExercise {
+        val numSets = setReps.size
+        val normalizedRest = if (setRestSeconds.isEmpty()) {
+            List(numSets) { 60 } // Default to 60s for all sets
+        } else if (setRestSeconds.size < numSets) {
+            setRestSeconds + List(numSets - setRestSeconds.size) { 60 } // Pad with 60s
+        } else {
+            setRestSeconds.take(numSets) // Trim to match sets
+        }
+        return copy(setRestSeconds = normalizedRest)
+    }
 }
 
 /**

@@ -1123,7 +1123,9 @@ class MainViewModel @Inject constructor(
             val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
 
             // Determine rest duration and autoplay
-            val restDuration = currentExercise?.restSeconds?.takeIf { it > 0 } ?: 90
+            // Use per-set rest time for the set that was just completed
+            val completedSetIndex = _currentSetIndex.value
+            val restDuration = currentExercise?.getRestForSet(completedSetIndex)?.takeIf { it > 0 } ?: 90
             val autoplay = userPreferences.value.autoplayEnabled
 
             // For single exercise mode (no routine or temp routine), we always "continue" the same exercise
