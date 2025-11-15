@@ -384,7 +384,9 @@ private fun WorkoutSessionEntity.toWorkoutSession() = WorkoutSession(
     stopAtTop = stopAtTop,
     eccentricLoad = eccentricLoad,
     echoLevel = echoLevel,
-    exerciseId = exerciseId
+    exerciseId = exerciseId,
+    routineSessionId = routineSessionId,
+    routineName = routineName
 )
 
 private fun WorkoutMetricEntity.toWorkoutMetric() = WorkoutMetric(
@@ -418,7 +420,7 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     // Routine-specific configuration
     cableConfig = cableConfig.name, // Convert enum to String
     orderIndex = orderIndex,
-    setReps = setReps.joinToString(","), // Convert List<Int> to comma-separated String
+    setReps = setReps.joinToString(",") { it?.toString() ?: "" }, // Convert List<Int?> to comma-separated String (empty string for null/AMRAP)
     weightPerCableKg = weightPerCableKg,
     setWeights = setWeightsPerCableKg.joinToString(",") { it.toString() },
     mode = when (workoutType) {
@@ -441,10 +443,13 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     },
     progressionKg = progressionKg,
     restSeconds = setRestSeconds.firstOrNull() ?: 60, // Keep for backward compatibility during migration (use first rest time or default)
-    notes = notes,
     duration = duration,
-    setRestSeconds = setRestSeconds.toJsonArray() // Convert to JSON array
-)
+    setRestSeconds = setRestSeconds.toJsonArray(), // Convert to JSON array
+    perSetRestTime = perSetRestTime,
+    isAMRAP = isAMRAP
+).also {
+    Timber.d("🟠 Domain→DB: ${exercise.name}, isAMRAP to DB: $isAMRAP, setReps string: ${it.setReps}")
+}
 
 private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity>) = Routine(
     id = id,
@@ -487,7 +492,7 @@ private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         ),
         cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
         orderIndex = orderIndex,
-        setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").mapNotNull { it.toIntOrNull() },
+        setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").map { if (it.isEmpty()) null else it.toIntOrNull() },
         weightPerCableKg = weightPerCableKg,
         setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
         workoutType = when (mode) {
@@ -506,9 +511,12 @@ private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         echoLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
         progressionKg = progressionKg,
         setRestSeconds = parseIntListFromJson(setRestSeconds), // Parse JSON array
-        notes = notes,
-        duration = duration
-    ).withNormalizedRestTimes() // Ensure array matches number of sets
+        duration = duration,
+        perSetRestTime = perSetRestTime,
+        isAMRAP = isAMRAP
+    ).also {
+        Timber.d("🔵 DB→Domain: ${exerciseName}, isAMRAP from DB: $isAMRAP, setReps: ${it.setReps}")
+    }.withNormalizedRestTimes() // Ensure array matches number of sets
 }
 
 // Helper functions for JSON array conversion
