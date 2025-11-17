@@ -457,7 +457,8 @@ fun WorkoutTab(
                     weightUnit = weightUnit,
                     formatWeight = formatWeight,
                     onContinue = onProceedFromSummary,
-                    autoplayEnabled = autoplayEnabled
+                    autoplayEnabled = autoplayEnabled,
+                    configuredPerCableKg = workoutParameters.weightPerCableKg
                 )
             }
             is WorkoutState.Resting -> {

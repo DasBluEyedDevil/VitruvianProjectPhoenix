@@ -50,8 +50,9 @@ fun JustLiftScreen(
     val connectionError by viewModel.connectionError.collectAsState()
 
     var selectedMode by remember { mutableStateOf(workoutParameters.workoutType.toWorkoutMode()) }
-    var weightPerCable by remember { mutableStateOf(workoutParameters.weightPerCableKg) }
-    var weightChangePerRep by remember { mutableStateOf(workoutParameters.progressionRegressionKg.toInt()) } // Progression/Regression value
+    // Initialize to match the picker's default: 1 lb = 0.453592 kg
+    var weightPerCable by remember { mutableStateOf(0.453592f) }
+    var weightChangePerRep by remember { mutableStateOf(0) } // Progression/Regression value
     var restTime by remember { mutableStateOf(60) } // Rest time in seconds
     var eccentricLoad by remember { mutableStateOf(EccentricLoad.LOAD_100) }
     var echoLevel by remember { mutableStateOf(EchoLevel.HARDER) }
@@ -86,6 +87,7 @@ fun JustLiftScreen(
         }
     }
 
+    // Update parameters whenever user changes them
     LaunchedEffect(selectedMode, weightPerCable, weightChangePerRep, restTime) {
         val weightChangeKg = if (weightUnit == WeightUnit.LB) {
             weightChangePerRep / 2.20462f
@@ -265,20 +267,12 @@ fun JustLiftScreen(
                             val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                             val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
                             val weightStep = if (weightUnit == WeightUnit.LB) 0.5f else 0.25f
-                            val displayWeight = if (weightUnit == WeightUnit.LB) {
-                                weightPerCable * 2.20462f // Convert kg to lbs
-                            } else {
-                                weightPerCable
-                            }
+                            val displayWeight = viewModel.kgToDisplay(weightPerCable, weightUnit)
 
                             CompactNumberPicker(
                                 value = displayWeight,
                                 onValueChange = { newValue ->
-                                    weightPerCable = if (weightUnit == WeightUnit.LB) {
-                                        newValue / 2.20462f
-                                    } else {
-                                        newValue
-                                    }
+                                    weightPerCable = viewModel.displayToKg(newValue, weightUnit)
                                 },
                                 range = 1f..maxWeight,
                                 step = weightStep,
@@ -636,9 +630,9 @@ fun AutoStartStopCard(
 
                 // Instructions
                 val instructionText = if (isIdle) {
-                    "Grab and hold handles briefly (~1s) to start"
+                    "Grab and hold handles (~5s) to start"
                 } else {
-                    "Put handles down for 3 seconds to stop"
+                    "Put handles down for 5 seconds to stop"
                 }
                 Text(
                     text = instructionText,
