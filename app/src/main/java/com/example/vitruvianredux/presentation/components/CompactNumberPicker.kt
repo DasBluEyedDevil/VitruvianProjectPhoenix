@@ -15,20 +15,39 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.roundToInt
 
 /**
  * Compact Number Picker using native Android NumberPicker
  * Provides reliable wheel-based number selection with proper physics
+ * Supports both integer and fractional values with configurable step size
  */
 @Composable
 fun CompactNumberPicker(
-    value: Int,
-    onValueChange: (Int) -> Unit,
-    range: IntRange,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    range: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
     label: String = "",
-    suffix: String = ""
+    suffix: String = "",
+    step: Float = 1.0f
 ) {
+    // Generate array of values based on step
+    val values = remember(range, step) {
+        buildList {
+            var current = range.start
+            while (current <= range.endInclusive) {
+                add(current)
+                current += step
+            }
+        }
+    }
+
+    // Find current index
+    val currentIndex = remember(value, values) {
+        values.indexOfFirst { kotlin.math.abs(it - value) < 0.001f }.coerceAtLeast(0)
+    }
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -52,63 +71,58 @@ fun CompactNumberPicker(
             // Decrease button
             IconButton(
                 onClick = {
-                    val newValue = (value - 1).coerceIn(range)
-                    onValueChange(newValue)
+                    val newIndex = (currentIndex - 1).coerceIn(values.indices)
+                    onValueChange(values[newIndex])
                 },
-                enabled = value > range.first,
+                enabled = currentIndex > 0,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
                     contentDescription = "Decrease $label",
-                    tint = if (value > range.first)
+                    tint = if (currentIndex > 0)
                         MaterialTheme.colorScheme.primary
                     else
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
 
-            // Native Android NumberPicker wrapped in AndroidView
-            // IMPORTANT: NumberPicker only supports non-negative minValue, so we use offset approach for negative ranges
-            val offset = if (range.first < 0) -range.first else 0
-            val pickerRange = (range.first + offset)..(range.last + offset)
-
             // Get the theme-aware text color
             val textColor = MaterialTheme.colorScheme.onSurface
 
-            // Don't use key() wrapper - let update block handle all text color changes
-            // This ensures update runs on every recomposition, catching new EditText children during scroll
+            // Native Android NumberPicker wrapped in AndroidView
             AndroidView(
-                    factory = { context ->
+                factory = { context ->
                     NumberPicker(context).apply {
-                        // Use offset range that starts at 0 or positive number
-                        minValue = pickerRange.first
-                        maxValue = pickerRange.last
-                        this.value = (value + offset).coerceIn(pickerRange)
-                        wrapSelectorWheel = false // Prevents wrapping around
+                        minValue = 0
+                        maxValue = values.size - 1
+                        this.value = currentIndex.coerceIn(0, values.size - 1)
+                        wrapSelectorWheel = false
 
-                        // Always use displayedValues to show actual range values with suffix
-                        val displayValues = (range.first..range.last).map {
-                            if (suffix.isNotEmpty()) "$it $suffix" else "$it"
+                        // Format displayed values with proper decimal precision
+                        val displayValues = values.map {
+                            val formatted = if (step >= 1.0f && it % 1.0f == 0f) {
+                                // Show as integer if step is 1.0 and value is whole number
+                                it.toInt().toString()
+                            } else {
+                                // Show with one decimal place for fractional values
+                                "%.1f".format(it)
+                            }
+                            if (suffix.isNotEmpty()) "$formatted $suffix" else formatted
                         }.toTypedArray()
                         this.displayedValues = displayValues
 
-                        setOnValueChangedListener { _, _, newPickerVal ->
-                            // Convert picker value back to actual value by removing offset
-                            val actualValue = newPickerVal - offset
-                            onValueChange(actualValue)
+                        setOnValueChangedListener { _, _, newIndex ->
+                            onValueChange(values[newIndex])
                         }
 
                         // Set text color for all Android versions
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            // API 29+: Use official setTextColor() method
                             setTextColor(textColor.toArgb())
                         } else {
-                            // API 28 and below (including Fire OS): Aggressively style ALL text-related children
-                            // Use post() to ensure styling is applied after view is fully created
+                            // API 28 and below: Aggressively style ALL text-related children
                             post {
                                 try {
-                                    // Style all TextView-based children (EditText, TextView, etc.)
                                     val count = childCount
                                     for (i in 0 until count) {
                                         val child = getChildAt(i)
@@ -124,14 +138,14 @@ fun CompactNumberPicker(
                                         }
                                     }
 
-                                    // Try to access and modify the Paint object used for selector rendering
+                                    // Try to access and modify the Paint object
                                     try {
                                         val paintField = NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint")
                                         paintField.isAccessible = true
                                         val paint = paintField.get(this) as? android.graphics.Paint
                                         paint?.color = textColor.toArgb()
                                     } catch (e: Exception) {
-                                        // Paint field not found or access denied - expected on some Android versions
+                                        // Paint field not found - expected on some Android versions
                                     }
                                 } catch (e: Exception) {
                                     // Reflection failed - fall back to default styling
@@ -141,23 +155,18 @@ fun CompactNumberPicker(
                     }
                 },
                 update = { picker ->
-                    // Update picker when value changes externally (convert to picker value with offset)
-                    val pickerValue = value + offset
-                    if (picker.value != pickerValue) {
-                        picker.value = pickerValue.coerceIn(pickerRange)
+                    // Update picker when value changes externally
+                    if (picker.value != currentIndex) {
+                        picker.value = currentIndex.coerceIn(0, values.size - 1)
                     }
 
-                    // Update text color on every recomposition (including after scroll events)
+                    // Update text color on every recomposition
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        // API 29+: Use official setTextColor() method
                         picker.setTextColor(textColor.toArgb())
                     } else {
-                        // API 28 and below (including Fire OS): Aggressively apply text color to ALL text children
-                        // This runs on every recomposition to catch dynamically created children during scroll
-                        // Use post() to ensure this runs after any layout/draw updates
+                        // API 28 and below: Apply text color to ALL text children
                         picker.post {
                             try {
-                                // Style all TextView-based children (EditText, TextView, etc.)
                                 val count = picker.childCount
                                 for (i in 0 until count) {
                                     val child = picker.getChildAt(i)
@@ -173,14 +182,14 @@ fun CompactNumberPicker(
                                     }
                                 }
 
-                                // Try to access and modify the Paint object used for selector rendering
+                                // Try to access and modify the Paint object
                                 try {
                                     val paintField = NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint")
                                     paintField.isAccessible = true
                                     val paint = paintField.get(picker) as? android.graphics.Paint
                                     paint?.color = textColor.toArgb()
                                 } catch (e: Exception) {
-                                    // Paint field not found or access denied - expected on some Android versions
+                                    // Paint field not found - expected on some Android versions
                                 }
                             } catch (e: Exception) {
                                 // Reflection failed - fall back to default styling
@@ -191,21 +200,21 @@ fun CompactNumberPicker(
                 modifier = Modifier
                     .weight(1f)
                     .height(120.dp)
-                )
+            )
 
             // Increase button
             IconButton(
                 onClick = {
-                    val newValue = (value + 1).coerceIn(range)
-                    onValueChange(newValue)
+                    val newIndex = (currentIndex + 1).coerceIn(values.indices)
+                    onValueChange(values[newIndex])
                 },
-                enabled = value < range.last,
+                enabled = currentIndex < values.size - 1,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Increase $label",
-                    tint = if (value < range.last)
+                    tint = if (currentIndex < values.size - 1)
                         MaterialTheme.colorScheme.primary
                     else
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -213,4 +222,27 @@ fun CompactNumberPicker(
             }
         }
     }
+}
+
+/**
+ * Overload for backward compatibility with Int values
+ */
+@Composable
+fun CompactNumberPicker(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    range: IntRange,
+    modifier: Modifier = Modifier,
+    label: String = "",
+    suffix: String = ""
+) {
+    CompactNumberPicker(
+        value = value.toFloat(),
+        onValueChange = { onValueChange(it.roundToInt()) },
+        range = range.first.toFloat()..range.last.toFloat(),
+        modifier = modifier,
+        label = label,
+        suffix = suffix,
+        step = 1.0f
+    )
 }

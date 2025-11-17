@@ -133,10 +133,10 @@ fun WeeklyProgramsScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF5F3FF))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -146,19 +146,19 @@ fun WeeklyProgramsScreen(
                         ) {
                             Icon(
                                 Icons.Default.Info,
-                                contentDescription = null,
+                                contentDescription = "No programs available",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(56.dp) // Material 3 Expressive: Larger icon (was 48dp)
                             )
                             Spacer(modifier = Modifier.height(Spacing.small))
                             Text(
                                 "No active program",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 "Create a program or activate an existing one",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -174,19 +174,25 @@ fun WeeklyProgramsScreen(
                 ) {
                     Text(
                         "All Programs",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                         fontWeight = FontWeight.Bold
                     )
                     OutlinedButton(
                         onClick = {
                             navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp), // Material 3 Expressive: Taller button
+                        shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Create program", modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Add, contentDescription = "Create program", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
                         Spacer(modifier = Modifier.width(Spacing.small))
-                        Text("Create Program")
+                        Text(
+                            "Create Program",
+                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -263,10 +269,10 @@ fun ActiveProgramCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF5F3FF))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Material 3 Expressive: Use primary container for emphasis
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -281,12 +287,12 @@ fun ActiveProgramCard(
                 Column {
                     Text(
                         "Active Program",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                     Text(
                         program.program.title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger (was titleLarge)
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -326,14 +332,25 @@ fun ActiveProgramCard(
 
                 Button(
                     onClick = onStartTodayWorkout,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
                     )
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Start program", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
                     Spacer(modifier = Modifier.width(Spacing.small))
-                    Text("Start Today's Workout")
+                    Text(
+                        "Start Today's Workout",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             } else {
                 Text(
@@ -364,11 +381,22 @@ fun ProgramListItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isActive) {
+                MaterialTheme.colorScheme.primaryContainer // Material 3 Expressive: Use primary container for active
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHighest // Material 3 Expressive: Higher contrast
+            }
         ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF5F3FF))
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = androidx.compose.foundation.BorderStroke(
+            2.dp,
+            if (isActive) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            } else {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            }
+        ) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Row(
             modifier = Modifier
@@ -380,12 +408,12 @@ fun ProgramListItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     program.program.title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     "${program.days.size} workout days",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -403,20 +431,29 @@ fun ProgramListItem(
                     )
                 }
 
-                // Activate/Active status
+                // Activate/Active status - Material 3 Expressive
                 if (!isActive) {
-                    TextButton(onClick = onActivate) {
-                        Text("Activate")
+                    TextButton(
+                        onClick = onActivate,
+                        modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                        shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                    ) {
+                        Text(
+                            "Activate",
+                            style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 } else {
                     Surface(
                         color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(12.dp) // Material 3 Expressive: More rounded (was 8dp)
                     ) {
                         Text(
                             "Active",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), // Material 3 Expressive: More padding
+                            style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
+                            fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -425,18 +462,31 @@ fun ProgramListItem(
         }
     }
 
-    // Delete confirmation dialog
+    // Delete confirmation dialog - Material 3 Expressive
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Program") },
-            text = { Text("Are you sure you want to delete \"${program.program.title}\"? This action cannot be undone.") },
+            title = { 
+                Text(
+                    "Delete Program",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "Are you sure you want to delete \"${program.program.title}\"? This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         onDelete()
                         showDeleteDialog = false
                     },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )

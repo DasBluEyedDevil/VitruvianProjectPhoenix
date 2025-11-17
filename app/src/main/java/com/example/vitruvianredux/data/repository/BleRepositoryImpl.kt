@@ -385,21 +385,41 @@ class BleRepositoryImpl @Inject constructor(
             Timber.d("=== Starting INIT sequence ===")
             connectionLogger.logInitStarted(deviceName ?: "Unknown", deviceAddress ?: "")
 
-            // Send initial command
-            Timber.d("Sending init command (4 bytes)...")
+            val manager = bleManager
+            if (manager == null) {
+                Timber.e("BLE manager is null, cannot send INIT sequence")
+                return@withContext Result.failure(Exception("BLE manager not available"))
+            }
+
+            // Step 1: Send INIT_COMMAND (0x0A) and wait for INIT_RESPONSE (0x0B)
+            Timber.d("Step 1: Sending INIT_COMMAND (0x0A)...")
             val initCommand = ProtocolBuilder.buildInitCommand()
             connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, initCommand)
-            bleManager?.sendCommand(initCommand)?.getOrThrow()
-            delay(200) // Longer delay - web app waits 50ms minimum, we'll be safer
+            manager.sendCommand(initCommand).getOrThrow()
+            
+            Timber.d("Step 1: Waiting for INIT_RESPONSE (0x0B)...")
+            val received0x0B = manager.awaitResponse(0x0Bu, timeoutMs = 5000L)
+            if (!received0x0B) {
+                Timber.e("Timeout waiting for INIT_RESPONSE (0x0B) - device may be in error state")
+                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x0B response")
+                return@withContext Result.failure(Exception("Timeout waiting for INIT_RESPONSE (0x0B)"))
+            }
+            Timber.d("Step 1: ✅ Received INIT_RESPONSE (0x0B)")
 
-            Timber.d("Init command sent, waiting before preset...")
-
-            // Send init preset
-            Timber.d("Sending init preset (34 bytes)...")
+            // Step 2: Send INIT_PRESET (0x11) and wait for INIT_PRESET_RESPONSE (0x12)
+            Timber.d("Step 2: Sending INIT_PRESET (0x11)...")
             val initPreset = ProtocolBuilder.buildInitPreset()
             connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
-            bleManager?.sendCommand(initPreset)?.getOrThrow()
-            delay(200)
+            manager.sendCommand(initPreset).getOrThrow()
+            
+            Timber.d("Step 2: Waiting for INIT_PRESET_RESPONSE (0x12)...")
+            val received0x12 = manager.awaitResponse(0x12u, timeoutMs = 5000L)
+            if (!received0x12) {
+                Timber.e("Timeout waiting for INIT_PRESET_RESPONSE (0x12) - device may be in error state")
+                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x12 response")
+                return@withContext Result.failure(Exception("Timeout waiting for INIT_PRESET_RESPONSE (0x12)"))
+            }
+            Timber.d("Step 2: ✅ Received INIT_PRESET_RESPONSE (0x12)")
 
             Timber.d("=== INIT sequence completed successfully ===")
             connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")

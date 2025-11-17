@@ -207,5 +207,65 @@ class MainViewModelTest {
         assertTrue(result.isSuccess)
         coVerify { workoutRepository.saveSession(session) }
     }
+
+    @Test
+    fun `test RoutineExercise supports per-set rest times`() {
+        // Verify RoutineExercise can have different rest times per set
+        val exercise = Exercise(
+            name = "Squat",
+            muscleGroup = "Legs",
+            equipment = "Vitruvian",
+            defaultCableConfig = CableConfiguration.DOUBLE,
+            id = "test-exercise"
+        )
+
+        val routineExercise = RoutineExercise(
+            id = "test",
+            exercise = exercise,
+            cableConfig = CableConfiguration.DOUBLE,
+            orderIndex = 0,
+            setReps = listOf(10, 8, 6),
+            weightPerCableKg = 15.0f,
+            setWeightsPerCableKg = listOf(15.0f, 20.0f, 25.0f),
+            workoutType = WorkoutType.Program(ProgramMode.OldSchool),
+            setRestSeconds = listOf(30, 60, 90), // Different rest per set
+            notes = ""
+        )
+
+        // Verify rest times are correctly stored
+        assertEquals(3, routineExercise.setRestSeconds.size)
+        assertEquals(30, routineExercise.getRestForSet(0)) // Set 1: 30s
+        assertEquals(60, routineExercise.getRestForSet(1)) // Set 2: 60s
+        assertEquals(90, routineExercise.getRestForSet(2)) // Set 3: 90s
+    }
+
+    @Test
+    fun `test RoutineExercise defaults to 60s rest when not specified`() {
+        // Verify default rest time behavior
+        val exercise = Exercise(
+            name = "Squat",
+            muscleGroup = "Legs",
+            equipment = "Vitruvian",
+            defaultCableConfig = CableConfiguration.DOUBLE,
+            id = "test-exercise"
+        )
+
+        val routineExercise = RoutineExercise(
+            id = "test",
+            exercise = exercise,
+            cableConfig = CableConfiguration.DOUBLE,
+            orderIndex = 0,
+            setReps = listOf(10, 10, 10),
+            weightPerCableKg = 15.0f,
+            workoutType = WorkoutType.Program(ProgramMode.OldSchool)
+            // setRestSeconds not specified
+        )
+
+        // Should use default 60s rest for any set when not specified
+        assertEquals(60, routineExercise.getRestForSet(0))
+        assertEquals(60, routineExercise.getRestForSet(1))
+        assertEquals(60, routineExercise.getRestForSet(2))
+        assertEquals(60, routineExercise.getRestForSet(99)) // Out of bounds should also default to 60
+    }
 }
 

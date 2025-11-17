@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.vitruvianredux.data.local.ConnectionLogEntity
 import com.example.vitruvianredux.presentation.viewmodel.ConnectionLogsViewModel
 import com.example.vitruvianredux.presentation.viewmodel.LogStats
@@ -119,7 +119,7 @@ fun ConnectionLogsScreen(
                     leadingIcon = {
                         Icon(
                             Icons.Default.Warning,
-                            contentDescription = null,
+                            contentDescription = "Error log level",
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -153,7 +153,7 @@ fun ConnectionLogsScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.Info,
-                            contentDescription = null,
+                            contentDescription = "No connection logs available",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )

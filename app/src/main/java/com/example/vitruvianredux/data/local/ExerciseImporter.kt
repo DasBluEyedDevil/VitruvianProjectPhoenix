@@ -31,22 +31,38 @@ class ExerciseImporter @Inject constructor(
     suspend fun importExercises(): Result<Int> = withContext(Dispatchers.IO) {
         try {
             Timber.d("Starting exercise import from $ASSET_FILE")
-            
+
             // Read JSON from assets
             val jsonString = context.assets.open(ASSET_FILE).bufferedReader().use { it.readText() }
+            return@withContext importFromJsonString(jsonString)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to import exercises from assets")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Import exercises from a JSON string (for updates from network)
+     * @param jsonString JSON array string containing exercise data
+     * @param clearExisting If true, clears existing data before importing (default: true for updates)
+     * @return Result with count of exercises imported, or error
+     */
+    suspend fun importFromJsonString(jsonString: String, clearExisting: Boolean = true): Result<Int> = withContext(Dispatchers.IO) {
+        try {
             val jsonArray = JSONArray(jsonString)
-            
+
             val exercises = mutableListOf<ExerciseEntity>()
             val videos = mutableListOf<ExerciseVideoEntity>()
-            
+
             // Parse each exercise
             for (i in 0 until jsonArray.length()) {
                 val jsonExercise = jsonArray.getJSONObject(i)
-                
+
                 try {
                     val exercise = parseExercise(jsonExercise)
                     exercises.add(exercise)
-                    
+
                     // Parse videos for this exercise
                     val exerciseVideos = parseVideos(jsonExercise, exercise.id)
                     videos.addAll(exerciseVideos)
@@ -55,7 +71,13 @@ class ExerciseImporter @Inject constructor(
                     // Continue with other exercises
                 }
             }
-            
+
+            // Clear existing data if requested (for updates)
+            if (clearExisting) {
+                exerciseDao.deleteAllVideos()
+                exerciseDao.deleteAll()
+            }
+
             // Insert into database
             exerciseDao.insertAll(exercises)
             exerciseDao.insertVideos(videos)
@@ -64,7 +86,7 @@ class ExerciseImporter @Inject constructor(
             Result.success(exercises.size)
 
         } catch (e: Exception) {
-            Timber.e(e, "Failed to import exercises")
+            Timber.e(e, "Failed to import exercises from JSON string")
             Result.failure(e)
         }
     }
@@ -73,6 +95,8 @@ class ExerciseImporter @Inject constructor(
      * Parse a single exercise from JSON
      */
     private fun parseExercise(json: JSONObject): ExerciseEntity {
+        val sidedness = json.optString("sidedness").ifEmpty { null }
+
         return ExerciseEntity(
             id = json.getString("id"),
             name = json.getString("name"),
@@ -82,7 +106,7 @@ class ExerciseImporter @Inject constructor(
             muscles = json.optJSONArray("muscles")?.toStringList() ?: "",
             equipment = json.optJSONArray("equipment")?.toStringList() ?: "",
             movement = json.optString("movement").ifEmpty { null },
-            sidedness = json.optString("sidedness").ifEmpty { null },
+            sidedness = sidedness,
             grip = json.optString("grip").ifEmpty { null },
             gripWidth = json.optString("gripWidth").ifEmpty { null },
             minRepRange = json.optJSONObject("range")?.optDouble("minimum")?.toFloat(),
@@ -90,33 +114,73 @@ class ExerciseImporter @Inject constructor(
             archived = json.optBoolean("archived", false),
             isFavorite = false,
             timesPerformed = 0,
-            lastPerformed = null
+            lastPerformed = null,
+            aliases = json.optJSONArray("aliases")?.toStringList() ?: "",
+            defaultCableConfig = mapSidednessToConfig(sidedness)
         )
+    }
+
+    /**
+     * Map JSON sidedness field to Vitruvian cable configuration
+     * - bilateral (both arms/legs) → DOUBLE (both cables)
+     * - unilateral (one arm/leg) → SINGLE (one cable)
+     * - alternating (one at a time) → EITHER (user choice)
+     */
+    private fun mapSidednessToConfig(sidedness: String?): String {
+        return when (sidedness?.lowercase()) {
+            "bilateral" -> "DOUBLE"
+            "unilateral" -> "SINGLE"
+            "alternating" -> "EITHER"
+            else -> "DOUBLE" // Safe default for exercises without sidedness data
+        }
     }
     
     /**
      * Parse videos for an exercise from JSON
+     * Includes both angle demonstrations and tutorial video if present
      */
     private fun parseVideos(json: JSONObject, exerciseId: String): List<ExerciseVideoEntity> {
-        val videosArray = json.optJSONArray("videos") ?: return emptyList()
         val videos = mutableListOf<ExerciseVideoEntity>()
-        
-        for (i in 0 until videosArray.length()) {
-            try {
-                val videoJson = videosArray.getJSONObject(i)
-                val video = ExerciseVideoEntity(
-                    id = 0, // Auto-generated
-                    exerciseId = exerciseId,
-                    angle = videoJson.optString("angle", videoJson.optString("name", "FRONT")),
-                    videoUrl = videoJson.getString("video"),
-                    thumbnailUrl = videoJson.getString("thumbnail")
-                )
-                videos.add(video)
-            } catch (e: Exception) {
-                Timber.w("Failed to parse video at index $i for exercise $exerciseId: ${e.message}")
+
+        // Parse angle demonstration videos
+        val videosArray = json.optJSONArray("videos")
+        if (videosArray != null) {
+            for (i in 0 until videosArray.length()) {
+                try {
+                    val videoJson = videosArray.getJSONObject(i)
+                    val video = ExerciseVideoEntity(
+                        id = 0, // Auto-generated
+                        exerciseId = exerciseId,
+                        angle = videoJson.optString("angle", videoJson.optString("name", "FRONT")),
+                        videoUrl = videoJson.getString("video"),
+                        thumbnailUrl = videoJson.getString("thumbnail"),
+                        isTutorial = false
+                    )
+                    videos.add(video)
+                } catch (e: Exception) {
+                    Timber.w("Failed to parse video at index $i for exercise $exerciseId: ${e.message}")
+                }
             }
         }
-        
+
+        // Parse tutorial video if present (separate from angle videos)
+        val tutorialJson = json.optJSONObject("tutorial")
+        if (tutorialJson != null) {
+            try {
+                val tutorial = ExerciseVideoEntity(
+                    id = 0, // Auto-generated
+                    exerciseId = exerciseId,
+                    angle = "TUTORIAL",
+                    videoUrl = tutorialJson.getString("video"),
+                    thumbnailUrl = tutorialJson.getString("thumbnail"),
+                    isTutorial = true
+                )
+                videos.add(tutorial)
+            } catch (e: Exception) {
+                Timber.w("Failed to parse tutorial video for exercise $exerciseId: ${e.message}")
+            }
+        }
+
         return videos
     }
     

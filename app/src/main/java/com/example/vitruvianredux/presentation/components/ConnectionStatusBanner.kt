@@ -49,7 +49,7 @@ fun ConnectionStatusBanner(
             ) {
                 Icon(
                     imageVector = Icons.Default.Bluetooth,
-                    contentDescription = null, // Decorative - message text provides context
+                    contentDescription = "Bluetooth connection status",
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(24.dp)
                 )

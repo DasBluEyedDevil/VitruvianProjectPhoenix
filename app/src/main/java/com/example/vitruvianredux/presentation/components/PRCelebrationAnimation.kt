@@ -197,8 +197,8 @@ private fun PRCelebrationContent(
             ) {
                 repeat(3) {
                     Icon(
-                        Icons.Default.Star,
-                        contentDescription = null,
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Personal record achievement",
                         tint = Color(0xFFFFD700),
                         modifier = Modifier
                             .size(32.dp)
@@ -212,7 +212,7 @@ private fun PRCelebrationContent(
                 "NEW PR!",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.scale(pulseScale)
             )
 
@@ -233,7 +233,7 @@ private fun PRCelebrationContent(
                     weight,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                 )
             }

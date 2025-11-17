@@ -24,6 +24,7 @@ interface ExerciseRepository {
     suspend fun getVideos(exerciseId: String): List<ExerciseVideoEntity>
     suspend fun importExercises(): Result<Unit>
     suspend fun isExerciseLibraryEmpty(): Boolean
+    suspend fun updateFromGitHub(): Result<Int>
 }
 
 /**
@@ -141,5 +142,46 @@ class ExerciseRepositoryImpl @Inject constructor(
      */
     override suspend fun isExerciseLibraryEmpty(): Boolean {
         return getAllExercises().firstOrNull()?.isEmpty() ?: true
+    }
+
+    /**
+     * Update exercise library from GitHub
+     * Fetches the latest exercise_dump.json from the repository and updates the database
+     * @return Result with count of exercises updated, or error
+     */
+    override suspend fun updateFromGitHub(): Result<Int> {
+        return try {
+            Timber.d("Updating exercise library from GitHub...")
+
+            // Fetch JSON from GitHub (raw content URL)
+            val url = java.net.URL("https://raw.githubusercontent.com/exerciselibrary/exerciselibrary.github.io/main/exercise_dump.json")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 30000 // 30 seconds
+            connection.readTimeout = 30000
+
+            val responseCode = connection.responseCode
+            if (responseCode != 200) {
+                return Result.failure(Exception("HTTP $responseCode: Failed to fetch exercise library"))
+            }
+
+            val jsonString = connection.inputStream.bufferedReader().use { it.readText() }
+            connection.disconnect()
+
+            // Import from fetched JSON
+            val result = exerciseImporter.importFromJsonString(jsonString, clearExisting = true)
+
+            if (result.isSuccess) {
+                Timber.d("Exercise library updated successfully from GitHub")
+                result
+            } else {
+                Timber.e("Failed to import exercises from GitHub JSON")
+                result
+            }
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update exercise library from GitHub")
+            Result.failure(e)
+        }
     }
 }

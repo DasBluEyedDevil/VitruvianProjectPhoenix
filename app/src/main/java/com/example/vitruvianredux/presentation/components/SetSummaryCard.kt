@@ -9,10 +9,16 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
 import com.example.vitruvianredux.domain.model.WeightUnit
@@ -38,14 +44,32 @@ fun SetSummaryCard(
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     onContinue: () -> Unit,
+    autoplayEnabled: Boolean = false,
+    configuredPerCableKg: Float? = null,
     modifier: Modifier = Modifier
 ) {
+    // Countdown state for autoplay
+    var countdownSeconds by remember { mutableIntStateOf(5) }
+    
+    // Auto-advance if autoplay is enabled
+    // Reset countdown whenever the card is shown (when autoplay is enabled)
+    LaunchedEffect(autoplayEnabled, metrics.size) {
+        if (autoplayEnabled) {
+            countdownSeconds = 5
+            while (countdownSeconds > 0) {
+                delay(1000)
+                countdownSeconds--
+            }
+            // Auto-advance after countdown
+            onContinue()
+        }
+    }
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -62,7 +86,7 @@ fun SetSummaryCard(
             ) {
                 Icon(
                     Icons.Default.CheckCircle,
-                    contentDescription = null,
+                    contentDescription = "Set completed",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(32.dp)
                 )
@@ -82,7 +106,7 @@ fun SetSummaryCard(
             ) {
                 // Peak Power
                 StatCard(
-                    label = "Peak",
+                    label = "Peak load",
                     value = formatWeight(peakPower, weightUnit),
                     modifier = Modifier.weight(1f)
                 )
@@ -91,7 +115,7 @@ fun SetSummaryCard(
 
                 // Average Power
                 StatCard(
-                    label = "Average",
+                    label = "Avg load",
                     value = formatWeight(averagePower, weightUnit),
                     modifier = Modifier.weight(1f)
                 )
@@ -103,6 +127,15 @@ fun SetSummaryCard(
                     label = "Reps",
                     value = "$repCount",
                     modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Optional configured weight for additional clarity (e.g., Just Lift)
+            configuredPerCableKg?.let { configured ->
+                Text(
+                    text = "Configured: ${formatWeight(configured, weightUnit)}/cable",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -123,21 +156,43 @@ fun SetSummaryCard(
                 )
             }
 
-            // Continue Button
-            Button(
-                onClick = onContinue,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("Continue")
-                Spacer(modifier = Modifier.width(Spacing.small))
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
+            // Continue Button or Countdown (based on autoplay setting)
+            if (autoplayEnabled) {
+                // Show countdown when autoplay is enabled
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    Text(
+                        text = "$countdownSeconds",
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Continuing automatically...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                // Show continue button when autoplay is disabled
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Continue")
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Continue to next set",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

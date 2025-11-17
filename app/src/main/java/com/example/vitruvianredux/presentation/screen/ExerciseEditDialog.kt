@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.EccentricLoad
@@ -100,7 +100,7 @@ fun ExerciseEditBottomSheet(
     val selectedMode by viewModel.selectedMode.collectAsState()
     val weightChange by viewModel.weightChange.collectAsState()
     val rest by viewModel.rest.collectAsState()
-    val notes by viewModel.notes.collectAsState()
+    val perSetRestTime by viewModel.perSetRestTime.collectAsState()
     val eccentricLoad by viewModel.eccentricLoad.collectAsState()
     val echoLevel by viewModel.echoLevel.collectAsState()
 
@@ -132,7 +132,8 @@ fun ExerciseEditBottomSheet(
     }
 
     val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-    val maxWeight = if (weightUnit == WeightUnit.LB) 220 else 100
+    val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
+    val weightStep = if (weightUnit == WeightUnit.LB) 0.5f else 0.25f
     val maxWeightChange = if (weightUnit == WeightUnit.LB) 10 else 10
 
     // Prevent accidental dismissal via swipe gestures while allowing button-based dismissal
@@ -165,7 +166,8 @@ fun ExerciseEditBottomSheet(
             onDismiss()
         },
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Material 3 Expressive: Very rounded for bottom sheets
     ) {
         Column(
             modifier = Modifier
@@ -181,12 +183,13 @@ fun ExerciseEditBottomSheet(
                 Column {
                     Text(
                         "Configure Exercise",
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         exercise.exercise.displayName,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyLarge, // Material 3 Expressive: Larger (was bodyMedium)
+                        fontWeight = FontWeight.Medium, // Material 3 Expressive: Bolder
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -215,7 +218,9 @@ fun ExerciseEditBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(16f / 9f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Material 3 Expressive: Higher elevation
                         ) {
                             VideoPlayer(
                                 videoUrl = video.videoUrl,
@@ -225,14 +230,16 @@ fun ExerciseEditBottomSheet(
                     }
                 }
 
-                // Personal Record Display
+                // Personal Record Display - Material 3 Expressive
                 currentPR?.let { pr ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border
                     ) {
                         Row(
                             modifier = Modifier
@@ -248,7 +255,7 @@ fun ExerciseEditBottomSheet(
                                 Icon(
                                     Icons.Default.Star,
                                     contentDescription = "Personal Record",
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Column {
@@ -262,7 +269,7 @@ fun ExerciseEditBottomSheet(
                                         "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable × ${pr.reps} reps",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                 }
                             }
@@ -359,20 +366,7 @@ fun ExerciseEditBottomSheet(
                     )
                 }
 
-                SetsConfiguration(
-                    sets = sets,
-                    setMode = setMode,
-                    exerciseType = exerciseType,
-                    weightSuffix = weightSuffix,
-                    maxWeight = maxWeight,
-                    isEchoMode = isEchoMode,
-                    onRepsChange = viewModel::updateReps,
-                    onWeightChange = viewModel::updateWeight,
-                    onDurationChange = viewModel::updateDuration,
-                    onAddSet = viewModel::addSet,
-                    onDeleteSet = viewModel::deleteSet
-                )
-
+                // Per Set Rest Time toggle
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -380,28 +374,64 @@ fun ExerciseEditBottomSheet(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
                     shadowElevation = 2.dp
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.small)) {
-                        com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                            value = rest,
-                            onValueChange = viewModel::onRestChange,
-                            range = 0..300,
-                            label = "Rest Time",
-                            suffix = "sec",
-                            modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.small),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Per Set Rest Time",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (perSetRestTime) FontWeight.Bold else FontWeight.Normal,
+                            color = if (perSetRestTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = perSetRestTime,
+                            onCheckedChange = viewModel::onPerSetRestTimeChange
                         )
                     }
                 }
 
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = viewModel::onNotesChange,
-                    label = { Text("Notes (optional)") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    maxLines = 4,
-                    placeholder = { Text("Form cues, tempo, etc.") }
+                SetsConfiguration(
+                    sets = sets,
+                    setMode = setMode,
+                    exerciseType = exerciseType,
+                    weightSuffix = weightSuffix,
+                    maxWeight = maxWeight,
+                    weightStep = weightStep,
+                    isEchoMode = isEchoMode,
+                    perSetRestTime = perSetRestTime,
+                    onRepsChange = viewModel::updateReps,
+                    onWeightChange = viewModel::updateWeight,
+                    onDurationChange = viewModel::updateDuration,
+                    onRestChange = viewModel::updateRestTime,
+                    onAddSet = viewModel::addSet,
+                    onDeleteSet = viewModel::deleteSet
                 )
+
+                // Single rest time picker (only shown when perSetRestTime is false)
+                if (!perSetRestTime) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                        shadowElevation = 2.dp
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.small)) {
+                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                                value = rest,
+                                onValueChange = viewModel::onRestChange,
+                                range = 0..300,
+                                label = "Rest Time",
+                                suffix = "sec",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(Spacing.small))
@@ -413,9 +443,16 @@ fun ExerciseEditBottomSheet(
             ) {
                 TextButton(
                     onClick = dismissSheet,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
                 ) {
-                    Text("Cancel")
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Button(
                     onClick = {
@@ -423,13 +460,21 @@ fun ExerciseEditBottomSheet(
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(56.dp),
+                        .height(56.dp), // Material 3 Expressive: Taller button
                     enabled = sets.isNotEmpty(),
-                    shape = RoundedCornerShape(16.dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    )
                 ) {
                     Text(
                         buttonText,
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.titleMedium, // Fixed: Was titleLarge (too big)
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -480,11 +525,14 @@ fun SetsConfiguration(
     setMode: SetMode,
     exerciseType: ExerciseType,
     weightSuffix: String,
-    maxWeight: Int,
+    maxWeight: Float,
+    weightStep: Float = 0.5f,
     isEchoMode: Boolean = false,
-    onRepsChange: (String, Int) -> Unit, // Changed: setId instead of index
+    perSetRestTime: Boolean = false,
+    onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
     onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
     onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
+    onRestChange: (String, Int) -> Unit, // Per-set rest time
     onAddSet: () -> Unit,
     onDeleteSet: (Int) -> Unit
 ) {
@@ -507,25 +555,38 @@ fun SetsConfiguration(
                     exerciseType = exerciseType,
                     weightSuffix = weightSuffix,
                     maxWeight = maxWeight,
+                    weightStep = weightStep,
                     isEchoMode = isEchoMode,
                     canDelete = sets.size > 1,
                     onRepsChange = { newReps -> onRepsChange(setConfig.id, newReps) },
                     onWeightChange = { newWeight -> onWeightChange(setConfig.id, newWeight) },
                     onDurationChange = { newDuration -> onDurationChange(setConfig.id, newDuration) },
-                    onDelete = { onDeleteSet(index) } // Still use index for deletion since it removes by position
+                    onRestChange = { newRest -> onRestChange(setConfig.id, newRest) },
+                    onDelete = { onDeleteSet(index) }, // Still use index for deletion since it removes by position
+                    perSetRestTime = perSetRestTime
                 )
             }
         }
 
-        // Add Set button
+        // Add Set button - Material 3 Expressive
         OutlinedButton(
             onClick = onAddSet,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp), // Material 3 Expressive: Taller button
+            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Add set", modifier = Modifier.size(20.dp))
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Add set",
+                modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon (was 20dp)
+            )
             Spacer(modifier = Modifier.width(Spacing.small))
-            Text("Add Set")
+            Text(
+                "Add Set",
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -536,20 +597,23 @@ fun SetRow(
     setMode: SetMode,
     exerciseType: ExerciseType,
     weightSuffix: String,
-    maxWeight: Int,
+    maxWeight: Float,
+    weightStep: Float = 0.5f,
     isEchoMode: Boolean = false,
     canDelete: Boolean,
-    onRepsChange: (Int) -> Unit,
+    onRepsChange: (Int?) -> Unit,  // Changed to nullable for AMRAP support
     onWeightChange: (Float) -> Unit,
     onDurationChange: (Int) -> Unit,
-    onDelete: () -> Unit
+    onRestChange: (Int) -> Unit,  // Per-set rest time
+    onDelete: () -> Unit,
+    perSetRestTime: Boolean = false
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
@@ -581,6 +645,29 @@ fun SetRow(
 
             Spacer(modifier = Modifier.height(Spacing.small))
 
+            // AMRAP toggle (only shown for REPS mode, not DURATION)
+            if (setMode == SetMode.REPS) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Switch(
+                        checked = setConfig.reps == null,
+                        onCheckedChange = { isAMRAP ->
+                            onRepsChange(if (isAMRAP) null else 10)
+                        }
+                    )
+                    Text(
+                        text = "AMRAP (As Many Reps As Possible)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (setConfig.reps == null) FontWeight.Bold else FontWeight.Normal,
+                        color = if (setConfig.reps == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.small))
+            }
+
             // Reps/Duration and Weight (or Bodyweight label) side-by-side
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -589,14 +676,40 @@ fun SetRow(
                 // Reps or Duration picker
                 Box(modifier = Modifier.weight(1f)) {
                     if (setMode == SetMode.REPS) {
-                        com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                            value = setConfig.reps,
-                            onValueChange = onRepsChange,
-                            range = 1..50,
-                            label = if (setConfig.setNumber == 1) "Reps" else "",
-                            suffix = "reps",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Show reps picker ONLY if NOT AMRAP
+                        if (setConfig.reps != null) {
+                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                                value = setConfig.reps,
+                                onValueChange = onRepsChange,
+                                range = 1..50,
+                                label = if (setConfig.setNumber == 1) "Reps" else "",
+                                suffix = "reps",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            // Show AMRAP label when reps is null
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Target",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
+                                Text(
+                                    "AMRAP",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     } else {
                         com.example.vitruvianredux.presentation.components.CompactNumberPicker(
                             value = setConfig.duration,
@@ -639,9 +752,10 @@ fun SetRow(
                         exerciseType == ExerciseType.STANDARD -> {
                             // Standard exercises: Show weight picker
                             com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = setConfig.weightPerCable.toInt(),
-                                onValueChange = { onWeightChange(it.toFloat()) },
-                                range = 1..maxWeight,
+                                value = setConfig.weightPerCable,
+                                onValueChange = onWeightChange,
+                                range = 1f..maxWeight,
+                                step = weightStep,
                                 label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
                                 suffix = weightSuffix,
                                 modifier = Modifier.fillMaxWidth()
@@ -673,6 +787,20 @@ fun SetRow(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Rest Time picker (per-set) - only shown when perSetRestTime toggle is enabled
+            if (perSetRestTime) {
+                com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                    value = setConfig.restSeconds,
+                    onValueChange = onRestChange,
+                    range = 10..300,
+                    label = if (setConfig.setNumber == 1) "Rest Time" else "",
+                    suffix = "sec",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -696,15 +824,15 @@ fun ModeSelector(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-        shadowElevation = 4.dp
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        color = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), // Material 3 Expressive: Thicker border (was 1dp)
+        shadowElevation = 8.dp // Material 3 Expressive: Higher elevation (was 4dp)
     ) {
         Column(modifier = Modifier.padding(Spacing.medium)) {
             Text(
                 "Workout Mode",
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was titleSmall)
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = Spacing.small)
             )
@@ -719,7 +847,7 @@ fun ModeSelector(
                     readOnly = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
+                        .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },
@@ -757,17 +885,17 @@ fun EccentricLoadSelector(
     ) {
         Text(
             "Eccentric Load",
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was titleSmall)
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = Spacing.extraSmall)
         )
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-            shadowElevation = 4.dp
+            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+            color = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), // Material 3 Expressive: Thicker border (was 1dp)
+            shadowElevation = 8.dp // Material 3 Expressive: Higher elevation (was 4dp)
         ) {
             Column(modifier = Modifier.padding(Spacing.medium)) {
                 // Display current percentage value
@@ -778,7 +906,7 @@ fun EccentricLoadSelector(
                 ) {
                     Text(
                         "Eccentric Load: ${eccentricLoad.percentage}%",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -841,7 +969,7 @@ fun EchoLevelSelector(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
             shadowElevation = 4.dp

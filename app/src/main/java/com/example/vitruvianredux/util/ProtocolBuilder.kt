@@ -50,10 +50,10 @@ object ProtocolBuilder {
         frame[3] = 0x00
 
         // Reps field at offset 0x04
-        // For Just Lift, use 0xFF; for others, use reps+warmup+1
+        // For Just Lift and AMRAP, use 0xFF (unlimited); for others, use reps+warmup+1
         // The +1 compensates for completeCounter incrementing at START of concentric (not end)
         // Without it, machine releases tension as you BEGIN the final rep
-        frame[0x04] = if (params.isJustLift) 0xFF.toByte() else (params.reps + params.warmupReps + 1).toByte()
+        frame[0x04] = if (params.isJustLift || params.isAMRAP) 0xFF.toByte() else (params.reps + params.warmupReps + 1).toByte()
 
         // Some constant values from the working capture
         frame[5] = 0x03

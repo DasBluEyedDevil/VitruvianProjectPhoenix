@@ -26,7 +26,9 @@ data class ExerciseEntity(
     val archived: Boolean,
     val isFavorite: Boolean = false,
     val timesPerformed: Int = 0,
-    val lastPerformed: Long? = null
+    val lastPerformed: Long? = null,
+    val aliases: String = "", // comma-separated alternative names for improved search
+    val defaultCableConfig: String = "DOUBLE" // Derived from sidedness: SINGLE, DOUBLE, or EITHER
 )
 
 /**
@@ -47,7 +49,8 @@ data class ExerciseEntity(
 data class ExerciseVideoEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val exerciseId: String,
-    val angle: String, // FRONT, SIDE, or ISOMETRIC
+    val angle: String, // FRONT, SIDE, ISOMETRIC, or TUTORIAL
     val videoUrl: String,
-    val thumbnailUrl: String
+    val thumbnailUrl: String,
+    val isTutorial: Boolean = false // True for instructional videos, false for angle demonstrations
 )

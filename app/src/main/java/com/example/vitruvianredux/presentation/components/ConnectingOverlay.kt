@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import timber.log.Timber
 
 /**
  * Full-screen overlay showing "Connecting..." with animation and cancel option
@@ -59,7 +60,10 @@ fun ConnectingOverlay(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(
-                        onClick = onCancel,
+                        onClick = {
+                            Timber.d("🔴 ConnectingOverlay: Cancel button clicked!")
+                            onCancel()
+                        },
                         modifier = Modifier.padding(top = 8.dp)
                     ) {
                         Text("Cancel")

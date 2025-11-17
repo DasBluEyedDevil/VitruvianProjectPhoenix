@@ -62,7 +62,7 @@ fun RoutineBuilderDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
             color = Color.Transparent
         ) {
             Box(modifier = Modifier.fillMaxSize().background(backgroundGradient)) {
@@ -134,8 +134,8 @@ fun RoutineBuilderDialog(
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.small),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                shape = RoundedCornerShape(16.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                                shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
                                 border = BorderStroke(1.dp, Color(0xFFF5F3FF))
                             ) {
                                 Box(modifier = Modifier.fillMaxWidth().padding(Spacing.large), contentAlignment = Alignment.Center) {
@@ -214,7 +214,7 @@ fun RoutineBuilderDialog(
                             },
                             modifier = Modifier.weight(1f).height(56.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ) {
                             Text("Save", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         }
@@ -245,8 +245,7 @@ fun RoutineBuilderDialog(
                     setReps = listOf(10, 10, 10),
                     weightPerCableKg = 20f,
                     progressionKg = 0f,
-                    restSeconds = 60,
-                    notes = "",
+                    setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
                     workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                     eccentricLoad = EccentricLoad.LOAD_100,
                     echoLevel = EchoLevel.HARDER
@@ -304,8 +303,8 @@ fun ExerciseListItem(
     Card(
         modifier = Modifier.fillMaxWidth().scale(scale),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
         border = BorderStroke(1.dp, Color(0xFFF5F3FF))
     ) {
         Row(
@@ -365,15 +364,12 @@ fun ExerciseListItem(
                             Text(progressionText, style = MaterialTheme.typography.bodySmall, color = if (exercise.progressionKg > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                         }
                     }
-                    if (exercise.restSeconds > 0) {
+                    val firstRest = exercise.setRestSeconds.firstOrNull() ?: 60
+                    if (firstRest > 0) {
                         Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                            Text("${exercise.restSeconds}s rest", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
+                            Text("${firstRest}s rest", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                         }
                     }
-                }
-
-                if (exercise.notes.isNotEmpty()) {
-                    Text(exercise.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, maxLines = 2)
                 }
             }
 
@@ -393,8 +389,13 @@ fun ExerciseListItem(
     }
 }
 
-private fun formatReps(setReps: List<Int>): String {
+private fun formatReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
     val allSame = setReps.all { it == setReps.first() }
-    return if (allSame) "${setReps.size} x ${setReps.first()} reps" else "${setReps.size} sets: ${setReps.joinToString("/")}"
+    return if (allSame) {
+        val reps = setReps.first()
+        if (reps == null) "${setReps.size} x AMRAP" else "${setReps.size} x $reps reps"
+    } else {
+        "${setReps.size} sets: ${setReps.joinToString("/") { it?.toString() ?: "AMRAP" }}"
+    }
 }
