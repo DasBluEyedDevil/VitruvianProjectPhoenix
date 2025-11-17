@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.vitruvianredux"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0-beta"
+        versionCode = 5
+        versionName = "0.5.0-beta"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
