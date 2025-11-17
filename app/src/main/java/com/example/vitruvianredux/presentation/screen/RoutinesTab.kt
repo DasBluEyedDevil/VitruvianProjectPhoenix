@@ -81,7 +81,7 @@ fun RoutinesTab(
         ) {
             Text(
                 "My Routines",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineMedium)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -100,7 +100,8 @@ fun RoutinesTab(
                 )
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.small),
+                    contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB (56dp + padding)
                 ) {
                     items(routines, key = { it.id }) { routine ->
                         RoutineCard(
@@ -115,11 +116,14 @@ fun RoutinesTab(
                                 // Generate new IDs explicitly and create deep copies
                                 val newRoutineId = java.util.UUID.randomUUID().toString()
                                 val newExercises = routine.exercises.map { exercise ->
-                                    exercise.copy(
+                                    android.util.Log.d("RoutinesDuplicate", "📋 Original exercise '${exercise.exercise.name}': setReps=${exercise.setReps}, setWeights=${exercise.setWeightsPerCableKg}, setRest=${exercise.setRestSeconds}")
+                                    val copied = exercise.copy(
                                         id = java.util.UUID.randomUUID().toString(),
                                         // Deep copy the Exercise object to avoid any shared references
                                         exercise = exercise.exercise.copy()
                                     )
+                                    android.util.Log.d("RoutinesDuplicate", "📋 Copied exercise '${copied.exercise.name}': setReps=${copied.setReps}, setWeights=${copied.setWeightsPerCableKg}, setRest=${copied.setRestSeconds}")
+                                    copied
                                 }
 
                                 // Smart duplicate naming: extract base name and find next copy number
@@ -156,7 +160,7 @@ fun RoutinesTab(
             }
         }
 
-        // Extended Floating Action Button for creating new routine
+        // Extended Floating Action Button for creating new routine - Material 3 Expressive
         ExtendedFloatingActionButton(
             onClick = {
                 routineToEdit = null
@@ -164,16 +168,23 @@ fun RoutinesTab(
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(Spacing.medium),
+                .padding(Spacing.medium)
+                .height(56.dp), // Material 3 Expressive: Taller FAB
             containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = RoundedCornerShape(28.dp) // Material 3 Expressive: Very rounded for FAB
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = null // Icon is decorative, text label provides accessibility
+                contentDescription = "Add new routine",
+                modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
             )
             Spacer(modifier = Modifier.width(Spacing.small))
-            Text("New Routine")
+            Text(
+                "New Routine",
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 
@@ -216,10 +227,10 @@ fun RoutineCard(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.99f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.99f)
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = 400f
+            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+            stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
         ),
         label = "scale"
     )
@@ -229,40 +240,40 @@ fun RoutineCard(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest // Material 3 Expressive: Higher contrast
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPressed) 2.dp else 4.dp
+            defaultElevation = if (isPressed) 4.dp else 8.dp // Material 3 Expressive: Higher elevation (was 2/4dp)
         ),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp), // Material 3 Expressive: More padding (was 16dp)
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 64dp Gradient Icon (purple gradient)
+            // Material 3 Expressive: Larger Gradient Icon (72dp)
             Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .shadow(4.dp, RoundedCornerShape(12.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
+                    .size(72.dp) // Material 3 Expressive: Larger (was 64dp)
+                    .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
+                            ),
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ),
-                        RoundedCornerShape(12.dp)
-                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.FitnessCenter,
-                    contentDescription = null,
+                    contentDescription = "Fitness routine",
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(36.dp) // Material 3 Expressive: Larger icon (was 32dp)
                 )
             }
 
@@ -273,13 +284,13 @@ fun RoutineCard(
             ) {
                 Text(
                     text = routine.name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = routine.description.ifEmpty { "${routine.exercises.size} exercises" },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -314,11 +325,11 @@ fun RoutineCard(
                 )
             }
 
-            // Arrow Icon
+            // Material 3 Expressive: Larger Arrow Icon
             Surface(
                 shape = RoundedCornerShape(50),
-                color = Color(0xFFF5F3FF),
-                modifier = Modifier.size(36.dp)
+                color = MaterialTheme.colorScheme.primaryContainer, // Material 3 Expressive: Use theme color
+                modifier = Modifier.size(40.dp) // Material 3 Expressive: Larger (was 36dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -327,8 +338,8 @@ fun RoutineCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Navigate",
-                        tint = Color(0xFF9333EA),
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer, // Material 3 Expressive: Use theme color
+                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 16dp)
                     )
                 }
             }
@@ -392,11 +403,11 @@ fun StatItem(label: String, value: String) {
     }
 }
 
-private fun formatSetReps(setReps: List<Int>): String {
+private fun formatSetReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
 
     // Group consecutive identical reps
-    val groups = mutableListOf<Pair<Int, Int>>() // Pair of (count, reps)
+    val groups = mutableListOf<Pair<Int, String>>() // Pair of (count, reps as string)
     var currentReps = setReps[0]
     var currentCount = 1
 
@@ -404,14 +415,14 @@ private fun formatSetReps(setReps: List<Int>): String {
         if (setReps[i] == currentReps) {
             currentCount++
         } else {
-            groups.add(Pair(currentCount, currentReps))
+            groups.add(Pair(currentCount, currentReps?.toString() ?: "AMRAP"))
             currentReps = setReps[i]
             currentCount = 1
         }
     }
-    groups.add(Pair(currentCount, currentReps))
+    groups.add(Pair(currentCount, currentReps?.toString() ?: "AMRAP"))
 
-    // Format as "3×10, 2×8"
+    // Format as "3×10, 2×8" or "3×AMRAP"
     return groups.joinToString(", ") { (count, reps) -> "${count}×${reps}" }
 }
 
@@ -423,8 +434,12 @@ private fun formatDate(timestamp: Long): String {
 private fun formatEstimatedDuration(routine: Routine): String {
     // Estimate: 30 seconds per rep + rest time
     val totalSets = routine.exercises.sumOf { it.setReps.size }
-    val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.sum() }
-    val totalRestSeconds = routine.exercises.sumOf { it.restSeconds * (it.setReps.size - 1) }
+    val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.filterNotNull().sum() }
+    val totalRestSeconds = routine.exercises.sumOf { exercise ->
+        // Sum all rest times between sets (one less rest than number of sets)
+        val restCount = maxOf(0, exercise.setReps.size - 1)
+        exercise.setRestSeconds.take(restCount).sum()
+    }
     
     val estimatedSeconds = (totalReps * 3) + totalRestSeconds // 3 seconds per rep estimate
     val minutes = estimatedSeconds / 60

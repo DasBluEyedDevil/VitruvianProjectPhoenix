@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -60,7 +62,7 @@ fun HistoryTab(
         ) {
             Text(
                 "Workout History",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineMedium)
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -143,153 +145,138 @@ fun WorkoutHistoryCard(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.98f)
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = 400f
+            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+            stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
         ),
         label = "scale"
     )
 
-    // Fetch exercise name if exerciseId is available
-    var exerciseName by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(session.exerciseId) {
-        session.exerciseId?.let { id ->
-            exerciseName = exerciseRepository.getExerciseById(id)?.name
-        }
-    }
+    // Get exercise name from session (no DB lookup needed!)
+    val exerciseName = session.exerciseName ?: if (session.isJustLift) "Just Lift" else "Unknown Exercise"
 
     Card(
         onClick = { isPressed = true },
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.medium)
         ) {
-            // Header Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    // Gradient Icon Box
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .shadow(4.dp, RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
-                                ),
-                                RoundedCornerShape(12.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.FitnessCenter,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(Spacing.medium))
-                    Column(modifier = Modifier.weight(1f)) {
-                        // Exercise name (or "Just Lift" if no exercise selected)
-                        Text(
-                            exerciseName ?: "Just Lift",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Date/time
-                        Text(
-                            formatRelativeTimestamp(session.timestamp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                // Duration badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.padding(start = Spacing.small)
-                ) {
-                    Text(
-                        formatDuration(session.duration),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
+            // Header: "Single Exercise"
+            Text(
+                "Single Exercise",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-            Spacer(modifier = Modifier.height(Spacing.medium))
+            Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Progress bar showing progress through last/current set
-            val progressValue = if (session.workingReps > 0 && session.reps > 0) {
-                val repsInCurrentSet = session.workingReps % session.reps
-                if (repsInCurrentSet == 0) 1f else repsInCurrentSet.toFloat() / session.reps
-            } else 0f
-            LinearProgressIndicator(
-                progress = { progressValue },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Exercise Name (or "Just Lift" if Just Lift mode)
+            Text(
+                exerciseName ?: "Just Lift",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Date and Time (no label, just the timestamp)
+            Text(
+                formatTimestamp(session.timestamp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Stats Grid (2x2 layout)
+            // Total Reps | Total Sets
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                EnhancedMetricItem(
-                    icon = Icons.Default.Check,
-                    label = "Total Reps",
-                    value = session.totalReps.toString(),
-                    modifier = Modifier.weight(1f)
+                Text(
+                    "Total Reps",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                EnhancedMetricItem(
-                    icon = Icons.AutoMirrored.Filled.List,
-                    label = "Sets",
-                    value = if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString() else "0",
-                    modifier = Modifier.weight(1f)
+                Text(
+                    session.totalReps.toString(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
-            Spacer(modifier = Modifier.height(Spacing.small))
-            
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                EnhancedMetricItem(
-                    icon = Icons.Default.Info,
-                    label = "Weight/Cable",
-                    value = formatWeight(session.weightPerCableKg, weightUnit),
-                    modifier = Modifier.weight(1f)
+                Text(
+                    "Total Sets",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                EnhancedMetricItem(
-                    icon = Icons.Default.Settings,
-                    label = "Mode",
-                    value = session.mode,
-                    modifier = Modifier.weight(1f)
+                Text(
+                    if (session.reps == 0) "1" // AMRAP = single set with variable reps
+                    else if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString()
+                    else "0",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Highest Weight Per Cable | Workout Mode
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Highest Weight Per Cable",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (session.mode.contains("Echo", ignoreCase = true)) "Adaptive" else formatWeight(session.weightPerCableKg, weightUnit),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Workout Mode",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    session.mode,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -311,6 +298,8 @@ fun WorkoutHistoryCard(
             ) {
                 TextButton(
                     onClick = { showDeleteDialog = true },
+                    modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
@@ -318,35 +307,67 @@ fun WorkoutHistoryCard(
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete workout",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 18dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Delete")
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
     }
 
+    // Material 3 Expressive: Delete dialog
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Workout?") },
-            text = { Text("This action cannot be undone.") },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(16.dp),
+            title = { 
+                Text(
+                    "Delete Workout?",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
             confirmButton = {
                 TextButton(
                     onClick = {
                         onDelete()
                         showDeleteDialog = false
-                    }
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         )
@@ -361,6 +382,18 @@ fun WorkoutHistoryCard(
 }
 
 /**
+ * Data class to hold grouped exercise information within a routine
+ */
+private data class ExerciseGroup(
+    val exerciseId: String,
+    val exerciseName: String,
+    val totalReps: Int,
+    val totalSets: Int,
+    val weightPerCableKg: Float,
+    val mode: String
+)
+
+/**
  * Card showing a grouped routine session with multiple exercises
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -372,163 +405,188 @@ fun GroupedRoutineCard(
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     onDelete: (String) -> Unit
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.98f)
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = 400f
+            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+            stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
         ),
         label = "scale"
     )
 
+    // Group sessions by exerciseId and use exerciseName directly (no DB lookup needed!)
+    val exercisesWithNames = remember(groupedItem.sessions) {
+        groupedItem.sessions.groupBy { it.exerciseId ?: "just_lift" }
+            .map { (exerciseId, sessions) ->
+                val totalReps = sessions.sumOf { it.totalReps }
+                val totalSets = sessions.size
+                val weightPerCableKg = sessions.firstOrNull()?.weightPerCableKg ?: 0f
+                val mode = sessions.firstOrNull()?.mode ?: "Unknown"
+                // Use exerciseName from the session (stored when workout was saved)
+                val exerciseName = sessions.firstOrNull()?.exerciseName ?: "Unknown Exercise"
+
+                ExerciseGroup(
+                    exerciseId = exerciseId,
+                    exerciseName = exerciseName,
+                    totalReps = totalReps,
+                    totalSets = totalSets,
+                    weightPerCableKg = weightPerCableKg,
+                    mode = mode
+                )
+            }
+    }
+
     Card(
-        onClick = { isExpanded = !isExpanded },
+        onClick = { isPressed = true },
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.medium)
         ) {
-            // Header Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    // Gradient Icon Box
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .shadow(4.dp, RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
-                                ),
-                                RoundedCornerShape(12.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.List,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(Spacing.medium))
-                    Column(modifier = Modifier.weight(1f)) {
-                        // Routine name
-                        Text(
-                            groupedItem.routineName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Date/time
-                        Text(
-                            formatRelativeTimestamp(groupedItem.timestamp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Duration badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.padding(start = Spacing.small)
-                ) {
-                    Text(
-                        formatDuration(groupedItem.totalDuration),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Stats Grid (2x2 layout)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                EnhancedMetricItem(
-                    icon = Icons.Default.Check,
-                    label = "Total Reps",
-                    value = groupedItem.totalReps.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                EnhancedMetricItem(
-                    icon = Icons.Default.FitnessCenter,
-                    label = "Exercises",
-                    value = groupedItem.exerciseCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            // Header: "Daily Routine"
+            Text(
+                "Daily Routine",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
             Spacer(modifier = Modifier.height(Spacing.small))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                EnhancedMetricItem(
-                    icon = Icons.AutoMirrored.Filled.List,
-                    label = "Sets",
-                    value = groupedItem.sessions.size.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                EnhancedMetricItem(
-                    icon = Icons.Default.Info,
-                    label = "Expand",
-                    value = if (isExpanded) "▲" else "▼",
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
 
-            // Expanded section showing individual sets
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(Spacing.medium))
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                Spacer(modifier = Modifier.height(Spacing.medium))
+            Spacer(modifier = Modifier.height(Spacing.small))
 
+            // Routine Name
+            Text(
+                groupedItem.routineName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Date and Time (no label, just the timestamp)
+            Text(
+                formatTimestamp(groupedItem.timestamp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Display each exercise group
+            exercisesWithNames.forEachIndexed { index, exerciseGroup ->
+                // Exercise Name
                 Text(
-                    "Individual Sets (${groupedItem.sessions.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
+                    exerciseGroup.exerciseName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.small))
 
-                groupedItem.sessions.forEach { session ->
-                    WorkoutSessionCard(
-                        session = session,
-                        weightUnit = weightUnit,
-                        formatWeight = formatWeight,
-                        exerciseRepository = exerciseRepository,
-                        onDelete = { onDelete(session.id) }
+                // Total Reps | Total Sets
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Total Reps",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(Spacing.small))
+                    Text(
+                        exerciseGroup.totalReps.toString(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Total Sets",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.totalSets.toString(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                // Highest Weight Per Cable | Workout Mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Highest Weight Per Cable",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (exerciseGroup.mode.contains("Echo", ignoreCase = true)) "Adaptive" else formatWeight(exerciseGroup.weightPerCableKg, weightUnit),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Workout Mode",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.mode,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Add spacing between exercises (except for the last one)
+                if (index < exercisesWithNames.size - 1) {
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.medium))
                 }
             }
 
@@ -550,6 +608,8 @@ fun GroupedRoutineCard(
             ) {
                 TextButton(
                     onClick = { showDeleteDialog = true },
+                    modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
@@ -557,22 +617,38 @@ fun GroupedRoutineCard(
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete routine session",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 18dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Delete All Sets")
+                    Text(
+                        "Delete All Sets",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
     }
 
+    // Material 3 Expressive: Delete dialog
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Routine Session?") },
-            text = { Text("This will delete all ${groupedItem.sessions.size} sets from this routine. This action cannot be undone.") },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(16.dp),
+            title = { 
+                Text(
+                    "Delete Routine Session?",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "This will delete all ${groupedItem.sessions.size} sets from this routine. This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -581,14 +657,30 @@ fun GroupedRoutineCard(
                             onDelete(session.id)
                         }
                         showDeleteDialog = false
-                    }
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         )
@@ -703,20 +795,20 @@ fun SettingsTab(
     ) {
         Text(
             "Settings",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineMedium)
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
 
-    // Weight Unit Section
+    // Weight Unit Section - Material 3 Expressive
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
             Column(
                 modifier = Modifier
@@ -726,22 +818,27 @@ fun SettingsTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA))
                             ),
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Scale, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                    Icon(
+                        Icons.Default.Scale,
+                        contentDescription = "Weight unit settings",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    )
                 }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Weight Unit",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -786,15 +883,15 @@ fun SettingsTab(
             }
         }
 
-    // Workout Preferences Section
+    // Workout Preferences Section - Material 3 Expressive
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
             Column(
                 modifier = Modifier
@@ -804,20 +901,27 @@ fun SettingsTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
                             ),
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                ) { 
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = "Advanced settings",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Workout Preferences",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -914,78 +1018,80 @@ fun SettingsTab(
             }
         }
 
-    // Color Scheme Section
+    // Color Scheme Section - Compact with visual previews
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
     ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.medium)
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .size(48.dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp))
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1))
                             ),
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(20.dp)
                         ),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.ColorLens, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                ) { 
+                    Icon(
+                        Icons.Default.ColorLens,
+                        contentDescription = "LED color scheme",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    ) 
+                }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "LED Color Scheme",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-                Spacer(modifier = Modifier.height(Spacing.small))
-
-                val colorSchemes = listOf(
-                    "Blue", "Green", "Teal", "Yellow", "Pink", "Red", "Purple"
-                )
-
-                colorSchemes.forEachIndexed { index, name ->
-                    TextButton(
-                        onClick = { onColorSchemeChange(index) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(name, color = MaterialTheme.colorScheme.onSurface)
-                            Icon(
-                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+            
+            Spacer(modifier = Modifier.height(Spacing.medium))
+            
+            // Compact horizontal scrollable color chips
+            val colorSchemes = com.example.vitruvianredux.util.ColorSchemes.ALL
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                colorSchemes.forEachIndexed { index, scheme ->
+                    ColorSchemeChip(
+                        scheme = scheme,
+                        isSelected = false, // TODO: Add selected state tracking if needed
+                        onClick = { onColorSchemeChange(index) }
+                    )
                 }
             }
         }
+    }
 
-    // Data Management Section
+    // Data Management Section - Material 3 Expressive
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border, error color for destructive action
     ) {
             Column(
                 modifier = Modifier
@@ -995,20 +1101,27 @@ fun SettingsTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFFF97316), Color(0xFFEF4444))
                             ),
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                ) { 
+                    Icon(
+                        Icons.Default.DeleteForever,
+                        contentDescription = "Clear workout history",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Data Management",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1017,25 +1130,40 @@ fun SettingsTab(
 
                 Button(
                     onClick = { showDeleteAllDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    )
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete all workouts")
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete all workouts",
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    )
                     Spacer(modifier = Modifier.width(Spacing.small))
-                    Text("Delete All Workouts")
+                    Text(
+                        "Delete All Workouts",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
 
-    // Developer Tools Section
+    // Developer Tools Section - Material 3 Expressive
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
             Column(
                 modifier = Modifier
@@ -1045,20 +1173,27 @@ fun SettingsTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFFF59E0B), Color(0xFFEF4444))
                             ),
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                ) { 
+                    Icon(
+                        Icons.Default.BugReport,
+                        contentDescription = "View connection logs",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "Developer Tools",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1067,11 +1202,22 @@ fun SettingsTab(
 
                 OutlinedButton(
                     onClick = onNavigateToConnectionLogs,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
                 ) {
-                    Icon(Icons.Default.Timeline, contentDescription = "Connection logs")
+                    Icon(
+                        Icons.Default.Timeline,
+                        contentDescription = "Connection logs",
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    )
                     Spacer(modifier = Modifier.width(Spacing.small))
-                    Text("Connection Logs")
+                    Text(
+                        "Connection Logs",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1083,15 +1229,15 @@ fun SettingsTab(
             }
         }
 
-    // App Info Section
+    // App Info Section - Material 3 Expressive
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
             Column(
                 modifier = Modifier
@@ -1101,20 +1247,27 @@ fun SettingsTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .shadow(4.dp, RoundedCornerShape(12.dp))
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(Color(0xFF22C55E), Color(0xFF3B82F6))
                             ),
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                         ),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary) }
+                ) { 
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "App information",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
                     "App Info",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1132,26 +1285,54 @@ fun SettingsTab(
         }
     }
 
+    // Material 3 Expressive: Delete All dialog
     if (showDeleteAllDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAllDialog = false },
-            title = { Text("Delete All Workouts?") },
-            text = { Text("This will permanently delete all workout history. This action cannot be undone.") },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(16.dp),
+            title = { 
+                Text(
+                    "Delete All Workouts?",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "This will permanently delete all workout history. This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
             confirmButton = {
                 TextButton(
                     onClick = {
                         onDeleteAllWorkouts()
                         showDeleteAllDialog = false
-                    }
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
                 ) {
-                    Text("Delete All", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        "Delete All",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteAllDialog = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(
+                    onClick = { showDeleteAllDialog = false },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         )
@@ -1207,7 +1388,7 @@ fun EnhancedMetricItem(
     ) {
         Icon(
             icon,
-            contentDescription = null,
+            contentDescription = "Workout session icon",
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.primary
         )
@@ -1233,4 +1414,105 @@ private fun formatDuration(millis: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
+}
+
+/**
+ * Compact color scheme chip with visual preview
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ColorSchemeChip(
+    scheme: com.example.vitruvianredux.util.ColorScheme,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "scale"
+    )
+    
+    // Convert RGB colors to Compose Color
+    val composeColors = scheme.colors.map { rgbColor ->
+        Color(rgbColor.r, rgbColor.g, rgbColor.b)
+    }
+    
+    // Create gradient from the color scheme
+    val gradientColors = if (composeColors.size >= 2) {
+        composeColors
+    } else {
+        listOf(composeColors.firstOrNull() ?: Color.Gray, Color.DarkGray)
+    }
+    
+    Surface(
+        onClick = {
+            isPressed = true
+            onClick()
+        },
+        modifier = Modifier
+            .width(80.dp)
+            .height(100.dp)
+            .scale(scale)
+            .shadow(if (isSelected) 8.dp else 4.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = if (isSelected) 3.dp else 2.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        ),
+        tonalElevation = if (isSelected) 4.dp else 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(gradientColors),
+                    RoundedCornerShape(16.dp)
+                )
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Color preview (gradient box)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(
+                        Brush.horizontalGradient(gradientColors),
+                        RoundedCornerShape(8.dp)
+                    )
+            )
+            
+            // Color name
+            Text(
+                text = scheme.name,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            
+            // Selected indicator
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+    
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
 }

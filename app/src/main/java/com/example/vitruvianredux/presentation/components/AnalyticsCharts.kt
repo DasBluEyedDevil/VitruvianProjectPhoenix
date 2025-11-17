@@ -5,10 +5,12 @@ import android.graphics.Typeface
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
 import com.example.vitruvianredux.domain.model.PersonalRecord
@@ -18,19 +20,27 @@ import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottomAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStartAxis
+import com.patrykandpatrick.vico.compose.cartesian.axis.*
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
+import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
+import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
+import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
+import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
+import androidx.compose.ui.graphics.Color as ComposeColor
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
  * Line chart showing weight progression over time for a specific exercise
+ * Enhanced with Material 3 Expressive theming and better interactions
  */
 @Composable
 fun WeightProgressionChart(
@@ -39,12 +49,13 @@ fun WeightProgressionChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    val modelProducer = remember { CartesianChartModelProducer.build() }
+    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
+    val modelProducer = remember { CartesianChartModelProducer() }
 
-    remember(prs) {
+    LaunchedEffect(prs) {
         if (prs.isNotEmpty()) {
             val sortedPRs = prs.sortedBy { it.timestamp }
-            modelProducer.tryRunTransaction {
+            modelProducer.runTransaction {
                 lineSeries {
                     series(sortedPRs.map { it.weightPerCableKg.toDouble() })
                 }
@@ -52,15 +63,21 @@ fun WeightProgressionChart(
         }
     }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(250.dp)
-    )
+    ProvideVicoTheme(vicoTheme) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(),
+                startAxis = VerticalAxis.rememberStart(
+                    label = rememberAxisLabelComponent()
+                ),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    label = rememberAxisLabelComponent()
+                )
+            ),
+            modelProducer = modelProducer,
+            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+        )
+    }
 }
 
 /**
@@ -115,9 +132,11 @@ fun MuscleGroupDistributionChart(
                 muscleGroupCounts
             }
 
-            // Create entries
+            // Calculate total and percentages
+            val total = counts.values.sum().toFloat()
             val entries = counts.map { (group, count) ->
-                PieEntry(count.toFloat(), group)
+                val percentage = (count.toFloat() / total) * 100f
+                PieEntry(percentage, group)
             }
 
             // Define colors for muscle groups
@@ -134,13 +153,13 @@ fun MuscleGroupDistributionChart(
 
             val dataSet = PieDataSet(entries, "").apply {
                 this.colors = colors.take(entries.size)
-                sliceSpace = 3f
-                selectionShift = 5f
-                valueTextSize = 12f
+                sliceSpace = 2f
+                selectionShift = 8f
+                valueTextSize = 14f
                 valueTextColor = Color.WHITE
                 valueFormatter = object : ValueFormatter() {
                     override fun getFormattedValue(value: Float): String {
-                        return "${value.toInt()}%"
+                        return if (value >= 5f) "${value.toInt()}%" else "" // Hide small values
                     }
                 }
             }
@@ -154,18 +173,20 @@ fun MuscleGroupDistributionChart(
 
 /**
  * Column chart showing PR count by workout mode using Vico
+ * Enhanced with Material 3 Expressive theming and better styling
  */
 @Composable
 fun WorkoutModeDistributionChart(
     personalRecords: List<PersonalRecord>,
     modifier: Modifier = Modifier
 ) {
-    val modelProducer = remember { CartesianChartModelProducer.build() }
+    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
+    val modelProducer = remember { CartesianChartModelProducer() }
 
-    remember(personalRecords) {
+    LaunchedEffect(personalRecords) {
         if (personalRecords.isNotEmpty()) {
             val modeCounts = personalRecords.groupingBy { it.workoutMode }.eachCount()
-            modelProducer.tryRunTransaction {
+            modelProducer.runTransaction {
                 columnSeries {
                     series(modeCounts.values.map { it.toDouble() })
                 }
@@ -173,19 +194,42 @@ fun WorkoutModeDistributionChart(
         }
     }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberColumnCartesianLayer(),
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(250.dp)
-    )
+    ProvideVicoTheme(vicoTheme) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberColumnCartesianLayer(
+                    columnProvider = com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer.ColumnProvider.series(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.tertiary,
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.secondaryContainer
+                        ).map { color ->
+                            rememberLineComponent(
+                                fill(color),
+                                0.6f.dp // Material 3 Expressive: Wider columns
+                            )
+                        }
+                    ),
+                    columnCollectionSpacing = 8.dp // Material 3 Expressive: More spacing
+                ),
+                startAxis = VerticalAxis.rememberStart(
+                    label = rememberAxisLabelComponent()
+                ),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    label = rememberAxisLabelComponent()
+                )
+            ),
+            modelProducer = modelProducer,
+            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+        )
+    }
 }
 
 /**
  * Line chart showing total volume (weight * reps) over time using Vico
+ * Enhanced with Material 3 Expressive theming and gradient area fill
  */
 @Composable
 fun TotalVolumeChart(
@@ -194,9 +238,10 @@ fun TotalVolumeChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    val modelProducer = remember { CartesianChartModelProducer.build() }
+    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
+    val modelProducer = remember { CartesianChartModelProducer() }
 
-    remember(workoutSessions) {
+    LaunchedEffect(workoutSessions) {
         if (workoutSessions.isNotEmpty()) {
             // Group by day and sum total volume
             val volumeByDate = workoutSessions
@@ -209,7 +254,7 @@ fun TotalVolumeChart(
                     sessions.sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() }
                 }
 
-            modelProducer.tryRunTransaction {
+            modelProducer.runTransaction {
                 lineSeries {
                     series(volumeByDate.values.toList())
                 }
@@ -217,13 +262,19 @@ fun TotalVolumeChart(
         }
     }
 
-    CartesianChartHost(
-        chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-        ),
-        modelProducer = modelProducer,
-        modifier = modifier.height(250.dp)
-    )
+    ProvideVicoTheme(vicoTheme) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberLineCartesianLayer(),
+                startAxis = VerticalAxis.rememberStart(
+                    label = rememberAxisLabelComponent()
+                ),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    label = rememberAxisLabelComponent()
+                )
+            ),
+            modelProducer = modelProducer,
+            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+        )
+    }
 }

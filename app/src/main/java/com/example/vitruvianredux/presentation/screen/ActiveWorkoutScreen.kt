@@ -38,6 +38,7 @@ fun ActiveWorkoutScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
+    val userPreferences by viewModel.userPreferences.collectAsState()
 
     // State for confirmation dialog
     var showExitConfirmation by remember { mutableStateOf(false) }
@@ -142,6 +143,7 @@ fun ActiveWorkoutScreen(
             hapticEvents = hapticEvents,
             loadedRoutine = loadedRoutine,
             currentExerciseIndex = currentExerciseIndex,
+            autoplayEnabled = userPreferences.autoplayEnabled,
             kgToDisplay = viewModel::kgToDisplay,
             displayToKg = viewModel::displayToKg,
             formatWeight = viewModel::formatWeight,

@@ -24,7 +24,7 @@ import com.example.vitruvianredux.presentation.screen.LargeSplashScreen
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
 import com.example.vitruvianredux.ui.theme.VitruvianProjectPhoenixTheme
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
@@ -37,8 +37,8 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
 
-        // Ensure system windows are not drawn behind content to avoid black overlay issues
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Enable edge-to-edge display for proper Material 3 insets handling
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()

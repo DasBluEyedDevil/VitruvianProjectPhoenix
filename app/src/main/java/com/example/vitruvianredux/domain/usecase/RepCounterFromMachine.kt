@@ -3,6 +3,7 @@ package com.example.vitruvianredux.domain.usecase
 import com.example.vitruvianredux.domain.model.RepCount
 import com.example.vitruvianredux.domain.model.RepEvent
 import com.example.vitruvianredux.domain.model.RepType
+import timber.log.Timber
 import kotlin.math.max
 
 /**
@@ -26,6 +27,7 @@ class RepCounterFromMachine {
     private var isJustLift = false
     private var stopAtTop = false
     private var shouldStop = false
+    private var isAMRAP = false
 
     private var lastTopCounter: Int? = null
     private var lastCompleteCounter: Int? = null
@@ -51,12 +53,22 @@ class RepCounterFromMachine {
         warmupTarget: Int,
         workingTarget: Int,
         isJustLift: Boolean,
-        stopAtTop: Boolean
+        stopAtTop: Boolean,
+        isAMRAP: Boolean = false
     ) {
         this.warmupTarget = warmupTarget
         this.workingTarget = workingTarget
         this.isJustLift = isJustLift
         this.stopAtTop = stopAtTop
+        this.isAMRAP = isAMRAP
+
+        // Log RepCounter configuration
+        Timber.d("🔧 RepCounter.configure() called:")
+        Timber.d("  warmupTarget: $warmupTarget")
+        Timber.d("  workingTarget: $workingTarget")
+        Timber.d("  isJustLift: $isJustLift")
+        Timber.d("  stopAtTop: $stopAtTop")
+        Timber.d("  isAMRAP: $isAMRAP")
     }
 
     fun reset() {
@@ -138,7 +150,11 @@ class RepCounterFromMachine {
 
                     // If "Stop At Top" is enabled and target reached, stop NOW (at peak contraction)
                     // This is safer as it ensures user completes the full eccentric phase of final rep
-                    if (stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
+                    // UNLESS isAMRAP is enabled - then user controls when to stop
+                    if (stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+                        Timber.d("⚠️ shouldStop set to TRUE (stopAtTop path)")
+                        Timber.d("  stopAtTop=$stopAtTop, isJustLift=$isJustLift, isAMRAP=$isAMRAP")
+                        Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
                         shouldStop = true
                         onRepEvent?.invoke(
                             RepEvent(
@@ -171,7 +187,11 @@ class RepCounterFromMachine {
         // If "Stop At Top" is disabled, stop at BOTTOM after completing target
         // This preserves the old behavior for users who prefer it
         // Note: Rep was already counted when topCounter fired
-        if (!stopAtTop && !isJustLift && workingTarget > 0 && workingReps >= workingTarget) {
+        // UNLESS isAMRAP is enabled - then user controls when to stop
+        if (!stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+            Timber.d("⚠️ shouldStop set to TRUE (!stopAtTop path)")
+            Timber.d("  stopAtTop=$stopAtTop, isJustLift=$isJustLift, isAMRAP=$isAMRAP")
+            Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
             shouldStop = true
             onRepEvent?.invoke(
                 RepEvent(
@@ -258,6 +278,8 @@ class RepCounterFromMachine {
     }
 
     fun shouldStopWorkout(): Boolean = shouldStop
+
+    fun getCurrentRepCount(): RepCount = getRepCount()
 
     fun getCalibratedTopPosition(): Int? = maxRepPosA
 

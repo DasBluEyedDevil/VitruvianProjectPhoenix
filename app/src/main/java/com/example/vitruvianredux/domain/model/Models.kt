@@ -180,7 +180,8 @@ data class WorkoutParameters(
     val useAutoStart: Boolean = false, // true for Just Lift, false for others
     val stopAtTop: Boolean = false,  // false = stop at bottom (extended), true = stop at top (contracted)
     val warmupReps: Int = 3,
-    val selectedExerciseId: String? = null
+    val selectedExerciseId: String? = null,
+    val isAMRAP: Boolean = false  // AMRAP (As Many Reps As Possible) - disables auto-stop
 )
 
 /**
@@ -262,6 +263,7 @@ data class WorkoutSession(
     val echoLevel: Int = 2,  // 1=Hard, 2=Harder, 3=Hardest, 4=Epic
     // Exercise tracking
     val exerciseId: String? = null,  // Exercise library ID for PR tracking
+    val exerciseName: String? = null,  // Exercise name for display (avoids DB lookups)
     // Routine tracking (for grouping sets from the same routine)
     val routineSessionId: String? = null,  // Unique ID for this routine session
     val routineName: String? = null  // Name of the routine being performed

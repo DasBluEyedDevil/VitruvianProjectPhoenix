@@ -7,11 +7,13 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
@@ -79,8 +81,7 @@ fun SingleExerciseScreen(
                             setReps = listOf(10, 10, 10),
                             weightPerCableKg = 20f,
                             progressionKg = 0f,
-                            restSeconds = 60,
-                            notes = "",
+                            setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
                             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                             eccentricLoad = EccentricLoad.LOAD_100,
                             echoLevel = EchoLevel.HARDER
@@ -145,7 +146,7 @@ fun SingleExerciseScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.FitnessCenter,
-                        contentDescription = null,
+                        contentDescription = "Exercise icon",
                         modifier = Modifier.size(80.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -158,11 +159,22 @@ fun SingleExerciseScreen(
                     Spacer(Modifier.height(Spacing.medium))
                     Button(
                         onClick = { showExercisePicker = true },
-                        modifier = Modifier.fillMaxWidth(0.8f).height(56.dp)
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(56.dp), // Material 3 Expressive: Taller button
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
+                            pressedElevation = 2.dp
+                        )
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null)
+                        Icon(Icons.Default.Search, contentDescription = "Search exercises", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
                         Spacer(Modifier.width(Spacing.small))
-                        Text("Select Exercise")
+                        Text(
+                            "Select Exercise",
+                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

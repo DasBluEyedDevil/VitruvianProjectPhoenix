@@ -130,10 +130,15 @@ dependencies {
     // Chart Library - MPAndroidChart
     implementation(libs.mpandroidchart)
 
-    // Vico Charts - Modern Compose charting library
+    // Vico Charts - Modern Compose charting library (upgraded to stable 2.1.3)
     implementation(libs.vico.compose)
     implementation(libs.vico.compose.m3)
     implementation(libs.vico.core)
+
+    // Compose Charts - For area charts and gradients
+    implementation(libs.compose.charts)
+
+    // Note: Charty removed - using Vico Charts for pie/donut charts instead
 
     // Logging - Timber
     implementation(libs.timber)
@@ -159,5 +164,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.truth)
 }
 
