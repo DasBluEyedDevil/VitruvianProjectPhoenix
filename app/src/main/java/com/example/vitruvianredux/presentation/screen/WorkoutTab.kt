@@ -311,7 +311,11 @@ fun WorkoutTab(
                                         )
 
                                         Text(
-                                            "${nextExercise.setReps.size} sets x ${nextExercise.setReps.first()} reps",
+                                            if (nextExercise.setReps.isEmpty()) {
+                                                "AMRAP - As Many Reps As Possible"
+                                            } else {
+                                                "${nextExercise.setReps.size} sets x ${nextExercise.setReps.first()} reps"
+                                            },
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
@@ -1509,7 +1513,9 @@ fun CurrentExerciseCard(
             // Exercise details (reps, weight, mode)
             if (currentExercise != null) {
                 // Routine exercise - show full details
-                val repsText = if (currentExercise.setReps.all { it == currentExercise.setReps.first() }) {
+                val repsText = if (currentExercise.setReps.isEmpty()) {
+                    "No sets configured"
+                } else if (currentExercise.setReps.all { it == currentExercise.setReps.first() }) {
                     "${currentExercise.setReps.size}x${currentExercise.setReps.first()}"
                 } else {
                     currentExercise.setReps.joinToString(", ")
@@ -1635,7 +1641,8 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
             Text(
                 text = labelText,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
@@ -1643,7 +1650,7 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
                 text = countText,
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     }

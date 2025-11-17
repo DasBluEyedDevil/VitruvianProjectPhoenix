@@ -21,10 +21,11 @@ interface ExerciseDao {
     fun getFavorites(): Flow<List<ExerciseEntity>>
     
     @Query("""
-        SELECT * FROM exercises 
-        WHERE name LIKE '%' || :query || '%' 
+        SELECT * FROM exercises
+        WHERE name LIKE '%' || :query || '%'
            OR description LIKE '%' || :query || '%'
            OR muscles LIKE '%' || :query || '%'
+           OR aliases LIKE '%' || :query || '%'
         ORDER BY popularity DESC, name ASC
     """)
     fun searchExercises(query: String): Flow<List<ExerciseEntity>>

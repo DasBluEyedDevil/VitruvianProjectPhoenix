@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 
@@ -64,8 +65,8 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
     private val _rest = MutableStateFlow(60)
     val rest: StateFlow<Int> = _rest.asStateFlow()
 
-    private val _notes = MutableStateFlow("")
-    val notes: StateFlow<String> = _notes.asStateFlow()
+    private val _perSetRestTime = MutableStateFlow(false)
+    val perSetRestTime: StateFlow<Boolean> = _perSetRestTime.asStateFlow()
 
     private val _eccentricLoad = MutableStateFlow(EccentricLoad.LOAD_100)
     val eccentricLoad: StateFlow<EccentricLoad> = _eccentricLoad.asStateFlow()
@@ -111,7 +112,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             SetConfiguration(
                 id = UUID.randomUUID().toString(),
                 setNumber = index + 1,
-                reps = reps ?: 10, // AMRAP sets have null reps, default to 10 for display
+                reps = reps, // Preserve null for AMRAP sets
                 weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
                 duration = exercise.duration ?: 30,
                 restSeconds = perSetRest
@@ -123,12 +124,28 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
                 SetConfiguration(id = UUID.randomUUID().toString(), setNumber = 3, reps = 10, weightPerCable = kgToDisplay(defaultWeightKg, weightUnit), restSeconds = 60)
             )
         }
+
+        // Debug logging for AMRAP exercise data loading
+        Timber.d("━━━━━ ExerciseConfigViewModel.initialize() ━━━━━")
+        Timber.d("Exercise: ${exercise.exercise.name}")
+        Timber.d("isAMRAP flag: ${exercise.isAMRAP}")
+        Timber.d("perSetRestTime flag: ${exercise.perSetRestTime}")
+        Timber.d("setReps: ${exercise.setReps}")
+        Timber.d("setWeightsPerCableKg: ${exercise.setWeightsPerCableKg}")
+        Timber.d("weightPerCableKg: ${exercise.weightPerCableKg}")
+        Timber.d("setRestSeconds: ${exercise.setRestSeconds}")
+        Timber.d("Loaded sets:")
+        initialSets.forEach { set ->
+            Timber.d("  Set ${set.setNumber}: reps=${set.reps}, weight=${set.weightPerCable}, rest=${set.restSeconds}")
+        }
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         _sets.value = initialSets
 
         _selectedMode.value = exercise.workoutType.toWorkoutMode()
         _weightChange.value = kgToDisplay(exercise.progressionKg, weightUnit).toInt()
         _rest.value = exercise.setRestSeconds.firstOrNull()?.coerceIn(0, 300) ?: 60 // Use first rest time or default
-        _notes.value = exercise.notes
+        _perSetRestTime.value = exercise.perSetRestTime
         _eccentricLoad.value = exercise.eccentricLoad
         _echoLevel.value = exercise.echoLevel
 
@@ -151,8 +168,12 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         _rest.value = newRest
     }
 
-    fun onNotesChange(newNotes: String) {
-        _notes.value = newNotes
+    fun onPerSetRestTimeChange(enabled: Boolean) {
+        _perSetRestTime.value = enabled
+        // When switching to single rest time, update all sets to use the current rest value
+        if (!enabled) {
+            _sets.value = _sets.value.map { it.copy(restSeconds = _rest.value) }
+        }
     }
 
     fun onEccentricLoadChange(load: EccentricLoad) {
@@ -208,6 +229,30 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
     fun onSave(onSaveCallback: (RoutineExercise) -> Unit) {
         if (_sets.value.isEmpty()) return
 
+        // Determine rest times based on perSetRestTime toggle
+        val restTimes = if (_perSetRestTime.value) {
+            // Per-set rest times: use each set's rest time
+            _sets.value.map { it.restSeconds }
+        } else {
+            // Single rest time: use the bottom rest time picker value for all sets
+            List(_sets.value.size) { _rest.value }
+        }
+
+        // Determine if exercise is AMRAP (all sets have null reps)
+        val isAMRAP = _sets.value.all { it.reps == null }
+
+        // Debug logging for AMRAP exercise data saving
+        Timber.d("━━━━━ ExerciseConfigViewModel.onSave() ━━━━━")
+        Timber.d("Exercise: ${originalExercise.exercise.name}")
+        Timber.d("isAMRAP computed: $isAMRAP")
+        Timber.d("perSetRestTime toggle: ${_perSetRestTime.value}")
+        Timber.d("Current sets before save:")
+        _sets.value.forEach { set ->
+            Timber.d("  Set ${set.setNumber}: reps=${set.reps}, weight=${set.weightPerCable}, rest=${set.restSeconds}")
+        }
+        Timber.d("Rest times to save: $restTimes")
+        Timber.d("Weights to save: ${_sets.value.map { displayToKg(it.weightPerCable, weightUnit) }}")
+
         val updatedExercise = originalExercise.copy(
             setReps = _sets.value.map { it.reps },
             weightPerCableKg = displayToKg(_sets.value.first().weightPerCable, weightUnit),
@@ -218,10 +263,21 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             eccentricLoad = _eccentricLoad.value,
             echoLevel = _echoLevel.value,
             progressionKg = displayToKg(_weightChange.value.toFloat(), weightUnit),
-            setRestSeconds = _sets.value.map { it.restSeconds }, // Convert per-set rest times
-            notes = _notes.value.trim(),
-            duration = if (_setMode.value == SetMode.DURATION) _sets.value.firstOrNull()?.duration else null
+            setRestSeconds = restTimes,
+            duration = if (_setMode.value == SetMode.DURATION) _sets.value.firstOrNull()?.duration else null,
+            perSetRestTime = _perSetRestTime.value,
+            isAMRAP = isAMRAP
         )
+
+        Timber.d("Updated exercise to save:")
+        Timber.d("  setReps: ${updatedExercise.setReps}")
+        Timber.d("  setWeightsPerCableKg: ${updatedExercise.setWeightsPerCableKg}")
+        Timber.d("  weightPerCableKg: ${updatedExercise.weightPerCableKg}")
+        Timber.d("  setRestSeconds: ${updatedExercise.setRestSeconds}")
+        Timber.d("  perSetRestTime: ${updatedExercise.perSetRestTime}")
+        Timber.d("  isAMRAP: ${updatedExercise.isAMRAP}")
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         onSaveCallback(updatedExercise)
         _initialized.value = false // Reset for next use
     }

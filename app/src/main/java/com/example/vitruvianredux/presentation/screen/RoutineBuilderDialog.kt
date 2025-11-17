@@ -246,7 +246,6 @@ fun RoutineBuilderDialog(
                     weightPerCableKg = 20f,
                     progressionKg = 0f,
                     setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
-                    notes = "",
                     workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                     eccentricLoad = EccentricLoad.LOAD_100,
                     echoLevel = EchoLevel.HARDER
@@ -371,10 +370,6 @@ fun ExerciseListItem(
                             Text("${firstRest}s rest", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                         }
                     }
-                }
-
-                if (exercise.notes.isNotEmpty()) {
-                    Text(exercise.notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, maxLines = 2)
                 }
             }
 

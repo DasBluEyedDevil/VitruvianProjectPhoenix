@@ -263,6 +263,7 @@ data class WorkoutSession(
     val echoLevel: Int = 2,  // 1=Hard, 2=Harder, 3=Hardest, 4=Epic
     // Exercise tracking
     val exerciseId: String? = null,  // Exercise library ID for PR tracking
+    val exerciseName: String? = null,  // Exercise name for display (avoids DB lookups)
     // Routine tracking (for grouping sets from the same routine)
     val routineSessionId: String? = null,  // Unique ID for this routine session
     val routineName: String? = null  // Name of the routine being performed

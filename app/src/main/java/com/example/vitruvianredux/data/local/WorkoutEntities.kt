@@ -30,6 +30,7 @@ data class WorkoutSessionEntity(
     val echoLevel: Int = 1,  // 0=Hard, 1=Harder, 2=Hardest, 3=Epic (stores levelValue)
     // Exercise tracking (added in v15)
     val exerciseId: String? = null,  // Exercise library ID for PR tracking
+    val exerciseName: String? = null,  // Exercise name for display (added in v16)
     // Routine tracking (for grouping sets from the same routine)
     val routineSessionId: String? = null,  // Unique ID for this routine session
     val routineName: String? = null  // Name of the routine being performed
@@ -106,11 +107,14 @@ data class RoutineExerciseEntity(
     val echoLevel: Int = 1,  // 0=Hard, 1=Harder, 2=Hardest, 3=Epic (stores levelValue)
     val progressionKg: Float = 0f,
     val restSeconds: Int = 60,
-    val notes: String = "",
     // Optional duration in seconds for duration-based sets
     val duration: Int? = null,
     // Per-set rest times as JSON array (e.g., "[60,90,120]" for 3 sets with different rest times)
-    val setRestSeconds: String = "[]"
+    val setRestSeconds: String = "[]",
+    // Per Set Rest Time toggle - when true, each set has its own rest time; when false, single rest time applies to all sets
+    val perSetRestTime: Boolean = false,
+    // AMRAP (As Many Reps As Possible) flag - when true, exercise has no rep target
+    val isAMRAP: Boolean = false
 )
 
 /**

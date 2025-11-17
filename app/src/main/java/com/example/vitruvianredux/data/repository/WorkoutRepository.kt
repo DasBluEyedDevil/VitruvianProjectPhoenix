@@ -55,7 +55,10 @@ class WorkoutRepository @Inject constructor(
                 stopAtTop = session.stopAtTop,
                 eccentricLoad = session.eccentricLoad,
                 echoLevel = session.echoLevel,
-                exerciseId = session.exerciseId
+                exerciseId = session.exerciseId,
+                exerciseName = session.exerciseName,
+                routineSessionId = session.routineSessionId,
+                routineName = session.routineName
             )
             workoutDao.insertSession(entity)
             Timber.d("Saved workout session: ${session.id}")
@@ -385,6 +388,7 @@ private fun WorkoutSessionEntity.toWorkoutSession() = WorkoutSession(
     eccentricLoad = eccentricLoad,
     echoLevel = echoLevel,
     exerciseId = exerciseId,
+    exerciseName = exerciseName,
     routineSessionId = routineSessionId,
     routineName = routineName
 )
@@ -408,21 +412,27 @@ private fun Routine.toEntity() = RoutineEntity(
     useCount = useCount
 )
 
-private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
-    id = id,
-    routineId = routineId,
-    // Store Exercise data class fields
-    exerciseName = exercise.name,
-    exerciseMuscleGroup = exercise.muscleGroup,
-    exerciseEquipment = exercise.equipment,
-    exerciseDefaultCableConfig = exercise.defaultCableConfig.name, // Convert enum to String
-    exerciseId = exercise.id, // Store exercise library ID
-    // Routine-specific configuration
-    cableConfig = cableConfig.name, // Convert enum to String
-    orderIndex = orderIndex,
-    setReps = setReps.joinToString(",") { it?.toString() ?: "" }, // Convert List<Int?> to comma-separated String (empty string for null/AMRAP)
-    weightPerCableKg = weightPerCableKg,
-    setWeights = setWeightsPerCableKg.joinToString(",") { it.toString() },
+private fun RoutineExercise.toEntity(routineId: String): RoutineExerciseEntity {
+    val setRepsString = setReps.joinToString(",") { it?.toString() ?: "null" }
+    val setWeightsString = setWeightsPerCableKg.joinToString(",") { it.toString() }
+    val setRestString = setRestSeconds.toJsonArray()
+    Timber.d("💾 toEntity: '${exercise.name}' setReps=$setReps -> '$setRepsString', setWeights=$setWeightsPerCableKg -> '$setWeightsString', setRest=$setRestSeconds -> '$setRestString'")
+
+    return RoutineExerciseEntity(
+        id = id,
+        routineId = routineId,
+        // Store Exercise data class fields
+        exerciseName = exercise.name,
+        exerciseMuscleGroup = exercise.muscleGroup,
+        exerciseEquipment = exercise.equipment,
+        exerciseDefaultCableConfig = exercise.defaultCableConfig.name, // Convert enum to String
+        exerciseId = exercise.id, // Store exercise library ID
+        // Routine-specific configuration
+        cableConfig = cableConfig.name, // Convert enum to String
+        orderIndex = orderIndex,
+        setReps = setRepsString, // Convert List<Int?> to comma-separated String (use "null" marker for AMRAP sets)
+        weightPerCableKg = weightPerCableKg,
+        setWeights = setWeightsString,
     mode = when (workoutType) {
         is WorkoutType.Program -> when (workoutType.mode) {
             is ProgramMode.OldSchool -> "OldSchool"
@@ -448,7 +458,8 @@ private fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(
     perSetRestTime = perSetRestTime,
     isAMRAP = isAMRAP
 ).also {
-    Timber.d("🟠 Domain→DB: ${exercise.name}, isAMRAP to DB: $isAMRAP, setReps string: ${it.setReps}")
+    Timber.d("🟠 Domain→DB: ${exercise.name}, isAMRAP=$isAMRAP, setReps=${setReps} → DB string='${it.setReps}'")
+}
 }
 
 private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity>) = Routine(
@@ -492,7 +503,7 @@ private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         ),
         cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
         orderIndex = orderIndex,
-        setReps = if (setReps.isEmpty()) emptyList() else setReps.split(",").map { if (it.isEmpty()) null else it.toIntOrNull() },
+        setReps = if (setReps.isEmpty()) listOf(null) else setReps.split(",").map { if (it.isEmpty() || it == "null") null else it.toIntOrNull() }, // Treat empty as single AMRAP set (fixes old corrupted data)
         weightPerCableKg = weightPerCableKg,
         setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
         workoutType = when (mode) {
@@ -515,7 +526,7 @@ private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         perSetRestTime = perSetRestTime,
         isAMRAP = isAMRAP
     ).also {
-        Timber.d("🔵 DB→Domain: ${exerciseName}, isAMRAP from DB: $isAMRAP, setReps: ${it.setReps}")
+        Timber.d("🔵 DB→Domain: ${exerciseName}, DB string='$setReps' → setReps=${it.setReps}, isAMRAP=$isAMRAP")
     }.withNormalizedRestTimes() // Ensure array matches number of sets
 }
 

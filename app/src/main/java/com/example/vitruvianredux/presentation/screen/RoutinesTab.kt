@@ -100,7 +100,8 @@ fun RoutinesTab(
                 )
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.small),
+                    contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB (56dp + padding)
                 ) {
                     items(routines, key = { it.id }) { routine ->
                         RoutineCard(
@@ -115,11 +116,14 @@ fun RoutinesTab(
                                 // Generate new IDs explicitly and create deep copies
                                 val newRoutineId = java.util.UUID.randomUUID().toString()
                                 val newExercises = routine.exercises.map { exercise ->
-                                    exercise.copy(
+                                    android.util.Log.d("RoutinesDuplicate", "📋 Original exercise '${exercise.exercise.name}': setReps=${exercise.setReps}, setWeights=${exercise.setWeightsPerCableKg}, setRest=${exercise.setRestSeconds}")
+                                    val copied = exercise.copy(
                                         id = java.util.UUID.randomUUID().toString(),
                                         // Deep copy the Exercise object to avoid any shared references
                                         exercise = exercise.exercise.copy()
                                     )
+                                    android.util.Log.d("RoutinesDuplicate", "📋 Copied exercise '${copied.exercise.name}': setReps=${copied.setReps}, setWeights=${copied.setWeightsPerCableKg}, setRest=${copied.setRestSeconds}")
+                                    copied
                                 }
 
                                 // Smart duplicate naming: extract base name and find next copy number
@@ -433,7 +437,8 @@ private fun formatEstimatedDuration(routine: Routine): String {
     val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.filterNotNull().sum() }
     val totalRestSeconds = routine.exercises.sumOf { exercise ->
         // Sum all rest times between sets (one less rest than number of sets)
-        exercise.setRestSeconds.take(exercise.setReps.size - 1).sum()
+        val restCount = maxOf(0, exercise.setReps.size - 1)
+        exercise.setRestSeconds.take(restCount).sum()
     }
     
     val estimatedSeconds = (totalReps * 3) + totalRestSeconds // 3 seconds per rep estimate
