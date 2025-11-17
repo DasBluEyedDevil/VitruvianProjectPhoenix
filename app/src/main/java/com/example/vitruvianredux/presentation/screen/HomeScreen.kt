@@ -429,7 +429,6 @@ fun HomeActiveProgramCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
-                        enabled = todayRoutine != null,
                         shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary

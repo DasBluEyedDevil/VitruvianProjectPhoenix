@@ -9,19 +9,19 @@ import androidx.compose.runtime.Composable
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryPurple,
-    onPrimary = BackgroundBlack,
-    primaryContainer = PurpleAccent,
+    primary = PrimaryPurpleDark,               // Desaturated purple reduces eye strain
+    onPrimary = TextPrimary,                   // White text on purple
+    primaryContainer = PurpleAccentDark,       // Desaturated purple container
     onPrimaryContainer = TextPrimary,
 
-    secondary = SecondaryPurple,
-    onSecondary = BackgroundBlack,
-    secondaryContainer = SecondaryPurple,
+    secondary = SecondaryPurpleDark,           // Desaturated deeper purple
+    onSecondary = TextPrimary,
+    secondaryContainer = SecondaryPurpleDark,
     onSecondaryContainer = TextPrimary,
 
-    tertiary = TertiaryPurple,
-    onTertiary = BackgroundBlack,
-    tertiaryContainer = TertiaryPurple,
+    tertiary = TertiaryPurpleDark,             // Soft purple for highlights
+    onTertiary = TextPrimary,
+    tertiaryContainer = TertiaryPurpleDark,
     onTertiaryContainer = TextPrimary,
 
     background = BackgroundBlack,
@@ -40,20 +40,20 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TertiaryPurple,               // Light purple for buttons
-    onPrimary = ColorOnLightBackground,     // Dark text on light buttons
-    primaryContainer = TertiaryPurple,      // Light purple container
-    onPrimaryContainer = ColorOnLightBackground,
+    primary = PrimaryBlueLight,              // Teal/cyan for light mode buttons
+    onPrimary = ColorLightSurface,           // White text on teal buttons
+    primaryContainer = TertiaryBlueLight.copy(alpha = 0.2f),  // Light teal container
+    onPrimaryContainer = ColorOnLightBackground,  // Dark text on light container
 
-    secondary = TertiaryPurple,             // Light purple for secondary elements
-    onSecondary = ColorOnLightBackground,   // Dark text
-    secondaryContainer = TertiaryPurple,
-    onSecondaryContainer = ColorOnLightBackground,
+    secondary = SecondaryBlueLight,          // Deeper teal for secondary elements
+    onSecondary = ColorLightSurface,         // White text
+    secondaryContainer = TertiaryBlueLight.copy(alpha = 0.15f),
+    onSecondaryContainer = ColorOnLightBackground,  // Dark text
 
-    tertiary = InfoBlue.copy(alpha = 0.3f), // Light blue
-    onTertiary = ColorOnLightBackground,
-    tertiaryContainer = InfoBlue.copy(alpha = 0.15f),
-    onTertiaryContainer = ColorOnLightBackground,
+    tertiary = TertiaryBlueLight,            // Bright cyan for highlights
+    onTertiary = ColorLightSurface,          // White text
+    tertiaryContainer = TertiaryBlueLight.copy(alpha = 0.1f),
+    onTertiaryContainer = ColorOnLightBackground,  // Dark text
 
     background = ColorLightBackground,
     onBackground = ColorOnLightBackground,

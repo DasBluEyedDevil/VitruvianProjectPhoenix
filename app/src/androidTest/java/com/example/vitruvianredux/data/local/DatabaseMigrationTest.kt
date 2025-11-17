@@ -101,7 +101,7 @@ class DatabaseMigrationTest {
         // Create temporary v16 database
         val tempDb = Room.databaseBuilder(context, WorkoutDatabase::class.java, TEST_DB_NAME)
             .addCallback(createV16Schema)
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
         // Access database to trigger onCreate

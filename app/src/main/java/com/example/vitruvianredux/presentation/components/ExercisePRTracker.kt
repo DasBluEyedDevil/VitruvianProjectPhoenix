@@ -396,14 +396,14 @@ private fun PRHistoryItem(
                         text = "🏆 Best",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.tertiary
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 } else if (isLatest) {
                     Text(
                         text = "Latest",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
                 Text(

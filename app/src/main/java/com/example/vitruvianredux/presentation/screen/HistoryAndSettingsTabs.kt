@@ -153,13 +153,8 @@ fun WorkoutHistoryCard(
         label = "scale"
     )
 
-    // Fetch exercise name if exerciseId is available
-    var exerciseName by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(session.exerciseId) {
-        session.exerciseId?.let { id ->
-            exerciseName = exerciseRepository.getExerciseById(id)?.name
-        }
-    }
+    // Get exercise name from session (no DB lookup needed!)
+    val exerciseName = session.exerciseName ?: if (session.isJustLift) "Just Lift" else "Unknown Exercise"
 
     Card(
         onClick = { isPressed = true },
@@ -177,122 +172,111 @@ fun WorkoutHistoryCard(
                 .fillMaxWidth()
                 .padding(Spacing.medium)
         ) {
-            // Header Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    // Material 3 Expressive: Larger Gradient Icon Box
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp) // Material 3 Expressive: Larger (was 48dp)
-                            .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
-                                ),
-                                RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.FitnessCenter,
-                            contentDescription = "Workout routine",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(28.dp) // Material 3 Expressive: Larger icon (was default)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(Spacing.medium))
-                    Column(modifier = Modifier.weight(1f)) {
-                        // Exercise name (or "Just Lift" if no exercise selected)
-                        Text(
-                            exerciseName ?: "Just Lift",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Date/time
-                        Text(
-                            formatRelativeTimestamp(session.timestamp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                // Material 3 Expressive: Duration badge
-                Surface(
-                    shape = RoundedCornerShape(12.dp), // Material 3 Expressive: More rounded (was 8dp)
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.padding(start = Spacing.small)
-                ) {
-                    Text(
-                        formatDuration(session.duration),
-                        style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp) // Material 3 Expressive: More padding
-                    )
-                }
-            }
+            // Header: "Single Exercise"
+            Text(
+                "Single Exercise",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-            Spacer(modifier = Modifier.height(Spacing.medium))
+            Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Progress bar showing progress through last/current set
-            val progressValue = if (session.workingReps > 0 && session.reps > 0) {
-                val repsInCurrentSet = session.workingReps % session.reps
-                if (repsInCurrentSet == 0) 1f else repsInCurrentSet.toFloat() / session.reps
-            } else 0f
-            LinearProgressIndicator(
-                progress = { progressValue },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Exercise Name (or "Just Lift" if Just Lift mode)
+            Text(
+                exerciseName ?: "Just Lift",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Date and Time (no label, just the timestamp)
+            Text(
+                formatTimestamp(session.timestamp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Stats Grid (2x2 layout)
+            // Total Reps | Total Sets
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                EnhancedMetricItem(
-                    icon = Icons.Default.Check,
-                    label = "Total Reps",
-                    value = session.totalReps.toString(),
-                    modifier = Modifier.weight(1f)
+                Text(
+                    "Total Reps",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                EnhancedMetricItem(
-                    icon = Icons.AutoMirrored.Filled.List,
-                    label = "Sets",
-                    value = if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString() else "0",
-                    modifier = Modifier.weight(1f)
+                Text(
+                    session.totalReps.toString(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             
-            Spacer(modifier = Modifier.height(Spacing.small))
-            
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                EnhancedMetricItem(
-                    icon = Icons.Default.Info,
-                    label = "Weight/Cable",
-                    value = formatWeight(session.weightPerCableKg, weightUnit),
-                    modifier = Modifier.weight(1f)
+                Text(
+                    "Total Sets",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                EnhancedMetricItem(
-                    icon = Icons.Default.Settings,
-                    label = "Mode",
-                    value = session.mode,
-                    modifier = Modifier.weight(1f)
+                Text(
+                    if (session.reps == 0) "1" // AMRAP = single set with variable reps
+                    else if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString()
+                    else "0",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Highest Weight Per Cable | Workout Mode
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Highest Weight Per Cable",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (session.mode.contains("Echo", ignoreCase = true)) "Adaptive" else formatWeight(session.weightPerCableKg, weightUnit),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Workout Mode",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    session.mode,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -398,6 +382,18 @@ fun WorkoutHistoryCard(
 }
 
 /**
+ * Data class to hold grouped exercise information within a routine
+ */
+private data class ExerciseGroup(
+    val exerciseId: String,
+    val exerciseName: String,
+    val totalReps: Int,
+    val totalSets: Int,
+    val weightPerCableKg: Float,
+    val mode: String
+)
+
+/**
  * Card showing a grouped routine session with multiple exercises
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -409,7 +405,6 @@ fun GroupedRoutineCard(
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     onDelete: (String) -> Unit
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -421,8 +416,30 @@ fun GroupedRoutineCard(
         label = "scale"
     )
 
+    // Group sessions by exerciseId and use exerciseName directly (no DB lookup needed!)
+    val exercisesWithNames = remember(groupedItem.sessions) {
+        groupedItem.sessions.groupBy { it.exerciseId ?: "just_lift" }
+            .map { (exerciseId, sessions) ->
+                val totalReps = sessions.sumOf { it.totalReps }
+                val totalSets = sessions.size
+                val weightPerCableKg = sessions.firstOrNull()?.weightPerCableKg ?: 0f
+                val mode = sessions.firstOrNull()?.mode ?: "Unknown"
+                // Use exerciseName from the session (stored when workout was saved)
+                val exerciseName = sessions.firstOrNull()?.exerciseName ?: "Unknown Exercise"
+
+                ExerciseGroup(
+                    exerciseId = exerciseId,
+                    exerciseName = exerciseName,
+                    totalReps = totalReps,
+                    totalSets = totalSets,
+                    weightPerCableKg = weightPerCableKg,
+                    mode = mode
+                )
+            }
+    }
+
     Card(
-        onClick = { isExpanded = !isExpanded },
+        onClick = { isPressed = true },
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
@@ -437,136 +454,139 @@ fun GroupedRoutineCard(
                 .fillMaxWidth()
                 .padding(Spacing.medium)
         ) {
-            // Header Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    // Material 3 Expressive: Larger Gradient Icon Box
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp) // Material 3 Expressive: Larger (was 48dp)
-                            .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
-                                ),
-                                RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.List,
-                            contentDescription = "Workout history",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(28.dp) // Material 3 Expressive: Larger icon (was default)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(Spacing.medium))
-                    Column(modifier = Modifier.weight(1f)) {
-                        // Routine name
-                        Text(
-                            groupedItem.routineName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
-                        // Date/time
-                        Text(
-                            formatRelativeTimestamp(groupedItem.timestamp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Material 3 Expressive: Duration badge
-                Surface(
-                    shape = RoundedCornerShape(12.dp), // Material 3 Expressive: More rounded (was 8dp)
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.padding(start = Spacing.small)
-                ) {
-                    Text(
-                        formatDuration(groupedItem.totalDuration),
-                        style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp) // Material 3 Expressive: More padding
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Stats Grid (2x2 layout)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                EnhancedMetricItem(
-                    icon = Icons.Default.Check,
-                    label = "Total Reps",
-                    value = groupedItem.totalReps.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                EnhancedMetricItem(
-                    icon = Icons.Default.FitnessCenter,
-                    label = "Exercises",
-                    value = groupedItem.exerciseCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            // Header: "Daily Routine"
+            Text(
+                "Daily Routine",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
             Spacer(modifier = Modifier.height(Spacing.small))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                EnhancedMetricItem(
-                    icon = Icons.AutoMirrored.Filled.List,
-                    label = "Sets",
-                    value = groupedItem.sessions.size.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                EnhancedMetricItem(
-                    icon = Icons.Default.Info,
-                    label = "Expand",
-                    value = if (isExpanded) "▲" else "▼",
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
 
-            // Expanded section showing individual sets
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(Spacing.medium))
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-                Spacer(modifier = Modifier.height(Spacing.medium))
+            Spacer(modifier = Modifier.height(Spacing.small))
 
+            // Routine Name
+            Text(
+                groupedItem.routineName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Date and Time (no label, just the timestamp)
+            Text(
+                formatTimestamp(groupedItem.timestamp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Display each exercise group
+            exercisesWithNames.forEachIndexed { index, exerciseGroup ->
+                // Exercise Name
                 Text(
-                    "Individual Sets (${groupedItem.sessions.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
+                    exerciseGroup.exerciseName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.small))
 
-                groupedItem.sessions.forEach { session ->
-                    WorkoutSessionCard(
-                        session = session,
-                        weightUnit = weightUnit,
-                        formatWeight = formatWeight,
-                        exerciseRepository = exerciseRepository,
-                        onDelete = { onDelete(session.id) }
+                // Total Reps | Total Sets
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Total Reps",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(Spacing.small))
+                    Text(
+                        exerciseGroup.totalReps.toString(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Total Sets",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.totalSets.toString(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                // Highest Weight Per Cable | Workout Mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Highest Weight Per Cable",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (exerciseGroup.mode.contains("Echo", ignoreCase = true)) "Adaptive" else formatWeight(exerciseGroup.weightPerCableKg, weightUnit),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Workout Mode",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.mode,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Add spacing between exercises (except for the last one)
+                if (index < exercisesWithNames.size - 1) {
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.medium))
                 }
             }
 

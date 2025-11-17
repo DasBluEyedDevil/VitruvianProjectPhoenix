@@ -13,7 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
@@ -82,7 +82,6 @@ fun SingleExerciseScreen(
                             weightPerCableKg = 20f,
                             progressionKg = 0f,
                             setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
-                            notes = "",
                             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                             eccentricLoad = EccentricLoad.LOAD_100,
                             echoLevel = EchoLevel.HARDER

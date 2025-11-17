@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.EccentricLoad
@@ -100,7 +100,7 @@ fun ExerciseEditBottomSheet(
     val selectedMode by viewModel.selectedMode.collectAsState()
     val weightChange by viewModel.weightChange.collectAsState()
     val rest by viewModel.rest.collectAsState()
-    val notes by viewModel.notes.collectAsState()
+    val perSetRestTime by viewModel.perSetRestTime.collectAsState()
     val eccentricLoad by viewModel.eccentricLoad.collectAsState()
     val echoLevel by viewModel.echoLevel.collectAsState()
 
@@ -255,7 +255,7 @@ fun ExerciseEditBottomSheet(
                                 Icon(
                                     Icons.Default.Star,
                                     contentDescription = "Personal Record",
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Column {
@@ -269,7 +269,7 @@ fun ExerciseEditBottomSheet(
                                         "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable × ${pr.reps} reps",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                 }
                             }
@@ -366,6 +366,34 @@ fun ExerciseEditBottomSheet(
                     )
                 }
 
+                // Per Set Rest Time toggle
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.small),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Per Set Rest Time",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (perSetRestTime) FontWeight.Bold else FontWeight.Normal,
+                            color = if (perSetRestTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = perSetRestTime,
+                            onCheckedChange = viewModel::onPerSetRestTimeChange
+                        )
+                    }
+                }
+
                 SetsConfiguration(
                     sets = sets,
                     setMode = setMode,
@@ -374,6 +402,7 @@ fun ExerciseEditBottomSheet(
                     maxWeight = maxWeight,
                     weightStep = weightStep,
                     isEchoMode = isEchoMode,
+                    perSetRestTime = perSetRestTime,
                     onRepsChange = viewModel::updateReps,
                     onWeightChange = viewModel::updateWeight,
                     onDurationChange = viewModel::updateDuration,
@@ -382,35 +411,27 @@ fun ExerciseEditBottomSheet(
                     onDeleteSet = viewModel::deleteSet
                 )
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                    shadowElevation = 2.dp
-                ) {
-                    Column(modifier = Modifier.padding(Spacing.small)) {
-                        com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                            value = rest,
-                            onValueChange = viewModel::onRestChange,
-                            range = 0..300,
-                            label = "Rest Time",
-                            suffix = "sec",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                // Single rest time picker (only shown when perSetRestTime is false)
+                if (!perSetRestTime) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                        shadowElevation = 2.dp
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.small)) {
+                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                                value = rest,
+                                onValueChange = viewModel::onRestChange,
+                                range = 0..300,
+                                label = "Rest Time",
+                                suffix = "sec",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = viewModel::onNotesChange,
-                    label = { Text("Notes (optional)") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    maxLines = 4,
-                    placeholder = { Text("Form cues, tempo, etc.") }
-                )
             }
 
             Spacer(modifier = Modifier.height(Spacing.small))
@@ -441,6 +462,10 @@ fun ExerciseEditBottomSheet(
                         .weight(1f)
                         .height(56.dp), // Material 3 Expressive: Taller button
                     enabled = sets.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                     elevation = ButtonDefaults.buttonElevation(
                         defaultElevation = 4.dp,
@@ -449,7 +474,7 @@ fun ExerciseEditBottomSheet(
                 ) {
                     Text(
                         buttonText,
-                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleSmall)
+                        style = MaterialTheme.typography.titleMedium, // Fixed: Was titleLarge (too big)
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -503,6 +528,7 @@ fun SetsConfiguration(
     maxWeight: Float,
     weightStep: Float = 0.5f,
     isEchoMode: Boolean = false,
+    perSetRestTime: Boolean = false,
     onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
     onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
     onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
@@ -536,7 +562,8 @@ fun SetsConfiguration(
                     onWeightChange = { newWeight -> onWeightChange(setConfig.id, newWeight) },
                     onDurationChange = { newDuration -> onDurationChange(setConfig.id, newDuration) },
                     onRestChange = { newRest -> onRestChange(setConfig.id, newRest) },
-                    onDelete = { onDeleteSet(index) } // Still use index for deletion since it removes by position
+                    onDelete = { onDeleteSet(index) }, // Still use index for deletion since it removes by position
+                    perSetRestTime = perSetRestTime
                 )
             }
         }
@@ -578,7 +605,8 @@ fun SetRow(
     onWeightChange: (Float) -> Unit,
     onDurationChange: (Int) -> Unit,
     onRestChange: (Int) -> Unit,  // Per-set rest time
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    perSetRestTime: Boolean = false
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -762,15 +790,17 @@ fun SetRow(
 
             Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Rest Time picker (per-set)
-            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                value = setConfig.restSeconds,
-                onValueChange = onRestChange,
-                range = 10..300,
-                label = if (setConfig.setNumber == 1) "Rest Time" else "",
-                suffix = "sec",
-                modifier = Modifier.fillMaxWidth()
-            )
+            // Rest Time picker (per-set) - only shown when perSetRestTime toggle is enabled
+            if (perSetRestTime) {
+                com.example.vitruvianredux.presentation.components.CompactNumberPicker(
+                    value = setConfig.restSeconds,
+                    onValueChange = onRestChange,
+                    range = 10..300,
+                    label = if (setConfig.setNumber == 1) "Rest Time" else "",
+                    suffix = "sec",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -817,7 +847,7 @@ fun ModeSelector(
                     readOnly = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(type = MenuAnchorType.PrimaryNotEditable),
+                        .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },

@@ -692,6 +692,8 @@ class MainViewModel @Inject constructor(
                     .filter { it is ConnectionState.Connected }
                     .take(1)
                     .collect {
+                        // Connection succeeded - dismiss connecting overlay immediately
+                        _isAutoConnecting.value = false
                         // Call pending callback if any
                         _pendingConnectionCallback?.invoke()
                         _pendingConnectionCallback = null
@@ -778,11 +780,13 @@ class MainViewModel @Inject constructor(
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // User explicitly cancelled - clean up without showing errors
-                Timber.d("Connection attempt cancelled by user")
+                Timber.d("🔴 CancellationException caught - User cancelled connection")
+                Timber.d("🔴 Cleaning up: stopping scan, cancelling BLE, clearing state")
                 stopScanning()
                 bleRepository.cancelConnection()  // Cancel any in-progress connection
                 _isAutoConnecting.value = false
                 _pendingConnectionCallback = null
+                Timber.d("🔴 Cleanup complete, _isAutoConnecting set to false")
                 // Don't show error or call onFailed() - user cancelled intentionally
                 throw e  // Re-throw to properly cancel the coroutine
             } finally {
@@ -801,12 +805,26 @@ class MainViewModel @Inject constructor(
      * Cancels the connection coroutine, which triggers cleanup in the exception handler.
      */
     fun cancelAutoConnecting() {
-        Timber.d("User cancelled connection - stopping all connection attempts")
+        Timber.d("🔴 cancelAutoConnecting() called - User cancelled connection")
+        Timber.d("🔴 connectionJob exists: ${connectionJob != null}, isActive: ${connectionJob?.isActive}")
 
-        // Cancel the connection coroutine - this triggers the CancellationException handler
-        // which will handle all cleanup (stop scanning, cancel BLE connection, clear state, etc.)
+        // Immediately clear the connecting state to dismiss the overlay
+        // This must happen synchronously, not in the exception handler
+        _isAutoConnecting.value = false
+        _pendingConnectionCallback = null
+
+        // Cancel the connection coroutine
         connectionJob?.cancel()
         connectionJob = null
+
+        // Clean up BLE (must be done in coroutine since it's a suspend function)
+        viewModelScope.launch {
+            stopScanning()
+            bleRepository.cancelConnection()
+            Timber.d("🔴 BLE cleanup complete")
+        }
+
+        Timber.d("🔴 Connection cancelled, overlay dismissed")
     }
 
     fun dismissConnectionLostAlert() {
@@ -1103,7 +1121,8 @@ class MainViewModel @Inject constructor(
 
             // 2. Single Exercise mode (not Just Lift, includes temp routines from SingleExerciseScreen)
             val isSingleExercise = isSingleExerciseMode() && !isJustLift
-            val shouldShowRestTimer = ((hasMoreSets || hasMoreExercises) && !isJustLift) || isSingleExercise
+            // Only show rest timer if there are actually more sets/exercises remaining
+            val shouldShowRestTimer = (hasMoreSets || hasMoreExercises) && !isJustLift
 
             Timber.d("Decision:")
             Timber.d("  hasMoreSets = $hasMoreSets")
@@ -1234,8 +1253,16 @@ class MainViewModel @Inject constructor(
             if (autoplay) {
                 Timber.d("Autoplay enabled - starting next set/exercise")
                 if (isSingleExercise) {
-                    // For single exercise, restart with same parameters
-                    startWorkout(skipCountdown = true)
+                    // For single exercise, only restart if there are more sets remaining
+                    // Otherwise this creates an infinite loop
+                    val currentExerciseSets = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+                    if (currentExerciseSets != null && _currentSetIndex.value < currentExerciseSets.setReps.size - 1) {
+                        _currentSetIndex.value++
+                        startWorkout(skipCountdown = true)
+                    } else {
+                        Timber.d("Single exercise complete - no more sets remaining")
+                        _workoutState.value = WorkoutState.Completed
+                    }
                 } else {
                     startNextSetOrExercise()
                 }
@@ -1452,7 +1479,17 @@ class MainViewModel @Inject constructor(
             is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
             is WorkoutType.Program -> 100 to 2 // Defaults for program modes
         }
-        
+
+        // Get exercise name for history display (avoids DB lookups later)
+        val exerciseName = if (params.isJustLift) {
+            null // Just Lift mode doesn't have an exercise name
+        } else {
+            // Try to get from loaded routine first
+            _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)?.exercise?.name
+                // Fallback: lookup by ID from exercise repository
+                ?: params.selectedExerciseId?.let { exerciseRepository.getExerciseById(it)?.name }
+        }
+
         val session = WorkoutSession(
             id = sessionId,
             timestamp = workoutStartTime,
@@ -1469,6 +1506,7 @@ class MainViewModel @Inject constructor(
             eccentricLoad = eccentricLoad,
             echoLevel = echoLevel,
             exerciseId = params.selectedExerciseId,
+            exerciseName = exerciseName,
             routineSessionId = currentRoutineSessionId,
             routineName = currentRoutineName
         )
@@ -1482,6 +1520,8 @@ class MainViewModel @Inject constructor(
         Timber.d("  exerciseId: ${params.selectedExerciseId}")
         Timber.d("  routineSessionId: $currentRoutineSessionId")
         Timber.d("  routineName: $currentRoutineName")
+        Timber.d("  _loadedRoutine.value: ${_loadedRoutine.value?.name}")
+        Timber.d("  _loadedRoutine.value.id: ${_loadedRoutine.value?.id}")
 
         workoutRepository.saveSession(session)
 
@@ -1720,7 +1760,8 @@ class MainViewModel @Inject constructor(
             isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
             stopAtTop = stopAtTop.value,   // Use user preference from settings
             warmupReps = _workoutParameters.value.warmupReps,
-            isAMRAP = firstSetReps == null // This SET is AMRAP if its reps is null
+            isAMRAP = firstSetReps == null, // This SET is AMRAP if its reps is null
+            selectedExerciseId = firstExercise.exercise.id // Set exercise ID for history tracking
         )
 
         Timber.d("Created WorkoutParameters:")

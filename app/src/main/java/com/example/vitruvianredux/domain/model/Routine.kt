@@ -39,11 +39,12 @@ data class RoutineExercise(
     val echoLevel: EchoLevel = EchoLevel.HARDER,
     val progressionKg: Float = 0f,
     val setRestSeconds: List<Int> = emptyList(), // NEW: per-set rest times
-    val notes: String = "",
     // Optional duration in seconds for duration-based sets
     val duration: Int? = null,
     // AMRAP (As Many Reps As Possible) flag - when true, setReps should be null for that set
-    val isAMRAP: Boolean = false
+    val isAMRAP: Boolean = false,
+    // Per Set Rest Time toggle - when true, each set has its own rest time; when false, single rest time applies to all sets
+    val perSetRestTime: Boolean = false
 ) {
     // Computed property for backwards compatibility
     val sets: Int get() = setReps.size

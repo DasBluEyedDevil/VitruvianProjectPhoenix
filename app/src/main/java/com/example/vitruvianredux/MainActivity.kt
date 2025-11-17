@@ -24,7 +24,7 @@ import com.example.vitruvianredux.presentation.screen.LargeSplashScreen
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
 import com.example.vitruvianredux.ui.theme.VitruvianProjectPhoenixTheme
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
