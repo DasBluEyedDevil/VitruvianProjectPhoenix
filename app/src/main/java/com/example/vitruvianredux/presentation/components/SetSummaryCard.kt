@@ -45,6 +45,7 @@ fun SetSummaryCard(
     formatWeight: (Float, WeightUnit) -> String,
     onContinue: () -> Unit,
     autoplayEnabled: Boolean = false,
+    configuredPerCableKg: Float? = null,
     modifier: Modifier = Modifier
 ) {
     // Countdown state for autoplay
@@ -105,7 +106,7 @@ fun SetSummaryCard(
             ) {
                 // Peak Power
                 StatCard(
-                    label = "Peak",
+                    label = "Peak load",
                     value = formatWeight(peakPower, weightUnit),
                     modifier = Modifier.weight(1f)
                 )
@@ -114,7 +115,7 @@ fun SetSummaryCard(
 
                 // Average Power
                 StatCard(
-                    label = "Average",
+                    label = "Avg load",
                     value = formatWeight(averagePower, weightUnit),
                     modifier = Modifier.weight(1f)
                 )
@@ -126,6 +127,15 @@ fun SetSummaryCard(
                     label = "Reps",
                     value = "$repCount",
                     modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Optional configured weight for additional clarity (e.g., Just Lift)
+            configuredPerCableKg?.let { configured ->
+                Text(
+                    text = "Configured: ${formatWeight(configured, weightUnit)}/cable",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
