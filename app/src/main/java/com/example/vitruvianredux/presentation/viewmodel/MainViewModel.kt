@@ -329,6 +329,7 @@ class MainViewModel @Inject constructor(
     // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
     private var monitorDataCollectionJob: Job? = null
     private var repEventsCollectionJob: Job? = null
+    private var bodyweightTimerJob: Job? = null  // Timer for bodyweight exercises
 
     // Session-level peak loads (debug/analytics)
     private var maxConcentricPerCableKgThisSession: Float = 0f
@@ -962,9 +963,7 @@ class MainViewModel @Inject constructor(
 
             // Check if current exercise is bodyweight with duration mode
             val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
-            val isBodyweightDuration = currentExercise?.let {
-                it.exercise.equipment.isEmpty() && it.duration != null
-            } ?: false
+            val isBodyweightDuration = isBodyweightExercise(currentExercise)
 
             val workingTarget = if (params.isJustLift) 0 else params.reps
             repCounter.reset()
@@ -1019,13 +1018,15 @@ class MainViewModel @Inject constructor(
                 // Emit haptic feedback for workout start
                 _hapticEvents.emit(HapticEvent.WORKOUT_START)
 
-                // Wait for the duration, then auto-complete
-                delay(duration * 1000L)
-
-                Timber.d("BODYWEIGHT EXERCISE TIMER COMPLETE - Auto-completing set")
-
-                // Auto-complete the set
-                handleSetCompletion()
+                // Start a cancellable timer for bodyweight exercise
+                // Note: Metrics (timestamp, duration, exerciseId) are still collected via saveWorkoutSession()
+                // even though no cable load/rep data is gathered. workingReps will be 0 (expected for bodyweight).
+                bodyweightTimerJob?.cancel()  // Cancel any existing timer
+                bodyweightTimerJob = viewModelScope.launch {
+                    delay(duration * 1000L)
+                    Timber.d("BODYWEIGHT EXERCISE TIMER COMPLETE (${duration}s) - Auto-completing set")
+                    handleSetCompletion()
+                }
             } else {
                 // Normal cable-based exercise - send BLE commands
                 Timber.d(" SENDING WORKOUT COMMAND TO CABLES")
@@ -1076,14 +1077,24 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val isJustLift = _workoutParameters.value.isJustLift
 
-            // Cancel any running rest timer to prevent auto-restart
+            // Cancel any running timers to prevent auto-restart
             restTimerJob?.cancel()
             restTimerJob = null
+            bodyweightTimerJob?.cancel()
+            bodyweightTimerJob = null
+
+            // Check if current exercise is bodyweight (skip BLE calls if so)
+            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+            val isBodyweight = isBodyweightExercise(currentExercise)
 
             // CRITICAL SAFETY: Stop all active polling and data collection
             // This ensures the machine fully exits workout mode
-            // Stop hardware immediately (this will stop monitor/property polling in BLE layer)
-            bleRepository.stopWorkout()
+            // Only send stop command to cables if not bodyweight exercise
+            if (!isBodyweight) {
+                bleRepository.stopWorkout()
+            } else {
+                Timber.d("Bodyweight exercise - skipping BLE stop command")
+            }
 
             // Stop foreground service
             WorkoutForegroundService.stopWorkoutService(getApplication())
@@ -1219,6 +1230,19 @@ class MainViewModel @Inject constructor(
     private fun isSingleExerciseMode(): Boolean {
         val routine = _loadedRoutine.value
         return routine == null || routine.id.startsWith("temp_single_exercise_")
+    }
+
+    /**
+     * Check if the given exercise is a bodyweight exercise with duration mode.
+     * Bodyweight exercises are identified by empty equipment field and must have duration set.
+     *
+     * @param exercise The routine exercise to check, or null
+     * @return true if this is a bodyweight exercise with duration, false otherwise
+     */
+    private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
+        return exercise?.let {
+            it.exercise.equipment.isEmpty() && it.duration != null
+        } ?: false
     }
 
     /**
@@ -1661,18 +1685,26 @@ class MainViewModel @Inject constructor(
             routineName = currentRoutineName
         )
 
+        // Check if this is a bodyweight exercise (for logging purposes)
+        val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+        val isBodyweight = isBodyweightExercise(currentExercise)
+
         Timber.d("💾 SAVING WORKOUT SESSION:")
         Timber.d("  sessionId: $sessionId")
         Timber.d("  mode: ${params.workoutType.displayName}")
         Timber.d("  reps (target): ${params.reps}")
         Timber.d("  totalReps (actual): $working")
         Timber.d("  isAMRAP: ${params.isAMRAP}")
+        Timber.d("  isBodyweight: $isBodyweight")
         Timber.d("  exerciseId: ${params.selectedExerciseId}")
         Timber.d("  routineSessionId: $currentRoutineSessionId")
         Timber.d("  routineName: $currentRoutineName")
         Timber.d("  _loadedRoutine.value: ${_loadedRoutine.value?.name}")
         Timber.d("  _loadedRoutine.value.id: ${_loadedRoutine.value?.id}")
         Timber.d("  maxConcentricPerCableKgThisSession=$maxConcentricPerCableKgThisSession, maxEccentricPerCableKgThisSession=$maxEccentricPerCableKgThisSession")
+        if (isBodyweight) {
+            Timber.d("  Note: Bodyweight exercise - working reps is 0 (expected), duration tracked instead")
+        }
 
         workoutRepository.saveSession(session)
 

@@ -113,6 +113,16 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         // Use PR weight as default if available, otherwise use 15kg
         val defaultWeightKg = prWeightKg ?: 15f
 
+        // Determine default duration and log if defaulting for bodyweight exercises
+        val defaultDuration = if (exercise.duration != null) {
+            exercise.duration
+        } else {
+            if (_exerciseType.value == ExerciseType.BODYWEIGHT) {
+                Timber.w("Bodyweight exercise '${exercise.exercise.name}' missing duration - defaulting to 30s")
+            }
+            30
+        }
+
         val initialSets = exercise.setReps.mapIndexed { index, reps ->
             val perSetWeightKg = exercise.setWeightsPerCableKg.getOrNull(index) ?: exercise.weightPerCableKg
             val perSetRest = exercise.setRestSeconds.getOrNull(index) ?: 60
@@ -121,7 +131,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
                 setNumber = index + 1,
                 reps = reps, // Preserve null for AMRAP sets
                 weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
-                duration = exercise.duration ?: 30,
+                duration = defaultDuration,
                 restSeconds = perSetRest
             )
         }.ifEmpty {
