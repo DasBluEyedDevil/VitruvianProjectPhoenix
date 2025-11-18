@@ -47,6 +47,9 @@ object BleConstants {
     const val CONNECTION_TIMEOUT_MS = 15000L
     const val GATT_OPERATION_TIMEOUT_MS = 5000L
     const val SCAN_TIMEOUT_MS = 30000L // Increased from 10s to 30s for better device discovery
+
+    // BLE operation delays
+    const val BLE_QUEUE_DRAIN_DELAY_MS = 250L // Delay to allow BLE queue to drain before sending next command
 }
 
 /**
