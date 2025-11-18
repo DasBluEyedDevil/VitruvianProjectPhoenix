@@ -540,6 +540,14 @@ class BleRepositoryImpl @Inject constructor(
             val afterPollingStop = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
 
+            // FIX FOR ISSUE #124: Add delay to allow BLE queue to drain pending operations
+            // This prevents race condition where INIT command is sent while rep notifications
+            // or monitor reads are still being processed, especially critical on Android 16
+            // which has stricter BLE timing enforcement
+            Timber.d("STOP_DEBUG: Waiting 250ms for BLE queue to drain...")
+            delay(250)
+            Timber.d("STOP_DEBUG: BLE queue drain delay complete")
+
             // Send INIT command to stop workout and release resistance
             // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
             // The device interprets 0x0A contextually based on current state
