@@ -545,7 +545,7 @@ class BleRepositoryImpl @Inject constructor(
             // or monitor reads are still being processed, especially critical on Android 16
             // which has stricter BLE timing enforcement
             Timber.d("STOP_DEBUG: Waiting 250ms for BLE queue to drain...")
-            delay(250)
+            delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
             Timber.d("STOP_DEBUG: BLE queue drain delay complete")
 
             // Send INIT command to stop workout and release resistance
