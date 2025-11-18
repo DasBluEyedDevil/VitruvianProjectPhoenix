@@ -587,7 +587,7 @@ class MainViewModel @Inject constructor(
 
     private fun triggerAutoStop() {
         autoStopTriggered.set(true)
-        if (_workoutParameters.value.isJustLift) {
+        if (_workoutParameters.value.isJustLift || _workoutParameters.value.isAMRAP) {
             _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
         } else {
             _autoStopState.value = AutoStopUiState()
