@@ -53,6 +53,7 @@ interface BleRepository {
     suspend fun testOfficialAppProtocol(): Result<Unit>
     fun enableHandleDetection() // Start monitor polling for auto-start detection
     fun enableJustLiftWaitingMode() // Enable position-based handle detection for next exercise
+    fun restartMonitorPolling() // Restart monitor polling to clear danger zone alarm (without enabling auto-start)
 }
 
 @Singleton
@@ -625,6 +626,11 @@ class BleRepositoryImpl @Inject constructor(
     override fun enableJustLiftWaitingMode() {
         Timber.d("Enabling Just Lift waiting mode - position-based handle detection")
         bleManager?.enableJustLiftWaitingMode()
+    }
+
+    override fun restartMonitorPolling() {
+        Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
+        bleManager?.startMonitorPolling()
     }
 }
 
