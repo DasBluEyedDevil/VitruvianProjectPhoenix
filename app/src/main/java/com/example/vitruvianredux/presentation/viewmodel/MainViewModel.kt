@@ -1213,6 +1213,13 @@ class MainViewModel @Inject constructor(
                 // Enable velocity-based wake-up detection for next exercise
                 bleRepository.enableJustLiftWaitingMode()
                 Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Ready for next set - grab handles to auto-start")
+            } else if (params.isAMRAP) {
+                // AMRAP mode: Restart monitor polling to clear danger zone alarm on machine
+                // This ensures the machine exits danger zone state just like Just Lift mode
+                // Note: We use restartMonitorPolling() instead of enableHandleDetection() to be
+                // explicit that we're NOT enabling auto-start behavior for AMRAP mode
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Restarting monitor polling to clear danger zone")
+                bleRepository.restartMonitorPolling()
             }
             // Normal mode or Routine: Wait for user to click "Continue"
 
