@@ -237,13 +237,17 @@ fun RoutineBuilderDialog(
                     id = selectedExercise.id
                 )
 
+                val defaultWeightDisplay = 1f
+                val defaultWeightKg = displayToKg(defaultWeightDisplay, weightUnit)
+
                 val newRoutineExercise = RoutineExercise(
                     id = UUID.randomUUID().toString(),
                     exercise = exercise,
                     cableConfig = exercise.resolveDefaultCableConfig(),
                     orderIndex = exercises.size,
                     setReps = listOf(10, 10, 10),
-                    weightPerCableKg = 20f,
+                    weightPerCableKg = defaultWeightKg,
+                    setWeightsPerCableKg = listOf(defaultWeightKg, defaultWeightKg, defaultWeightKg),
                     progressionKg = 0f,
                     setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
                     workoutType = WorkoutType.Program(ProgramMode.OldSchool),
@@ -323,25 +327,33 @@ fun ExerciseListItem(
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+                val isBodyweight = exercise.exercise.equipment.isEmpty() && exercise.duration != null
 
                 // For Echo mode, show "Adaptive" instead of weight (Issue #109)
-                val weightDisplay = if (exercise.workoutType is com.example.vitruvianredux.domain.model.WorkoutType.Echo) {
-                    "Adaptive"
-                } else {
-                    // Display individual set weights if they differ, otherwise show single weight
-                    if (exercise.setWeightsPerCableKg.isNotEmpty()) {
-                        val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit).toInt() }
-                        val minWeight = displayWeights.minOrNull() ?: 0
-                        val maxWeight = displayWeights.maxOrNull() ?: 0
+                val weightDisplay = when {
+                    exercise.workoutType is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                        "Adaptive"
+                    }
+                    isBodyweight -> {
+                        // Bodyweight exercises: always show textual label instead of numeric weight
+                        "Bodyweight"
+                    }
+                    else -> {
+                        // Display individual set weights if they differ, otherwise show single weight
+                        if (exercise.setWeightsPerCableKg.isNotEmpty()) {
+                            val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit).toInt() }
+                            val minWeight = displayWeights.minOrNull() ?: 0
+                            val maxWeight = displayWeights.maxOrNull() ?: 0
 
-                        if (minWeight == maxWeight) {
-                            "$minWeight$weightSuffix"
+                            if (minWeight == maxWeight) {
+                                "$minWeight$weightSuffix"
+                            } else {
+                                "$minWeight-$maxWeight$weightSuffix"
+                            }
                         } else {
-                            "$minWeight-$maxWeight$weightSuffix"
+                            val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
+                            "${displayWeight.toInt()}$weightSuffix"
                         }
-                    } else {
-                        val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
-                        "${displayWeight.toInt()}$weightSuffix"
                     }
                 }
 
@@ -349,7 +361,7 @@ fun ExerciseListItem(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)) {
-                        Text(formatReps(exercise.setReps), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
+                        Text(formatSetTarget(exercise), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                     }
                     Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)) {
                         Text(weightDisplay, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
@@ -389,7 +401,7 @@ fun ExerciseListItem(
     }
 }
 
-private fun formatReps(setReps: List<Int?>): String {
+internal fun formatReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
     val allSame = setReps.all { it == setReps.first() }
     return if (allSame) {
@@ -398,4 +410,17 @@ private fun formatReps(setReps: List<Int?>): String {
     } else {
         "${setReps.size} sets: ${setReps.joinToString("/") { it?.toString() ?: "AMRAP" }}"
     }
+}
+
+internal fun formatSetTarget(exercise: RoutineExercise): String {
+    val duration = exercise.duration
+    if (duration != null) {
+        val sets = exercise.setReps.size
+        return if (sets <= 0) {
+            "$duration sec"
+        } else {
+            "${sets} x ${duration} sec"
+        }
+    }
+    return formatReps(exercise.setReps)
 }

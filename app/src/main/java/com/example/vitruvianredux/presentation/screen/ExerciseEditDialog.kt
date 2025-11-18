@@ -359,12 +359,10 @@ fun ExerciseEditBottomSheet(
                     }
                 }
 
-                if (!isEchoMode) {
-                    SetModeToggle(
-                        setMode = setMode,
-                        onModeChange = viewModel::onSetModeChange
-                    )
-                }
+                SetModeToggle(
+                    setMode = setMode,
+                    onModeChange = viewModel::onSetModeChange
+                )
 
                 // Per Set Rest Time toggle
                 Surface(
