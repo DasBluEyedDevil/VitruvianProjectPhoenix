@@ -312,7 +312,17 @@ class BleRepositoryImpl @Inject constructor(
                         if (initResult.isSuccess) {
                             Timber.d("Device fully initialized and ready!")
                         } else {
+                            // FIX FOR ISSUE #124: If initialization fails, disconnect to prevent
+                            // workout from starting on an uninitialized device which causes
+                            // "onServicesInvalidated" disconnect ~5 seconds after workout start
                             Timber.e("INIT sequence failed after connection: ${initResult.exceptionOrNull()?.message}")
+                            Timber.e("Disconnecting device due to failed initialization...")
+                            _connectionState.value = ConnectionState.Error(
+                                "Device initialization failed: ${initResult.exceptionOrNull()?.message}",
+                                initResult.exceptionOrNull()
+                            )
+                            // Disconnect the device to force user to reconnect
+                            newBleManager.disconnect().enqueue()
                         }
                     }
                 }
