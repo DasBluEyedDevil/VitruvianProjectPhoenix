@@ -662,13 +662,12 @@ class BleRepositoryImpl @Inject constructor(
     }
 
     override fun restartMonitorPolling() {
-        val manager = bleManager
-        if (manager == null) {
+        if (bleManager == null) {
             Timber.w("Cannot restart monitor polling - BLE manager is null")
-            return
+        } else {
+            Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
+            bleManager?.startMonitorPolling()
         }
-        Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
-        manager.startMonitorPolling()
     }
 }
 
