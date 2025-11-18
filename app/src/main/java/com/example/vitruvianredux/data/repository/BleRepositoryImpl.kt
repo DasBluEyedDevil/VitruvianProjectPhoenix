@@ -53,7 +53,22 @@ interface BleRepository {
     suspend fun testOfficialAppProtocol(): Result<Unit>
     fun enableHandleDetection() // Start monitor polling for auto-start detection
     fun enableJustLiftWaitingMode() // Enable position-based handle detection for next exercise
-    fun restartMonitorPolling() // Restart monitor polling to clear danger zone alarm (without enabling auto-start)
+
+    /**
+     * Restart monitor polling to clear the machine's danger zone alarm state.
+     *
+     * This sends monitor commands to the Vitruvian device, which causes it to exit
+     * danger zone alarm mode (red flashing lights). Unlike enableHandleDetection(),
+     * this method is NOT intended to enable auto-start behavior.
+     *
+     * Use cases:
+     * - After AMRAP set completion to clear danger zone lights
+     * - After any workout mode that needs to clear machine alarm state without enabling auto-start
+     *
+     * Note: This calls the same underlying startMonitorPolling() as enableHandleDetection(),
+     * but the semantic separation makes the intent clear at call sites.
+     */
+    fun restartMonitorPolling()
 }
 
 @Singleton
@@ -629,8 +644,12 @@ class BleRepositoryImpl @Inject constructor(
     }
 
     override fun restartMonitorPolling() {
+        if (bleManager == null) {
+            Timber.w("Cannot restart monitor polling - BLE manager is null")
+            return
+        }
         Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
-        bleManager?.startMonitorPolling()
+        bleManager.startMonitorPolling()
     }
 }
 
