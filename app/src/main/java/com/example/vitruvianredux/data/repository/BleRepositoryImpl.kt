@@ -312,7 +312,17 @@ class BleRepositoryImpl @Inject constructor(
                         if (initResult.isSuccess) {
                             Timber.d("Device fully initialized and ready!")
                         } else {
+                            // FIX FOR ISSUE #124: If initialization fails, disconnect to prevent
+                            // workout from starting on an uninitialized device which causes
+                            // "onServicesInvalidated" disconnect ~5 seconds after workout start
                             Timber.e("INIT sequence failed after connection: ${initResult.exceptionOrNull()?.message}")
+                            Timber.e("Disconnecting device due to failed initialization...")
+                            _connectionState.value = ConnectionState.Error(
+                                "Device initialization failed: ${initResult.exceptionOrNull()?.message}",
+                                initResult.exceptionOrNull()
+                            )
+                            // Disconnect the device to force user to reconnect
+                            newBleManager.disconnect().enqueue()
                         }
                     }
                 }
@@ -539,14 +549,6 @@ class BleRepositoryImpl @Inject constructor(
             bleManager?.stopPolling()
             val afterPollingStop = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
-
-            // FIX FOR ISSUE #124: Add delay to allow BLE queue to drain pending operations
-            // This prevents race condition where INIT command is sent while rep notifications
-            // or monitor reads are still being processed, especially critical on Android 16
-            // which has stricter BLE timing enforcement
-            Timber.d("STOP_DEBUG: Waiting 250ms for BLE queue to drain...")
-            delay(250)
-            Timber.d("STOP_DEBUG: BLE queue drain delay complete")
 
             // Send INIT command to stop workout and release resistance
             // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
