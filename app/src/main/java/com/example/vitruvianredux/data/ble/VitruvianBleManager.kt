@@ -396,9 +396,9 @@ class VitruvianBleManager(
         override fun initialize() {
             super.initialize()
 
-            // Track pending operations: MTU request + all notification enables
-            val pendingOperations = AtomicInteger(notifyCharacteristics.size + 1)
-            
+            // Track pending operations: MTU request + connection priority + all notification enables
+            val pendingOperations = AtomicInteger(notifyCharacteristics.size + 2)
+
             // Helper to check if all operations complete
             fun checkAllOperationsComplete() {
                 val remaining = pendingOperations.decrementAndGet()
@@ -406,7 +406,7 @@ class VitruvianBleManager(
                 if (remaining == 0) {
                     _connectionState.value = ConnectionStatus.Ready
                     Timber.d("All initialization operations complete! Device ready.")
-                    
+
                     // Start property polling immediately to keep machine alive (keep-alive mechanism)
                     // The official app/web app does this - property polling at 500ms intervals
                     // Monitor polling (100ms) only starts when workout begins
@@ -415,7 +415,22 @@ class VitruvianBleManager(
                 }
             }
 
-            // REQUEST MTU FIRST - Critical for large frames (96 bytes)!
+            // REQUEST HIGH CONNECTION PRIORITY FIRST - Critical for connection stability!
+            // This ensures fast, reliable communication and prevents early disconnections
+            // that were causing 5-second disconnect issues (Issue #131)
+            Timber.d("Requesting HIGH connection priority for stable connection...")
+            requestConnectionPriority(android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                .done { _ ->
+                    Timber.d("✅ Connection priority set to HIGH")
+                    checkAllOperationsComplete()
+                }
+                .fail { _, status ->
+                    Timber.w("⚠️ Failed to set connection priority (status: $status) - continuing anyway")
+                    checkAllOperationsComplete()
+                }
+                .enqueue()
+
+            // REQUEST MTU - Critical for large frames (96 bytes)!
             // Default MTU is 23 bytes, we need at least 100 bytes for program params
             requestMtu(247)
                 .with { _, mtu ->
@@ -510,26 +525,59 @@ class VitruvianBleManager(
     
     /**
      * Start polling property characteristic every 500ms
-     * Called when workout starts  
+     * This acts as a keep-alive mechanism to maintain BLE connection stability
+     * CRITICAL: Without this, some devices may disconnect after ~5 seconds
      */
     fun startPropertyPolling() {
         propertyPollingJob?.cancel()
         propertyPollingJob = pollingScope.launch {
-            Timber.d("Starting property polling (500ms interval)")
+            Timber.d("🔄 Starting keep-alive property polling (500ms interval)")
+            var successfulReads = 0
+            var failedReads = 0
+
             while (isActive) {
                 try {
-                    propertyCharacteristic?.let { char ->
-                        readCharacteristic(char)
-                            .with { _, data ->
-                                Timber.v("Property data: ${data.value?.joinToString(" ") { "%02X".format(it) } ?: "null"}")
-                            }
-                            .enqueue()
+                    val char = propertyCharacteristic
+                    if (char == null) {
+                        Timber.w("⚠️ Property characteristic is null - cannot maintain keep-alive!")
+                        delay(500)
+                        continue
                     }
+
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            successfulReads++
+                            if (successfulReads % 20 == 0) {
+                                Timber.d("✅ Keep-alive active: $successfulReads successful reads, $failedReads failed")
+                            }
+                            Timber.v("Property data: ${data.value?.joinToString(" ") { "%02X".format(it) } ?: "null"}")
+                        }
+                        .fail { _, status ->
+                            failedReads++
+                            Timber.w("⚠️ Keep-alive read failed (status: $status) - total failures: $failedReads")
+
+                            // Log to connection logger if failures are frequent
+                            if (failedReads % 5 == 0) {
+                                connectionLogger?.log(
+                                    eventType = "KEEP_ALIVE_FAILING",
+                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.WARNING,
+                                    deviceName = currentDeviceName,
+                                    deviceAddress = currentDeviceAddress,
+                                    message = "Keep-alive reads failing: $failedReads failures out of ${successfulReads + failedReads} attempts"
+                                )
+                            }
+                        }
+                        .enqueue()
+
                     delay(500) // Poll every 500ms (matches web app)
                 } catch (e: Exception) {
-                    Timber.e(e, "Error in property polling")
+                    failedReads++
+                    Timber.e(e, "❌ Exception in property polling (keep-alive)")
+                    delay(500) // Still delay to avoid tight loop on persistent errors
                 }
             }
+
+            Timber.d("🛑 Keep-alive property polling stopped (successful: $successfulReads, failed: $failedReads)")
         }
     }
     
