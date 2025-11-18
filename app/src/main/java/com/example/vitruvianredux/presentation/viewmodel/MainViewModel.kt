@@ -329,6 +329,7 @@ class MainViewModel @Inject constructor(
     // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
     private var monitorDataCollectionJob: Job? = null
     private var repEventsCollectionJob: Job? = null
+    private var bodyweightTimerJob: Job? = null  // Timer for bodyweight exercises
 
     // Session-level peak loads (debug/analytics)
     private var maxConcentricPerCableKgThisSession: Float = 0f
@@ -959,11 +960,15 @@ class MainViewModel @Inject constructor(
 
             // Update the state flow so the rest of the app is consistent
             _workoutParameters.value = params
-            
+
+            // Check if current exercise is bodyweight with duration mode
+            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+            val isBodyweightDuration = isBodyweightExercise(currentExercise)
+
             val workingTarget = if (params.isJustLift) 0 else params.reps
             repCounter.reset()
             repCounter.configure(
-                warmupTarget = params.warmupReps,
+                warmupTarget = if (isBodyweightDuration) 0 else params.warmupReps, // Skip warmup for bodyweight
                 workingTarget = workingTarget,
                 isJustLift = params.isJustLift,
                 stopAtTop = params.stopAtTop,
@@ -994,47 +999,77 @@ class MainViewModel @Inject constructor(
             }
 
             Timber.d("")
-            Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
+            Timber.d(" COUNTDOWN COMPLETE")
             Timber.d("")
-            Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
-            val startTime = System.currentTimeMillis()
 
-            // Set initial baseline position for position bars calibration
-            // This ensures bars start at 0% relative to the starting rope position
-            _currentMetric.value?.let { metric ->
-                repCounter.setInitialBaseline(metric.positionA, metric.positionB)
-                _repRanges.value = repCounter.getRepRanges()
-                Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
-            }
+            // For bodyweight exercises with duration, skip BLE commands and use timer
+            if (isBodyweightDuration) {
+                val duration = currentExercise?.duration ?: 30
+                Timber.d("BODYWEIGHT EXERCISE DETECTED - Starting ${duration}s timer (no BLE commands)")
 
-            val result = bleRepository.startWorkout(params)
+                _workoutState.value = WorkoutState.Active
 
-            val commandLatency = System.currentTimeMillis() - startTime
-            Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
-
-            if (result.isFailure) {
-                _workoutState.value = WorkoutState.Error(
-                    result.exceptionOrNull()?.message ?: "Unknown error"
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    "Bodyweight - ${currentExercise?.exercise?.displayName ?: "Exercise"}",
+                    0 // No rep count for bodyweight
                 )
-                Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
-                return@launch
+
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
+
+                // Start a cancellable timer for bodyweight exercise
+                // Note: Metrics (timestamp, duration, exerciseId) are still collected via saveWorkoutSession()
+                // even though no cable load/rep data is gathered. workingReps will be 0 (expected for bodyweight).
+                bodyweightTimerJob?.cancel()  // Cancel any existing timer
+                bodyweightTimerJob = viewModelScope.launch {
+                    delay(duration * 1000L)
+                    Timber.d("BODYWEIGHT EXERCISE TIMER COMPLETE (${duration}s) - Auto-completing set")
+                    handleSetCompletion()
+                }
+            } else {
+                // Normal cable-based exercise - send BLE commands
+                Timber.d(" SENDING WORKOUT COMMAND TO CABLES")
+                Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
+                val startTime = System.currentTimeMillis()
+
+                // Set initial baseline position for position bars calibration
+                // This ensures bars start at 0% relative to the starting rope position
+                _currentMetric.value?.let { metric ->
+                    repCounter.setInitialBaseline(metric.positionA, metric.positionB)
+                    _repRanges.value = repCounter.getRepRanges()
+                    Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
+                }
+
+                val result = bleRepository.startWorkout(params)
+
+                val commandLatency = System.currentTimeMillis() - startTime
+                Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
+
+                if (result.isFailure) {
+                    _workoutState.value = WorkoutState.Error(
+                        result.exceptionOrNull()?.message ?: "Unknown error"
+                    )
+                    Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
+                    return@launch
+                }
+
+                // Only mark the workout as Active after the START command has succeeded
+                val activeStateTime = System.currentTimeMillis()
+                _workoutState.value = WorkoutState.Active
+                Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
+
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    params.workoutType.displayName,
+                    params.reps
+                )
+
+                Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
             }
-
-            // Only mark the workout as Active after the START command has succeeded
-            val activeStateTime = System.currentTimeMillis()
-            _workoutState.value = WorkoutState.Active
-            Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
-
-            WorkoutForegroundService.startWorkoutService(
-                getContext(),
-                params.workoutType.displayName,
-                params.reps
-            )
-
-            Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
-
-            // Emit haptic feedback for workout start
-            _hapticEvents.emit(HapticEvent.WORKOUT_START)
         }
     }
 
@@ -1042,14 +1077,24 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val isJustLift = _workoutParameters.value.isJustLift
 
-            // Cancel any running rest timer to prevent auto-restart
+            // Cancel any running timers to prevent auto-restart
             restTimerJob?.cancel()
             restTimerJob = null
+            bodyweightTimerJob?.cancel()
+            bodyweightTimerJob = null
+
+            // Check if current exercise is bodyweight (skip BLE calls if so)
+            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+            val isBodyweight = isBodyweightExercise(currentExercise)
 
             // CRITICAL SAFETY: Stop all active polling and data collection
             // This ensures the machine fully exits workout mode
-            // Stop hardware immediately (this will stop monitor/property polling in BLE layer)
-            bleRepository.stopWorkout()
+            // Only send stop command to cables if not bodyweight exercise
+            if (!isBodyweight) {
+                bleRepository.stopWorkout()
+            } else {
+                Timber.d("Bodyweight exercise - skipping BLE stop command")
+            }
 
             // Stop foreground service
             WorkoutForegroundService.stopWorkoutService(getApplication())
@@ -1185,6 +1230,19 @@ class MainViewModel @Inject constructor(
     private fun isSingleExerciseMode(): Boolean {
         val routine = _loadedRoutine.value
         return routine == null || routine.id.startsWith("temp_single_exercise_")
+    }
+
+    /**
+     * Check if the given exercise is a bodyweight exercise with duration mode.
+     * Bodyweight exercises are identified by empty equipment field and must have duration set.
+     *
+     * @param exercise The routine exercise to check, or null
+     * @return true if this is a bodyweight exercise with duration, false otherwise
+     */
+    private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
+        return exercise?.let {
+            it.exercise.equipment.isEmpty() && it.duration != null
+        } ?: false
     }
 
     /**
@@ -1627,18 +1685,26 @@ class MainViewModel @Inject constructor(
             routineName = currentRoutineName
         )
 
+        // Check if this is a bodyweight exercise (for logging purposes)
+        val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+        val isBodyweight = isBodyweightExercise(currentExercise)
+
         Timber.d("💾 SAVING WORKOUT SESSION:")
         Timber.d("  sessionId: $sessionId")
         Timber.d("  mode: ${params.workoutType.displayName}")
         Timber.d("  reps (target): ${params.reps}")
         Timber.d("  totalReps (actual): $working")
         Timber.d("  isAMRAP: ${params.isAMRAP}")
+        Timber.d("  isBodyweight: $isBodyweight")
         Timber.d("  exerciseId: ${params.selectedExerciseId}")
         Timber.d("  routineSessionId: $currentRoutineSessionId")
         Timber.d("  routineName: $currentRoutineName")
         Timber.d("  _loadedRoutine.value: ${_loadedRoutine.value?.name}")
         Timber.d("  _loadedRoutine.value.id: ${_loadedRoutine.value?.id}")
         Timber.d("  maxConcentricPerCableKgThisSession=$maxConcentricPerCableKgThisSession, maxEccentricPerCableKgThisSession=$maxEccentricPerCableKgThisSession")
+        if (isBodyweight) {
+            Timber.d("  Note: Bodyweight exercise - working reps is 0 (expected), duration tracked instead")
+        }
 
         workoutRepository.saveSession(session)
 
