@@ -408,7 +408,7 @@ class BleRepositoryImpl @Inject constructor(
             val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
 
-            Timber.d("=== Starting INIT sequence ===")
+            Timber.d("=== Starting INIT sequence (with retry logic) ===")
             connectionLogger.logInitStarted(deviceName ?: "Unknown", deviceAddress ?: "")
 
             val manager = bleManager
@@ -417,44 +417,82 @@ class BleRepositoryImpl @Inject constructor(
                 return@withContext Result.failure(Exception("BLE manager not available"))
             }
 
-            // Step 1: Send INIT_COMMAND (0x0A) and wait for INIT_RESPONSE (0x0B)
-            Timber.d("Step 1: Sending INIT_COMMAND (0x0A)...")
-            val initCommand = ProtocolBuilder.buildInitCommand()
-            connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, initCommand)
-            manager.sendCommand(initCommand).getOrThrow()
-            
-            Timber.d("Step 1: Waiting for INIT_RESPONSE (0x0B)...")
-            val received0x0B = manager.awaitResponse(0x0Bu, timeoutMs = 5000L)
-            if (!received0x0B) {
-                Timber.e("Timeout waiting for INIT_RESPONSE (0x0B) - device may be in error state")
-                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x0B response")
-                return@withContext Result.failure(Exception("Timeout waiting for INIT_RESPONSE (0x0B)"))
-            }
-            Timber.d("Step 1: ✅ Received INIT_RESPONSE (0x0B)")
+            // Retry logic for INIT sequence with exponential backoff
+            var lastException: Exception? = null
+            repeat(BleConstants.INIT_MAX_RETRIES + 1) { attempt ->
+                try {
+                    if (attempt > 0) {
+                        // Exponential backoff: 1s, 2s, 4s...
+                        val delayMs = BleConstants.INIT_RETRY_DELAY_MS * (1 shl (attempt - 1))
+                        Timber.w("INIT sequence attempt ${attempt + 1}/${BleConstants.INIT_MAX_RETRIES + 1} after ${delayMs}ms delay...")
+                        connectionLogger.log(
+                            "INIT_RETRY",
+                            com.example.vitruvianredux.data.logger.ConnectionLogger.Level.WARNING,
+                            "Retrying INIT sequence (attempt ${attempt + 1}/${BleConstants.INIT_MAX_RETRIES + 1})",
+                            deviceName = deviceName,
+                            deviceAddress = deviceAddress
+                        )
+                        delay(delayMs)
+                    } else {
+                        Timber.d("INIT sequence attempt 1/${BleConstants.INIT_MAX_RETRIES + 1}")
+                    }
 
-            // Step 2: Send INIT_PRESET (0x11) and wait for INIT_PRESET_RESPONSE (0x12)
-            Timber.d("Step 2: Sending INIT_PRESET (0x11)...")
-            val initPreset = ProtocolBuilder.buildInitPreset()
-            connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
-            manager.sendCommand(initPreset).getOrThrow()
-            
-            Timber.d("Step 2: Waiting for INIT_PRESET_RESPONSE (0x12)...")
-            val received0x12 = manager.awaitResponse(0x12u, timeoutMs = 5000L)
-            if (!received0x12) {
-                Timber.e("Timeout waiting for INIT_PRESET_RESPONSE (0x12) - device may be in error state")
-                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x12 response")
-                return@withContext Result.failure(Exception("Timeout waiting for INIT_PRESET_RESPONSE (0x12)"))
-            }
-            Timber.d("Step 2: ✅ Received INIT_PRESET_RESPONSE (0x12)")
+                    // Step 1: Send INIT_COMMAND (0x0A) and wait for INIT_RESPONSE (0x0B)
+                    Timber.d("Step 1: Sending INIT_COMMAND (0x0A)...")
+                    val initCommand = ProtocolBuilder.buildInitCommand()
+                    if (attempt == 0) {
+                        connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, initCommand)
+                    }
+                    manager.sendCommand(initCommand).getOrThrow()
+                    
+                    Timber.d("Step 1: Waiting for INIT_RESPONSE (0x0B) with ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms timeout...")
+                    val received0x0B = manager.awaitResponse(0x0Bu, timeoutMs = BleConstants.INIT_RESPONSE_TIMEOUT_MS)
+                    if (!received0x0B) {
+                        throw Exception("Timeout waiting for INIT_RESPONSE (0x0B) after ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms")
+                    }
+                    Timber.d("Step 1: ✅ Received INIT_RESPONSE (0x0B)")
 
-            Timber.d("=== INIT sequence completed successfully ===")
-            connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")
-            Result.success(Unit)
+                    // Step 2: Send INIT_PRESET (0x11) and wait for INIT_PRESET_RESPONSE (0x12)
+                    Timber.d("Step 2: Sending INIT_PRESET (0x11)...")
+                    val initPreset = ProtocolBuilder.buildInitPreset()
+                    if (attempt == 0) {
+                        connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
+                    }
+                    manager.sendCommand(initPreset).getOrThrow()
+                    
+                    Timber.d("Step 2: Waiting for INIT_PRESET_RESPONSE (0x12) with ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms timeout...")
+                    val received0x12 = manager.awaitResponse(0x12u, timeoutMs = BleConstants.INIT_RESPONSE_TIMEOUT_MS)
+                    if (!received0x12) {
+                        throw Exception("Timeout waiting for INIT_PRESET_RESPONSE (0x12) after ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms")
+                    }
+                    Timber.d("Step 2: ✅ Received INIT_PRESET_RESPONSE (0x12)")
+
+                    // Success! Log and return
+                    Timber.d("=== INIT sequence completed successfully ${if (attempt > 0) "after ${attempt + 1} attempts" else ""} ===")
+                    connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")
+                    return@withContext Result.success(Unit)
+
+                } catch (e: Exception) {
+                    lastException = e
+                    Timber.w(e, "INIT sequence attempt ${attempt + 1}/${BleConstants.INIT_MAX_RETRIES + 1} failed: ${e.message}")
+                    // Continue to next retry attempt
+                }
+            }
+
+            // All retries exhausted
+            Timber.e("INIT sequence failed after ${BleConstants.INIT_MAX_RETRIES + 1} attempts")
+            connectionLogger.logInitFailed(
+                deviceName ?: "Unknown",
+                deviceAddress ?: "",
+                "All ${BleConstants.INIT_MAX_RETRIES + 1} attempts failed. Last error: ${lastException?.message}"
+            )
+            return@withContext Result.failure(lastException ?: Exception("INIT sequence failed after all retries"))
+
         } catch (e: Exception) {
             val connectedState = _connectionState.value
             val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
-            Timber.e(e, "Failed to send init sequence")
+            Timber.e(e, "Unexpected error in INIT sequence")
             connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", e.message ?: "Unknown error")
             Result.failure(e)
         }

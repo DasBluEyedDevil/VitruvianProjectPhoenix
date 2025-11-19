@@ -341,18 +341,34 @@ class VitruvianBleManager(
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Timber.e("⚠️ onServicesInvalidated() CALLED! [$timestamp]")
             Timber.e("⚠️ This will NULL all characteristic references!")
+            Timber.e("⚠️ CRITICAL: This usually indicates the device unexpectedly reset or disconnected")
+            Timber.e("⚠️ This is the root cause of mid-workout disconnections on Android 16")
             Timber.e("⚠️ Stack trace:")
             Thread.currentThread().stackTrace.take(10).forEach {
                 Timber.e("   at $it")
             }
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-            // Log current connection state
+            // Enhanced logging with device state information
+            val deviceInfo = buildString {
+                appendLine("Device Name: ${currentDeviceName ?: "Unknown"}")
+                appendLine("Device Address: ${currentDeviceAddress ?: "Unknown"}")
+                appendLine("Connection State: ${_connectionState.value}")
+                appendLine("Monitor Polling Active: ${monitorPollingJob?.isActive}")
+                appendLine("Property Polling Active: ${propertyPollingJob?.isActive}")
+                appendLine("Characteristics Status BEFORE null:")
+                appendLine("  - nusRxCharacteristic: ${nusRxCharacteristic != null}")
+                appendLine("  - monitorCharacteristic: ${monitorCharacteristic != null}")
+                appendLine("  - propertyCharacteristic: ${propertyCharacteristic != null}")
+                appendLine("  - repNotifyCharacteristic: ${repNotifyCharacteristic != null}")
+            }
+            Timber.e("Device state at time of invalidation:\n$deviceInfo")
+
             connectionLogger?.logError(
                 currentDeviceName ?: "Unknown",
                 currentDeviceAddress ?: "Unknown",
                 "CHARACTERISTICS_INVALIDATED",
-                "onServicesInvalidated() called - all characteristics will be nulled"
+                "onServicesInvalidated() called - all characteristics will be nulled. This is a critical BLE failure that typically indicates the device reset or connection was lost. $deviceInfo"
             )
 
             // NULL all characteristics
@@ -370,6 +386,11 @@ class VitruvianBleManager(
 
             // Stop all polling since characteristics are now invalid
             stopPolling()
+
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.e("⚠️ onServicesInvalidated() handling complete")
+            Timber.e("⚠️ User must reconnect to device to continue")
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         }
 
         @Deprecated("Using deprecated Nordic BLE API")
