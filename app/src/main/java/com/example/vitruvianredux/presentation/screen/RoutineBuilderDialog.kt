@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
@@ -59,7 +60,13 @@ fun RoutineBuilderDialog(
         Brush.verticalGradient(colors = listOf(Color(0xFFE0E7FF), Color(0xFFFCE7F3), Color(0xFFDDD6FE)))
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
+    ) {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f),
             shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
