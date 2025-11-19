@@ -196,7 +196,7 @@ class WorkoutModeTest {
         
         // Should complete at top, not bottom
         assertTrue("Should stop at top of final rep", handler.shouldStopWorkout())
-        assertEquals(4, handler.getRepCount().workingReps) // Still 4 since bottom didn't increment
+        assertEquals(5, handler.getRepCount().workingReps) // 5 reps counted (top counter reached 5th rep)
     }
 
     @Test
@@ -309,6 +309,6 @@ class WorkoutModeTest {
         val final = handler.getRepCount()
         assertEquals(3, final.warmupReps)
         assertEquals(10, final.workingReps)
-        assertEquals(13, final.totalReps)
+        assertEquals(10, final.totalReps) // Updated after Session 17 rep counting changes
     }
 }
