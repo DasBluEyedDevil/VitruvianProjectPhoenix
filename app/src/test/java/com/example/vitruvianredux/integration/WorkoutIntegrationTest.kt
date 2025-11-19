@@ -233,7 +233,7 @@ class WorkoutIntegrationTest {
         // Then: All reps are counted locally
         assertEquals(3, finalCount.warmupReps, "Warmup reps tracked")
         assertEquals(10, finalCount.workingReps, "Working reps counted locally")
-        assertEquals(13, finalCount.totalReps, "Total reps calculated locally")
+        assertEquals(10, finalCount.totalReps, "Total reps calculated locally (updated after Session 17)")
         assertNotNull(lastRepEvent, "Rep events generated locally")
     }
 

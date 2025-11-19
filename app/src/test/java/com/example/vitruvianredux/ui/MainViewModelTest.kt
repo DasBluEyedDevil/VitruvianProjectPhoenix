@@ -228,8 +228,7 @@ class MainViewModelTest {
             weightPerCableKg = 15.0f,
             setWeightsPerCableKg = listOf(15.0f, 20.0f, 25.0f),
             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
-            setRestSeconds = listOf(30, 60, 90), // Different rest per set
-            notes = ""
+            setRestSeconds = listOf(30, 60, 90) // Different rest per set
         )
 
         // Verify rest times are correctly stored
