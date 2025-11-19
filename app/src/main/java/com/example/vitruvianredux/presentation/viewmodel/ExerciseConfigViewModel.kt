@@ -101,10 +101,27 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             ExerciseType.STANDARD
         }
 
-        _setMode.value = if (exercise.duration != null) SetMode.DURATION else SetMode.REPS
+        // Force DURATION mode for bodyweight exercises, otherwise use existing duration setting
+        _setMode.value = if (_exerciseType.value == ExerciseType.BODYWEIGHT) {
+            SetMode.DURATION
+        } else if (exercise.duration != null) {
+            SetMode.DURATION
+        } else {
+            SetMode.REPS
+        }
 
         // Use PR weight as default if available, otherwise use 15kg
         val defaultWeightKg = prWeightKg ?: 15f
+
+        // Determine default duration and log if defaulting for bodyweight exercises
+        val defaultDuration = if (exercise.duration != null) {
+            exercise.duration
+        } else {
+            if (_exerciseType.value == ExerciseType.BODYWEIGHT) {
+                Timber.w("Bodyweight exercise '${exercise.exercise.name}' missing duration - defaulting to 30s")
+            }
+            30
+        }
 
         val initialSets = exercise.setReps.mapIndexed { index, reps ->
             val perSetWeightKg = exercise.setWeightsPerCableKg.getOrNull(index) ?: exercise.weightPerCableKg
@@ -114,7 +131,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
                 setNumber = index + 1,
                 reps = reps, // Preserve null for AMRAP sets
                 weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
-                duration = exercise.duration ?: 30,
+                duration = defaultDuration,
                 restSeconds = perSetRest
             )
         }.ifEmpty {
@@ -153,6 +170,11 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
     }
 
     fun onSetModeChange(mode: SetMode) {
+        // Bodyweight exercises must always use DURATION mode (cannot count reps)
+        if (_exerciseType.value == ExerciseType.BODYWEIGHT && mode == SetMode.REPS) {
+            Timber.w("Cannot switch to REPS mode for bodyweight exercises - staying in DURATION mode")
+            return
+        }
         _setMode.value = mode
     }
 
@@ -264,7 +286,9 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
             echoLevel = _echoLevel.value,
             progressionKg = displayToKg(_weightChange.value.toFloat(), weightUnit),
             setRestSeconds = restTimes,
-            duration = if (_setMode.value == SetMode.DURATION) _sets.value.firstOrNull()?.duration else null,
+            duration = if (_setMode.value == SetMode.DURATION) {
+                _sets.value.firstOrNull()?.duration ?: 30 // Default to 30 seconds if not set
+            } else null,
             perSetRestTime = _perSetRestTime.value,
             isAMRAP = isAMRAP
         )

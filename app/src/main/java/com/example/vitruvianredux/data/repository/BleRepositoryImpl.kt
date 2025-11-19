@@ -53,6 +53,22 @@ interface BleRepository {
     suspend fun testOfficialAppProtocol(): Result<Unit>
     fun enableHandleDetection() // Start monitor polling for auto-start detection
     fun enableJustLiftWaitingMode() // Enable position-based handle detection for next exercise
+
+    /**
+     * Restart monitor polling to clear the machine's danger zone alarm state.
+     *
+     * This sends monitor commands to the Vitruvian device, which causes it to exit
+     * danger zone alarm mode (red flashing lights). Unlike enableHandleDetection(),
+     * this method is NOT intended to enable auto-start behavior.
+     *
+     * Use cases:
+     * - After AMRAP set completion to clear danger zone lights
+     * - After any workout mode that needs to clear machine alarm state without enabling auto-start
+     *
+     * Note: This calls the same underlying startMonitorPolling() as enableHandleDetection(),
+     * but the semantic separation makes the intent clear at call sites.
+     */
+    fun restartMonitorPolling()
 }
 
 @Singleton
@@ -312,7 +328,17 @@ class BleRepositoryImpl @Inject constructor(
                         if (initResult.isSuccess) {
                             Timber.d("Device fully initialized and ready!")
                         } else {
+                            // FIX FOR ISSUE #124: If initialization fails, disconnect to prevent
+                            // workout from starting on an uninitialized device which causes
+                            // "onServicesInvalidated" disconnect ~5 seconds after workout start
                             Timber.e("INIT sequence failed after connection: ${initResult.exceptionOrNull()?.message}")
+                            Timber.e("Disconnecting device due to failed initialization...")
+                            _connectionState.value = ConnectionState.Error(
+                                "Device initialization failed: ${initResult.exceptionOrNull()?.message}",
+                                initResult.exceptionOrNull()
+                            )
+                            // Disconnect the device to force user to reconnect
+                            newBleManager.disconnect().enqueue()
                         }
                     }
                 }
@@ -540,6 +566,14 @@ class BleRepositoryImpl @Inject constructor(
             val afterPollingStop = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
 
+            // FIX FOR ISSUE #124: Add delay to allow BLE queue to drain pending operations
+            // This prevents race condition where INIT command is sent while rep notifications
+            // or monitor reads are still being processed, especially critical on Android 16
+            // which has stricter BLE timing enforcement
+            Timber.d("STOP_DEBUG: Waiting 250ms for BLE queue to drain...")
+            delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
+            Timber.d("STOP_DEBUG: BLE queue drain delay complete")
+
             // Send INIT command to stop workout and release resistance
             // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
             // The device interprets 0x0A contextually based on current state
@@ -625,6 +659,15 @@ class BleRepositoryImpl @Inject constructor(
     override fun enableJustLiftWaitingMode() {
         Timber.d("Enabling Just Lift waiting mode - position-based handle detection")
         bleManager?.enableJustLiftWaitingMode()
+    }
+
+    override fun restartMonitorPolling() {
+        if (bleManager == null) {
+            Timber.w("Cannot restart monitor polling - BLE manager is null")
+        } else {
+            Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
+            bleManager?.startMonitorPolling()
+        }
     }
 }
 
