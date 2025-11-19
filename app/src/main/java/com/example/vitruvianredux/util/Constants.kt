@@ -50,6 +50,11 @@ object BleConstants {
 
     // BLE operation delays
     const val BLE_QUEUE_DRAIN_DELAY_MS = 250L // Delay to allow BLE queue to drain before sending next command
+    
+    // Init sequence configuration
+    const val INIT_RESPONSE_TIMEOUT_MS = 8000L // Increased timeout for INIT response (was 5000ms) for Android 16 compatibility
+    const val INIT_MAX_RETRIES = 2 // Number of retries for INIT sequence
+    const val INIT_RETRY_DELAY_MS = 1000L // Base delay between retries (will use exponential backoff)
 }
 
 /**
