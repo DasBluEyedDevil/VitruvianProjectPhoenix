@@ -1,8 +1,7 @@
 ---
 name: Vitruvian
 description: Android expert for Vitruvian Project Phoenix (Clean Arch, BLE, Compose).
-tools: []
-model:
+tools: ["*"]
 ---
 # VitruvianProjectPhoenix Copilot Agent Instructions
 
