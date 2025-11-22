@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.ceil
 
+import androidx.compose.ui.graphics.vector.ImageVector
+
 /**
  * Sealed class hierarchy for workout history items
  * Allows displaying both single workout sessions and grouped routine sessions
@@ -59,6 +61,12 @@ data class GroupedRoutineHistoryItem(
     val exerciseCount: Int,
     override val timestamp: Long
 ) : HistoryItem()
+
+data class TopBarAction(
+    val icon: ImageVector,
+    val description: String,
+    val onClick: () -> Unit
+)
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -112,6 +120,38 @@ class MainViewModel @Inject constructor(
 
     private val _workoutHistory = MutableStateFlow<List<WorkoutSession>>(emptyList())
     val workoutHistory: StateFlow<List<WorkoutSession>> = _workoutHistory.asStateFlow()
+
+    // Top Bar Title State
+    private val _topBarTitle = MutableStateFlow("Vitruvian Project Phoenix")
+    val topBarTitle: StateFlow<String> = _topBarTitle.asStateFlow()
+
+    fun updateTopBarTitle(title: String) {
+        _topBarTitle.value = title
+    }
+
+    // Top Bar Actions State
+    private val _topBarActions = MutableStateFlow<List<TopBarAction>>(emptyList())
+    val topBarActions: StateFlow<List<TopBarAction>> = _topBarActions.asStateFlow()
+
+    fun setTopBarActions(actions: List<TopBarAction>) {
+        _topBarActions.value = actions
+    }
+
+    fun clearTopBarActions() {
+        _topBarActions.value = emptyList()
+    }
+
+    // Top Bar Back Action Override
+    private val _topBarBackAction = MutableStateFlow<(() -> Unit)?>(null)
+    val topBarBackAction: StateFlow<(() -> Unit)?> = _topBarBackAction.asStateFlow()
+
+    fun setTopBarBackAction(action: () -> Unit) {
+        _topBarBackAction.value = action
+    }
+
+    fun clearTopBarBackAction() {
+        _topBarBackAction.value = null
+    }
 
     // PR Celebration Events
     private val _prCelebrationEvent = MutableSharedFlow<PRCelebrationEvent>()

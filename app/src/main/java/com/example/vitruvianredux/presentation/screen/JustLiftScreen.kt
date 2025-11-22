@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.components.CompactNumberPicker
+import com.example.vitruvianredux.presentation.components.ExpressiveCard
+import com.example.vitruvianredux.presentation.components.ProgressionSlider
+import com.example.vitruvianredux.presentation.components.ExpressiveSlider
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
@@ -105,22 +108,13 @@ fun JustLiftScreen(
         viewModel.updateWorkoutParameters(updatedParameters)
     }
 
+    // Set global title
+    LaunchedEffect(Unit) {
+        viewModel.updateTopBarTitle("Just Lift")
+    }
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Just Lift") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
+        // No local topBar needed
     ) { padding ->
         val backgroundGradient = if (themeMode == com.example.vitruvianredux.ui.theme.ThemeMode.DARK) {
             Brush.verticalGradient(
@@ -171,15 +165,12 @@ fun JustLiftScreen(
                     ),
                     label = "modeScale"
                 )
-                Card(
+                ExpressiveCard(
                     onClick = { isModePressed = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .scale(modeScale),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isModePressed) 8.dp else 12.dp), // Material 3 Expressive: Higher elevation (was 4/8dp)
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isModePressed) 8.dp else 12.dp),
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
                         modifier = Modifier
@@ -252,12 +243,12 @@ fun JustLiftScreen(
                 val isOldSchoolOrPump = selectedMode is WorkoutMode.OldSchool || selectedMode is WorkoutMode.Pump
                 if (isOldSchoolOrPump) {
                     // Weight per Cable Card - Material 3 Expressive
-                    Card(
+                    ExpressiveCard(
+                        onClick = {},
+                        enabled = false, // Static card
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Column(
                             modifier = Modifier
@@ -284,27 +275,33 @@ fun JustLiftScreen(
                     }
 
                     // Weight Change Per Rep Card - Material 3 Expressive
-                    Card(
+                    ExpressiveCard(
+                        onClick = {},
+                        enabled = false,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Material 3 Expressive: Thicker border (was 1dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(Spacing.medium)
                         ) {
+                            Text(
+                                "Weight Change Per Rep",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.medium))
+                            
                             val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-                            val maxWeightChange = 10
+                            val maxWeightChange = 10f
 
-                            CompactNumberPicker(
-                                value = weightChangePerRep,
-                                onValueChange = { weightChangePerRep = it },
-                                range = -maxWeightChange..maxWeightChange,
-                                label = "Weight Change Per Rep",
-                                suffix = weightSuffix,
+                            ProgressionSlider(
+                                value = weightChangePerRep.toFloat(),
+                                onValueChange = { weightChangePerRep = it.toInt() },
+                                valueRange = -maxWeightChange..maxWeightChange,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(

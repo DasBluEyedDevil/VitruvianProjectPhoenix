@@ -12,6 +12,40 @@ import androidx.compose.ui.unit.dp
  * Provides consistent expressive styling for components
  */
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+
+/**
+ * Material 3 Expressive Motion Specs
+ * Fluid, organic, and playful spring animations
+ */
+object ExpressiveMotion {
+    /**
+     * Standard expressive spring for most interactions (buttons, cards)
+     * Low stiffness (relaxed) + Low bounciness (playful but not chaotic)
+     */
+    val SpringDefault = spring<Float>(
+        dampingRatio = Spring.DampingRatioLowBouncy,
+        stiffness = Spring.StiffnessLow
+    )
+    
+    /**
+     * Snappy spring for quick transitions (toggles, checkboxes)
+     */
+    val SpringSnappy = spring<Float>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMedium
+    )
+    
+    /**
+     * Bouncy spring for emphasis (errors, attention grabbers)
+     */
+    val SpringBouncy = spring<Float>(
+        dampingRatio = Spring.DampingRatioHighBouncy,
+        stiffness = Spring.StiffnessLow
+    )
+}
+
 /**
  * Material 3 Expressive Card Colors
  * Uses surfaceContainerHighest for better contrast

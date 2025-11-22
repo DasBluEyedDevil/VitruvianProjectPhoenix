@@ -32,6 +32,8 @@ import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
+import com.example.vitruvianredux.presentation.components.ExpressiveSlider
+import com.example.vitruvianredux.presentation.components.ProgressionSlider
 import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
 import com.example.vitruvianredux.ui.theme.*
 import kotlin.math.abs
@@ -711,13 +713,20 @@ fun WorkoutSetupDialog(
                             .padding(16.dp)
                     ) {
                         if (!workoutParameters.isJustLift) {
-                            CompactNumberPicker(
-                                value = workoutParameters.reps,
+                            Text(
+                                "Target reps: ${workoutParameters.reps}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            ExpressiveSlider(
+                                value = workoutParameters.reps.toFloat(),
                                 onValueChange = { reps ->
-                                    onUpdateParameters(workoutParameters.copy(reps = reps))
+                                    onUpdateParameters(workoutParameters.copy(reps = reps.toInt()))
                                 },
-                                range = 1..50,
-                                label = "Target reps"
+                                valueRange = 1f..50f,
+                                steps = 49,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         } else {
                             Text(
@@ -768,59 +777,26 @@ fun WorkoutSetupDialog(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // FilterChips for Progression/Regression
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FilterChip(
-                                    selected = workoutParameters.progressionRegressionKg >= 0,
-                                    onClick = {
-                                        onUpdateParameters(
-                                            workoutParameters.copy(
-                                                progressionRegressionKg = abs(workoutParameters.progressionRegressionKg)
-                                            )
-                                        )
-                                    },
-                                    label = { Text("Prog") },
-                                    leadingIcon = if (workoutParameters.progressionRegressionKg >= 0) {
-                                        { Icon(Icons.Default.KeyboardArrowUp, null, Modifier.size(16.dp)) }
-                                    } else null
-                                )
+                            val maxProgression = if (weightUnit == WeightUnit.LB) 6f else 3f
+                            val currentProgression = kgToDisplay(workoutParameters.progressionRegressionKg, weightUnit)
 
-                                FilterChip(
-                                    selected = workoutParameters.progressionRegressionKg < 0,
-                                    onClick = {
-                                        onUpdateParameters(
-                                            workoutParameters.copy(
-                                                progressionRegressionKg = -abs(workoutParameters.progressionRegressionKg)
-                                            )
-                                        )
-                                    },
-                                    label = { Text("Regr") },
-                                    leadingIcon = if (workoutParameters.progressionRegressionKg < 0) {
-                                        { Icon(Icons.Default.KeyboardArrowDown, null, Modifier.size(16.dp)) }
-                                    } else null
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Amount picker
-                            val progRegressionRange = if (weightUnit == WeightUnit.LB) 0..6 else 0..3
-                            CompactNumberPicker(
-                                value = kgToDisplay(abs(workoutParameters.progressionRegressionKg), weightUnit).toInt(),
+                            ProgressionSlider(
+                                value = currentProgression,
                                 onValueChange = { displayValue ->
-                                    val kg = displayToKg(displayValue.toFloat(), weightUnit)
-                                    val isProgression = workoutParameters.progressionRegressionKg >= 0
-                                    onUpdateParameters(
-                                        workoutParameters.copy(
-                                            progressionRegressionKg = if (isProgression) kg else -kg
-                                        )
-                                    )
+                                    val kg = displayToKg(displayValue, weightUnit)
+                                    onUpdateParameters(workoutParameters.copy(progressionRegressionKg = kg))
                                 },
-                                range = progRegressionRange,
-                                label = "Amount (${weightUnit.name.lowercase()})"
+                                valueRange = -maxProgression..maxProgression,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Text(
+                                "Negative = Regression, Positive = Progression",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
                             )
                         }
                     }
