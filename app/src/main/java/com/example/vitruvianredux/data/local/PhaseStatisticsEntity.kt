@@ -1,4 +1,4 @@
-package com.example.vitruvianredux.data.local.entity
+package com.example.vitruvianredux.data.local
 
 import androidx.room.Entity
 import androidx.room.ForeignKey

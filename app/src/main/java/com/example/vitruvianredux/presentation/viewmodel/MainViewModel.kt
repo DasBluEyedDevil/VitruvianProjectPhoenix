@@ -38,6 +38,28 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.ceil
 
+/**
+ * Sealed class hierarchy for workout history items
+ * Allows displaying both single workout sessions and grouped routine sessions
+ */
+sealed class HistoryItem {
+    abstract val timestamp: Long
+}
+
+data class SingleSessionHistoryItem(val session: WorkoutSession) : HistoryItem() {
+    override val timestamp: Long = session.timestamp
+}
+
+data class GroupedRoutineHistoryItem(
+    val routineSessionId: String,
+    val routineName: String,
+    val sessions: List<WorkoutSession>,
+    val totalDuration: Long,
+    val totalReps: Int,
+    val exerciseCount: Int,
+    override val timestamp: Long
+) : HistoryItem()
+
 @HiltViewModel
 class MainViewModel @Inject constructor(
     application: Application,
@@ -125,7 +147,7 @@ class MainViewModel @Inject constructor(
     val currentSetIndex: StateFlow<Int> = _currentSetIndex.asStateFlow()
 
     // Weekly Programs
-    val weeklyPrograms: StateFlow<List<com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays>> =
+    val weeklyPrograms: StateFlow<List<com.example.vitruvianredux.data.local.WeeklyProgramWithDays>> =
         workoutRepository.getAllPrograms()
             .stateIn(
                 scope = viewModelScope,
@@ -133,7 +155,7 @@ class MainViewModel @Inject constructor(
                 initialValue = emptyList()
             )
 
-    val activeProgram: StateFlow<com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays?> =
+    val activeProgram: StateFlow<com.example.vitruvianredux.data.local.WeeklyProgramWithDays?> =
         workoutRepository.getActiveProgram()
             .stateIn(
                 scope = viewModelScope,
@@ -143,7 +165,7 @@ class MainViewModel @Inject constructor(
 
     // Personal Records
     @Suppress("unused")
-    val personalBests: StateFlow<List<com.example.vitruvianredux.data.local.entity.PersonalRecordEntity>> =
+    val personalBests: StateFlow<List<com.example.vitruvianredux.data.local.PersonalRecordEntity>> =
         workoutRepository.getAllPersonalRecords()
             .stateIn(
                 scope = viewModelScope,
@@ -156,15 +178,6 @@ class MainViewModel @Inject constructor(
     // All workout sessions for stats calculation
     val allWorkoutSessions: StateFlow<List<WorkoutSession>> =
         workoutRepository.getAllSessions()
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
-                initialValue = emptyList()
-            )
-
-    // All phase statistics for analytics
-    val allPhaseStatistics: StateFlow<List<com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity>> =
-        workoutRepository.getAllPhaseStatistics()
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
@@ -296,7 +309,7 @@ class MainViewModel @Inject constructor(
     // Current workout tracking
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
-    private val collectedMetrics = java.util.Collections.synchronizedList(mutableListOf<WorkoutMetric>())
+    private val collectedMetrics = mutableListOf<WorkoutMetric>()
 
     // Routine tracking (for grouping sets from the same routine)
     private var currentRoutineSessionId: String? = null
@@ -308,16 +321,6 @@ class MainViewModel @Inject constructor(
     private val autoStopStopRequested = AtomicBoolean(false)
     private var currentHandleState: com.example.vitruvianredux.data.ble.HandleState =
         com.example.vitruvianredux.data.ble.HandleState.Released
-
-    // Safety Event Tracking
-    data class SafetyEventCounts(
-        val deloadWarnings: Int = 0,
-        val romViolations: Int = 0,
-        val spotterActivations: Int = 0,
-        val allFlags: MutableSet<SampleStatus> = mutableSetOf()
-    )
-    private val _safetyEventCounts = MutableStateFlow(SafetyEventCounts())
-    val safetyEventCounts: StateFlow<SafetyEventCounts> = _safetyEventCounts.asStateFlow()
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
@@ -406,46 +409,6 @@ class MainViewModel @Inject constructor(
                 Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
                 _currentMetric.value = metric
                 handleMonitorMetric(metric)
-
-                // Track safety events
-                metric.statusFlags.forEach { flag ->
-                    val current = _safetyEventCounts.value
-                    when (flag) {
-                        SampleStatus.DELOAD_WARN, SampleStatus.DELOAD_OCCURRED -> {
-                            if (!current.allFlags.contains(flag)) { // Only count once per flag occurrence
-                                _safetyEventCounts.value = current.copy(
-                                    deloadWarnings = current.deloadWarnings + 1,
-                                    allFlags = current.allFlags.apply { add(flag) }
-                                )
-                            }
-                        }
-                        SampleStatus.ROM_OUTSIDE_HIGH, SampleStatus.ROM_OUTSIDE_LOW -> {
-                            if (!current.allFlags.contains(flag)) {
-                                _safetyEventCounts.value = current.copy(
-                                    romViolations = current.romViolations + 1,
-                                    allFlags = current.allFlags.apply { add(flag) }
-                                )
-                            }
-                        }
-                        SampleStatus.SPOTTER_ACTIVE -> {
-                            if (!current.allFlags.contains(flag)) {
-                                _safetyEventCounts.value = current.copy(
-                                    spotterActivations = current.spotterActivations + 1,
-                                    allFlags = current.allFlags.apply { add(flag) }
-                                )
-                            }
-                        }
-                        else -> {
-                            // Other flags (REP_TOP_READY, REP_BOTTOM_READY, ROM_UNLOAD_ACTIVE)
-                            // We track them in allFlags but don't increment a dedicated counter
-                            if (!current.allFlags.contains(flag)) {
-                                _safetyEventCounts.value = current.copy(
-                                    allFlags = current.allFlags.apply { add(flag) }
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -454,7 +417,7 @@ class MainViewModel @Inject constructor(
             Timber.d("Starting to collect rep notifications...")
             bleRepository.repEvents.collect { repNotification ->
                 val state = _workoutState.value
-                Timber.d("Rep notification received: up=${repNotification.up}, down=${repNotification.down}, ROM=${repNotification.repsRomCount}/${repNotification.repsRomTotal}, Set=${repNotification.repsSetCount}/${repNotification.repsSetTotal}, state=$state")
+                Timber.d("Rep notification received: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}, state=$state")
 
                 if (state is WorkoutState.Active) {
                     handleRepNotification(repNotification)
@@ -549,15 +512,6 @@ class MainViewModel @Inject constructor(
                 }
             }
         }
-
-        // Observe strict validation preference
-        viewModelScope.launch {
-            userPreferences
-                .map { it.strictValidationEnabled }
-                .collect { enabled ->
-                    bleRepository.setStrictValidationEnabled(enabled)
-                }
-        }
     }
 
     private fun cancelAutoStartTimer() {
@@ -613,15 +567,12 @@ class MainViewModel @Inject constructor(
 
     /**
      * Handle rep notifications provided by the machine.
-     * Uses machine's ROM and Set counters directly to eliminate "getting ready" pull offset.
      */
     private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
         val currentPositions = _currentMetric.value
         repCounter.process(
-            repsRomCount = notification.repsRomCount?.toInt() ?: 0,
-            repsSetCount = notification.repsSetCount?.toInt() ?: 0,
-            up = notification.up,
-            down = notification.down,
+            topCounter = notification.topCounter,
+            completeCounter = notification.completeCounter,
             posA = currentPositions?.positionA ?: 0,
             posB = currentPositions?.positionB ?: 0
         )
@@ -987,13 +938,11 @@ class MainViewModel @Inject constructor(
     }
 
     fun startWorkout(skipCountdown: Boolean = false, isJustLiftMode: Boolean = false) {
-        Timber.d("$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$")
+        Timber.d("$$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$$")
 
         // CRITICAL: Re-set rep event callback to ensure it's active for this workout
         // This fixes the issue where callback set in init block may not persist
 
-        // Reset safety event tracking
-        _safetyEventCounts.value = SafetyEventCounts()
 
         viewModelScope.launch {
             // Reset per-session peak tracking
@@ -1239,23 +1188,14 @@ class MainViewModel @Inject constructor(
             val completedReps = _repCount.value.workingReps
 
             // Show set summary for all modes
-            val heuristics = bleRepository.heuristicData.value
-            val safetyEvents = SafetyEventSummary(
-                deloadWarnings = _safetyEventCounts.value.deloadWarnings,
-                romViolations = _safetyEventCounts.value.romViolations,
-                spotterActivations = _safetyEventCounts.value.spotterActivations
-            )
-            
             _workoutState.value = WorkoutState.SetSummary(
                 metrics = collectedMetrics.toList(),
                 peakPower = peakPerCableKg,
                 averagePower = averagePerCableKg,
-                repCount = completedReps,
-                heuristicStatistics = heuristics,
-                safetyEventSummary = safetyEvents
+                repCount = completedReps
             )
 
-            Timber.d("Set summary: peakPerCableKg=$peakPerCableKg, avgPerCableKg=$averagePerCableKg, reps=$completedReps, metrics=${collectedMetrics.size}, hasHeuristics=${heuristics != null}, hasSafetyEvents=${safetyEvents.hasSafetyEvents}")
+            Timber.d("Set summary: peakPerCableKg=$peakPerCableKg, avgPerCableKg=$averagePerCableKg, reps=$completedReps, metrics=${collectedMetrics.size}")
 
             // Just Lift mode: Auto-advance to next set after showing summary
             if (isJustLift) {
@@ -1495,16 +1435,6 @@ class MainViewModel @Inject constructor(
                     val currentExerciseSets = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
                     if (currentExerciseSets != null && _currentSetIndex.value < currentExerciseSets.setReps.size - 1) {
                         _currentSetIndex.value++
-                        // Update workout parameters for the new set (reps, weight, isAMRAP)
-                        val targetReps = currentExerciseSets.setReps[_currentSetIndex.value]
-                        val setWeight = currentExerciseSets.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
-                            ?: currentExerciseSets.weightPerCableKg
-                        _workoutParameters.value = _workoutParameters.value.copy(
-                            reps = targetReps ?: 0, // AMRAP sets have null reps
-                            weightPerCableKg = setWeight,
-                            isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
-                        )
-                        Timber.d("  Updated params for set ${_currentSetIndex.value + 1}: reps=$targetReps, weight=$setWeight kg, isAMRAP=${targetReps == null}")
                         startWorkout(skipCountdown = true)
                     } else {
                         Timber.d("Single exercise complete - no more sets remaining")
@@ -1589,23 +1519,17 @@ class MainViewModel @Inject constructor(
             Timber.d("  ? Moving to next set")
             _currentSetIndex.value++
             val targetReps = currentExercise.setReps[_currentSetIndex.value]
-            // Get per-set weight if available, otherwise use exercise default
-            val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
-                ?: currentExercise.weightPerCableKg
             Timber.d("  New set index: ${_currentSetIndex.value}")
             Timber.d("  Target reps: $targetReps")
-            Timber.d("  Set weight: $setWeight kg")
             _workoutParameters.value = workoutParameters.value.copy(
                 reps = targetReps ?: 0, // AMRAP sets have null reps
-                weightPerCableKg = setWeight, // FIXED: Use per-set weight, not previous set's weight
                 // Preserve all other parameters from current exercise
                 progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
+                weightPerCableKg = workoutParameters.value.weightPerCableKg,
                 workoutType = workoutParameters.value.workoutType,
                 selectedExerciseId = workoutParameters.value.selectedExerciseId,
                 isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
             )
-            Timber.d("  AFTER UPDATE - isAMRAP set to: ${_workoutParameters.value.isAMRAP} (targetReps was: $targetReps)")
-            Timber.d("  AFTER UPDATE - reps set to: ${_workoutParameters.value.reps}")
             Timber.d("???????????????????????????????????????????????????")
             startWorkout(skipCountdown = true)
         } else {
@@ -1765,12 +1689,7 @@ class MainViewModel @Inject constructor(
             exerciseId = params.selectedExerciseId,
             exerciseName = exerciseName,
             routineSessionId = currentRoutineSessionId,
-            routineName = currentRoutineName,
-            safetyFlags = _safetyEventCounts.value.allFlags
-                .fold(0) { acc, flag -> acc or flag.mask },
-            deloadWarningCount = _safetyEventCounts.value.deloadWarnings,
-            romViolationCount = _safetyEventCounts.value.romViolations,
-            spotterActivations = _safetyEventCounts.value.spotterActivations
+            routineName = currentRoutineName
         )
 
         // Check if this is a bodyweight exercise (for logging purposes)
@@ -1798,12 +1717,6 @@ class MainViewModel @Inject constructor(
 
         if (collectedMetrics.isNotEmpty()) {
             workoutRepository.saveMetrics(sessionId, collectedMetrics)
-        }
-
-        // Save phase statistics if available
-        val heuristics = bleRepository.heuristicData.value
-        if (heuristics != null) {
-            workoutRepository.savePhaseStatistics(sessionId, heuristics)
         }
 
         // Track personal record if exercise is selected
@@ -1883,13 +1796,6 @@ class MainViewModel @Inject constructor(
     fun setEnableVideoPlayback(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.setEnableVideoPlayback(enabled)
-        }
-    }
-
-    fun setStrictValidationEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesManager.setStrictValidationEnabled(enabled)
-            bleRepository.setStrictValidationEnabled(enabled)
         }
     }
 
@@ -2159,7 +2065,7 @@ class MainViewModel @Inject constructor(
     /**
      * Save a weekly program
      */
-    fun saveProgram(program: com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays) {
+    fun saveProgram(program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays) {
         viewModelScope.launch {
             val result = workoutRepository.saveProgram(program)
             if (result.isSuccess) {
@@ -2225,4 +2131,22 @@ class MainViewModel @Inject constructor(
         private const val AUTO_STOP_DURATION_SECONDS = 5f  // User preference: 5 seconds
     }
 }
+
+/**
+ * UI state for the Just Lift auto-stop timer.
+ */
+data class AutoStopUiState(
+    val isActive: Boolean = false,
+    val progress: Float = 0f,
+    val secondsRemaining: Int = 3  // Official app: 3 seconds
+)
+
+/**
+ * Scanned device data class
+ */
+data class ScannedDevice(
+    val name: String,
+    val address: String,
+    val rssi: Int = 0
+)
 

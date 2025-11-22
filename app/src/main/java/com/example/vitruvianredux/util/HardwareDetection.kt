@@ -59,3 +59,66 @@ object HardwareDetection {
         return "${model.displayName} ($deviceName)"
     }
 }
+
+/**
+ * Vitruvian hardware models
+ */
+enum class VitruvianModel(
+    val modelNumber: String,
+    val displayName: String,
+    val capabilities: HardwareCapabilities
+) {
+    /**
+     * Euclid (VIT-200) - Original V-Form Trainer
+     * First generation with eccentric mode support (confirmed in 2021 reviews)
+     * However, users report eccentric-only mode not working properly on this hardware
+     */
+    EUCLID(
+        modelNumber = "VIT-200",
+        displayName = "Vitruvian V-Form Trainer (Euclid)",
+        capabilities = HardwareCapabilities(
+            supportsEccentricMode = true,  // Feature exists but has known issues
+            supportsEchoMode = true,
+            maxResistanceKg = 200f,
+            notes = "Original V-Form Trainer. Eccentric-only mode supported but may not work correctly - under investigation."
+        )
+    ),
+
+    /**
+     * Trainer+ - Second generation with improved motors
+     */
+    TRAINER_PLUS(
+        modelNumber = "VIT-300",  // Assumed model number
+        displayName = "Vitruvian Trainer+",
+        capabilities = HardwareCapabilities(
+            supportsEccentricMode = true,
+            supportsEchoMode = true,
+            maxResistanceKg = 220f,
+            notes = "Second generation with improved motors for better eccentric mode performance."
+        )
+    ),
+
+    /**
+     * Unknown model - treat conservatively
+     */
+    UNKNOWN(
+        modelNumber = "UNKNOWN",
+        displayName = "Unknown Vitruvian Model",
+        capabilities = HardwareCapabilities(
+            supportsEccentricMode = true,  // Assume support for unknown devices
+            supportsEchoMode = true,
+            maxResistanceKg = 200f,
+            notes = "Unknown device model. Capabilities assumed."
+        )
+    )
+}
+
+/**
+ * Hardware capabilities for a specific Vitruvian model
+ */
+data class HardwareCapabilities(
+    val supportsEccentricMode: Boolean,
+    val supportsEchoMode: Boolean,
+    val maxResistanceKg: Float,
+    val notes: String = ""
+)

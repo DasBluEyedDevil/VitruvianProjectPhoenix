@@ -163,19 +163,8 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         _weightChange.value = kgToDisplay(exercise.progressionKg, weightUnit).toInt()
         _rest.value = exercise.setRestSeconds.firstOrNull()?.coerceIn(0, 300) ?: 60 // Use first rest time or default
         _perSetRestTime.value = exercise.perSetRestTime
-        
-        // Extract echo level and eccentric load from WorkoutType.Echo when in Echo mode
-        // This ensures the previously saved values are loaded correctly (Issue #108, persisting issue)
-        when (val workoutType = exercise.workoutType) {
-            is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
-                _eccentricLoad.value = workoutType.eccentricLoad
-                _echoLevel.value = workoutType.level
-            }
-            else -> {
-                _eccentricLoad.value = exercise.eccentricLoad
-                _echoLevel.value = exercise.echoLevel
-            }
-        }
+        _eccentricLoad.value = exercise.eccentricLoad
+        _echoLevel.value = exercise.echoLevel
 
         _initialized.value = true
     }

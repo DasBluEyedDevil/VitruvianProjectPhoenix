@@ -17,7 +17,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import com.example.vitruvianredux.domain.model.WorkoutState
 import com.example.vitruvianredux.presentation.screen.EnhancedMainScreen
 import com.example.vitruvianredux.presentation.screen.LargeSplashScreen

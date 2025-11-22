@@ -24,7 +24,7 @@ import org.robolectric.RobolectricTestRunner
  * TDD Tests for AMRAP (As Many Reps As Possible) Feature
  *
  * PHASE 1: RED - These tests are written FIRST and should FAIL
- *
+ * 
  * Test Requirements:
  * 1. RoutineSet with isAMRAP=true allows null targetReps
  * 2. AMRAP set does NOT trigger auto-stop
@@ -102,7 +102,7 @@ class AMRAPFeatureTest {
 
     /**
      * TEST 1: RoutineExercise with AMRAP set should allow null targetReps
-     *
+     * 
      * This test verifies that the data model supports AMRAP sets by:
      * - Creating a RoutineExercise with isAMRAP=true and null targetReps
      * - Verifying the object can be created without errors
@@ -131,7 +131,7 @@ class AMRAPFeatureTest {
 
     /**
      * TEST 2: AMRAP set should NOT trigger auto-stop when target reps reached
-     *
+     * 
      * This test verifies that auto-stop is disabled for AMRAP sets:
      * - Configure RepCounter with workingTarget but AMRAP flag
      * - Process reps beyond the "target"
@@ -142,7 +142,7 @@ class AMRAPFeatureTest {
     fun `test 2 - AMRAP set does NOT trigger auto-stop`() {
         // ARRANGE: Create RepCounter configured for AMRAP
         val actualRepCounter = RepCounterFromMachine()
-
+        
         // Configure with a "target" of 10 reps, but AMRAP mode enabled
         actualRepCounter.configure(
             warmupTarget = 0,
@@ -163,8 +163,8 @@ class AMRAPFeatureTest {
         // Note: First call establishes baseline, so to get 15 counted reps we need 16 calls
         for (i in 0..15) {
             actualRepCounter.process(
-                repsRomCount = i,
-                repsSetCount = i, // Set counter tracks actual working reps for AMRAP
+                topCounter = i,
+                completeCounter = if (i > 0) i - 1 else 0,
                 posA = 100,
                 posB = 100
             )
@@ -173,14 +173,14 @@ class AMRAPFeatureTest {
         // ASSERT: Auto-stop should NOT have been triggered
         assertThat(shouldStopCalled).isFalse()
         assertThat(actualRepCounter.shouldStopWorkout()).isFalse()
-
+        
         // User should be able to continue - rep count should be 15
         assertThat(actualRepCounter.getCurrentRepCount().workingReps).isEqualTo(15)
     }
 
     /**
      * TEST 3: AMRAP set should save actual reps completed
-     *
+     * 
      * This test verifies that when user manually completes an AMRAP set:
      * - User can do any number of reps (not constrained by target)
      * - When user manually stops, actual rep count is saved
@@ -220,11 +220,11 @@ class AMRAPFeatureTest {
 
         // ACT: Load routine and start workout
         viewModel.loadRoutine(amrapRoutine)
-
+        
         // Simulate user completing 17 reps (arbitrary number, not a preset target)
         // This would normally happen through BLE notifications
         // For this test, we verify the data model supports it
-
+        
         // User manually stops the set (completes workout)
         viewModel.stopWorkout()
 
@@ -236,7 +236,7 @@ class AMRAPFeatureTest {
 
     /**
      * TEST 4: Non-AMRAP set should still have auto-stop (regression test)
-     *
+     * 
      * This test ensures we didn't break existing auto-stop functionality:
      * - Configure RepCounter for normal set (not AMRAP)
      * - Set target of 10 reps
@@ -247,7 +247,7 @@ class AMRAPFeatureTest {
     fun `test 4 - non-AMRAP set still has auto-stop enabled`() {
         // ARRANGE: Create RepCounter configured for normal (non-AMRAP) workout
         val actualRepCounter = RepCounterFromMachine()
-
+        
         actualRepCounter.configure(
             warmupTarget = 0,
             workingTarget = 10,
@@ -266,8 +266,8 @@ class AMRAPFeatureTest {
         // ACT: Process exactly 10 reps (plus initial baseline call)
         for (i in 0..10) {
             actualRepCounter.process(
-                repsRomCount = i,
-                repsSetCount = if (i == 0) 0 else i, // Baseline then 1..10 working reps
+                topCounter = i,
+                completeCounter = if (i > 0) i - 1 else 0,
                 posA = 100,
                 posB = 100
             )
@@ -280,7 +280,7 @@ class AMRAPFeatureTest {
 
     /**
      * TEST 5: AMRAP indicator in UI state
-     *
+     * 
      * This test verifies UI state properly indicates AMRAP mode:
      * - When starting AMRAP set, UI state should reflect AMRAP mode
      * - Rep progress tracking should be disabled

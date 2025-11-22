@@ -1,6 +1,5 @@
 package com.example.vitruvianredux.presentation.components
 
-import android.net.Uri
 import android.view.ViewGroup
 import android.widget.VideoView
 import androidx.compose.foundation.background
@@ -30,8 +29,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.vitruvianredux.data.local.entity.ExerciseEntity
-import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
+import com.example.vitruvianredux.data.local.ExerciseEntity
+import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch

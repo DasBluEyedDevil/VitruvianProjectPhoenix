@@ -3,8 +3,8 @@ package com.example.vitruvianredux.presentation.screen
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.vitruvianredux.domain.model.ConnectionState
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.presentation.components.StatsCard
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
@@ -306,7 +305,7 @@ fun WorkoutCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeActiveProgramCard(
-    program: com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     routines: List<com.example.vitruvianredux.domain.model.Routine>,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,

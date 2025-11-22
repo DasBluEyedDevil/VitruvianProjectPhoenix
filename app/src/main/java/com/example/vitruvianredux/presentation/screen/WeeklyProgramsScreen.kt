@@ -14,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -254,7 +253,7 @@ fun WeeklyProgramsScreen(
  */
 @Composable
 fun ActiveProgramCard(
-    program: com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     onStartTodayWorkout: () -> Unit,
     onViewProgram: () -> Unit
 ) {
@@ -368,7 +367,7 @@ fun ActiveProgramCard(
  */
 @Composable
 fun ProgramListItem(
-    program: com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     isActive: Boolean,
     onClick: () -> Unit,
     onActivate: () -> Unit,
@@ -509,7 +508,7 @@ fun ProgramListItem(
  */
 @Deprecated(
     message = "Use WeeklyProgramWithDays from data.local package",
-    replaceWith = ReplaceWith("com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays")
+    replaceWith = ReplaceWith("com.example.vitruvianredux.data.local.WeeklyProgramWithDays")
 )
 data class WeeklyProgram(
     val id: String,

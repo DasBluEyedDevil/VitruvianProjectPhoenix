@@ -3,7 +3,7 @@ package com.example.vitruvianredux.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vitruvianredux.data.local.ConnectionLogDao
-import com.example.vitruvianredux.data.local.entity.ConnectionLogEntity
+import com.example.vitruvianredux.data.local.ConnectionLogEntity
 import com.example.vitruvianredux.data.logger.ConnectionLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -1,9 +1,9 @@
 package com.example.vitruvianredux.data.repository
 
 import com.example.vitruvianredux.data.local.ExerciseDao
-import com.example.vitruvianredux.data.local.entity.ExerciseEntity
+import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.local.ExerciseImporter
-import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
+import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import timber.log.Timber
