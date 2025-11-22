@@ -1,6 +1,8 @@
 package com.example.vitruvianredux.data.local
 
 import android.content.Context
+import com.example.vitruvianredux.data.local.entity.ExerciseEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -110,96 +110,98 @@ class RepCounterFromMachine {
         }
     }
 
-    fun process(topCounter: Int, completeCounter: Int, posA: Int = 0, posB: Int = 0) {
+    /**
+     * Process rep data from machine using ROM (Range of Motion) and Set counters directly.
+     * This eliminates the "getting ready" pull offset by relying on the machine's own counting.
+     *
+     * The machine provides:
+     * - repsRomCount/Total: ROM-based rep counting (warmup phase)
+     * - repsSetCount/Total: Set-based rep counting (working phase)
+     *
+     * This matches official app behavior and prevents counting preparatory movements.
+     */
+    fun process(
+        repsRomCount: Int,   // Machine's ROM rep count (warmup reps)
+        repsSetCount: Int,   // Machine's set rep count (working reps)
+        up: Int = 0,         // Directional counter (for debugging)
+        down: Int = 0,       // Directional counter (for debugging)
+        posA: Int = 0,       // Position A for range calibration
+        posB: Int = 0        // Position B for range calibration
+    ) {
+        Timber.d("Rep process: ROM=$repsRomCount, Set=$repsSetCount, up=$up, down=$down")
 
+        // Track up/down movements for position calibration (critical for autostop!)
+        // This must happen on EVERY call, not just when reps change
         if (lastTopCounter != null) {
-            val topDelta = calculateDelta(lastTopCounter!!, topCounter)
-            if (topDelta > 0) {
+            val upDelta = calculateDelta(lastTopCounter!!, up)
+            if (upDelta > 0) {
                 recordTopPosition(posA, posB)
-
-                // Count the rep at TOP of movement (matches official app behavior)
-                // This is when the user reaches peak contraction - the intuitive moment for counting
-                val totalReps = warmupReps + workingReps + 1
-                if (totalReps <= warmupTarget) {
-                    warmupReps++
-                    onRepEvent?.invoke(
-                        RepEvent(
-                            type = RepType.WARMUP_COMPLETED,
-                            warmupCount = warmupReps,
-                            workingCount = workingReps
-                        )
-                    )
-                    if (warmupReps == warmupTarget) {
-                        onRepEvent?.invoke(
-                            RepEvent(
-                                type = RepType.WARMUP_COMPLETE,
-                                warmupCount = warmupReps,
-                                workingCount = workingReps
-                            )
-                        )
-                    }
-                } else {
-                    workingReps++
-                    onRepEvent?.invoke(
-                        RepEvent(
-                            type = RepType.WORKING_COMPLETED,
-                            warmupCount = warmupReps,
-                            workingCount = workingReps
-                        )
-                    )
-
-                    // If "Stop At Top" is enabled and target reached, stop NOW (at peak contraction)
-                    // This is safer as it ensures user completes the full eccentric phase of final rep
-                    // UNLESS isAMRAP is enabled - then user controls when to stop
-                    if (stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
-                        Timber.d("⚠️ shouldStop set to TRUE (stopAtTop path)")
-                        Timber.d("  stopAtTop=$stopAtTop, isJustLift=$isJustLift, isAMRAP=$isAMRAP")
-                        Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
-                        shouldStop = true
-                        onRepEvent?.invoke(
-                            RepEvent(
-                                type = RepType.WORKOUT_COMPLETE,
-                                warmupCount = warmupReps,
-                                workingCount = workingReps
-                            )
-                        )
-                    }
-                }
             }
         }
-        lastTopCounter = topCounter
 
-        if (lastCompleteCounter == null) {
-            lastCompleteCounter = completeCounter
-            return  // Skip first signal to establish baseline
+        if (lastCompleteCounter != null) {
+            val downDelta = calculateDelta(lastCompleteCounter!!, down)
+            if (downDelta > 0) {
+                recordBottomPosition(posA, posB)
+            }
         }
 
-        val delta = calculateDelta(lastCompleteCounter!!, completeCounter)
-        if (delta <= 0) {
-            return
-        }
+        // Update tracking counters AFTER position recording
+        lastTopCounter = up
+        lastCompleteCounter = down
 
-        lastCompleteCounter = completeCounter
+        // Track warmup reps using ROM counter
+        if (repsRomCount > warmupReps && warmupReps < warmupTarget) {
+            warmupReps = repsRomCount.coerceAtMost(warmupTarget)
 
-        // Record bottom position (used for range calibration)
-        recordBottomPosition(posA, posB)
-
-        // If "Stop At Top" is disabled, stop at BOTTOM after completing target
-        // This preserves the old behavior for users who prefer it
-        // Note: Rep was already counted when topCounter fired
-        // UNLESS isAMRAP is enabled - then user controls when to stop
-        if (!stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
-            Timber.d("⚠️ shouldStop set to TRUE (!stopAtTop path)")
-            Timber.d("  stopAtTop=$stopAtTop, isJustLift=$isJustLift, isAMRAP=$isAMRAP")
-            Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
-            shouldStop = true
             onRepEvent?.invoke(
                 RepEvent(
-                    type = RepType.WORKOUT_COMPLETE,
+                    type = RepType.WARMUP_COMPLETED,
                     warmupCount = warmupReps,
                     workingCount = workingReps
                 )
             )
+
+            if (warmupReps >= warmupTarget) {
+                onRepEvent?.invoke(
+                    RepEvent(
+                        type = RepType.WARMUP_COMPLETE,
+                        warmupCount = warmupReps,
+                        workingCount = workingReps
+                    )
+                )
+            }
+        }
+
+        // Track working reps using Set counter (only after warmup complete)
+        if (warmupReps >= warmupTarget && repsSetCount > workingReps) {
+            val previousWorkingReps = workingReps
+            workingReps = repsSetCount
+
+            // Only emit events for NEW reps
+            if (workingReps > previousWorkingReps) {
+                onRepEvent?.invoke(
+                    RepEvent(
+                        type = RepType.WORKING_COMPLETED,
+                        warmupCount = warmupReps,
+                        workingCount = workingReps
+                    )
+                )
+
+                // Check if target reached (unless AMRAP or Just Lift)
+                if (!isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+                    Timber.d("⚠️ shouldStop set to TRUE (target reached)")
+                    Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
+                    shouldStop = true
+                    onRepEvent?.invoke(
+                        RepEvent(
+                            type = RepType.WORKOUT_COMPLETE,
+                            warmupCount = warmupReps,
+                            workingCount = workingReps
+                        )
+                    )
+                }
+            }
         }
     }
 

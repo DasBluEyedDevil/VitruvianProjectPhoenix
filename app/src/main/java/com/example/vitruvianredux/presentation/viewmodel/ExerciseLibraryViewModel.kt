@@ -2,8 +2,8 @@ package com.example.vitruvianredux.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.vitruvianredux.data.local.ExerciseEntity
-import com.example.vitruvianredux.data.local.ExerciseVideoEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*

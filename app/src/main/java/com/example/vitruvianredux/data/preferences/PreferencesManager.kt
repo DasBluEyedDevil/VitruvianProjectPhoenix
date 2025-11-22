@@ -27,6 +27,7 @@ class PreferencesManager @Inject constructor(
     private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
     private val STOP_AT_TOP_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("stop_at_top")
     private val ENABLE_VIDEO_PLAYBACK_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("enable_video_playback")
+    private val STRICT_VALIDATION_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("strict_validation")
 
     /**
      * Flow of user preferences
@@ -43,12 +44,14 @@ class PreferencesManager @Inject constructor(
             val autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true
             val stopAtTop = preferences[STOP_AT_TOP_KEY] ?: false
             val enableVideoPlayback = preferences[ENABLE_VIDEO_PLAYBACK_KEY] ?: true
+            val strictValidationEnabled = preferences[STRICT_VALIDATION_KEY] ?: false
 
             UserPreferences(
                 weightUnit = weightUnit,
                 autoplayEnabled = autoplayEnabled,
                 stopAtTop = stopAtTop,
-                enableVideoPlayback = enableVideoPlayback
+                enableVideoPlayback = enableVideoPlayback,
+                strictValidationEnabled = strictValidationEnabled
             )
         }
 
@@ -90,5 +93,15 @@ class PreferencesManager @Inject constructor(
             preferences[ENABLE_VIDEO_PLAYBACK_KEY] = enabled
         }
         Timber.d("Enable video playback preference set to: $enabled")
+    }
+
+    /**
+     * Set strict validation preference
+     */
+    suspend fun setStrictValidationEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[STRICT_VALIDATION_KEY] = enabled
+        }
+        Timber.d("Strict validation preference set to: $enabled")
     }
 }

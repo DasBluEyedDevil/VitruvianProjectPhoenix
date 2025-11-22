@@ -1,0 +1,114 @@
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:processDebugResources
+> Task :app:kspDebugKotlin
+
+> Task :app:compileDebugKotlin FAILED
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:198:59 Unresolved reference 'NUS_SERVICE_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:205:77 Unresolved reference 'NUS_RX_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:206:79 Unresolved reference 'MONITOR_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:207:80 Unresolved reference 'DIAGNOSTIC_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:208:81 Unresolved reference 'REP_NOTIFY_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:209:81 Unresolved reference 'HEURISTIC_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:210:79 Unresolved reference 'VERSION_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:228:123 Unresolved reference 'REP_NOTIFY_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:229:123 Unresolved reference 'HEURISTIC_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:230:119 Unresolved reference 'VERSION_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:231:121 Unresolved reference 'DIAGNOSTIC_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:253:39 Method 'iterator()' is ambiguous for this expression. Applicable candidates:
+fun <T> Enumeration<T>.iterator(): Iterator<T>
+fun <T> Iterator<T>.iterator(): Iterator<T>
+fun <K, V> Map<out K, V>.iterator(): Iterator<Map.Entry<K, V>>
+fun <K, V> MutableMap<K, V>.iterator(): MutableIterator<MutableMap.MutableEntry<K, V>>
+fun CharSequence.iterator(): CharIterator
+fun BufferedInputStream.iterator(): ByteIterator
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:253:39 Unresolved reference 'NOTIFY_CHAR_UUIDS'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:263:39 Method 'iterator()' is ambiguous for this expression. Applicable candidates:
+fun <T> Enumeration<T>.iterator(): Iterator<T>
+fun <T> Iterator<T>.iterator(): Iterator<T>
+fun <K, V> Map<out K, V>.iterator(): Iterator<Map.Entry<K, V>>
+fun <K, V> MutableMap<K, V>.iterator(): MutableIterator<MutableMap.MutableEntry<K, V>>
+fun CharSequence.iterator(): CharIterator
+fun BufferedInputStream.iterator(): ByteIterator
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:263:39 Unresolved reference 'WORKOUT_CMD_CHAR_UUIDS'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt:523:57 Unresolved reference 'REP_NOTIFY_CHAR_UUID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:118:105 Unresolved reference 'DEVICE_NAME_PREFIX'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:166:52 Unresolved reference 'DEVICE_NAME_PREFIX'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:391:72 Unresolved reference 'modelNumber'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:456:32 Unresolved reference 'BLE_QUEUE_DRAIN_DELAY_MS'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:499:70 Unresolved reference 'brightness'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:499:89 Unresolved reference 'colors'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:505:61 Unresolved reference 'brightness'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt:505:90 Unresolved reference 'colors'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/HardwareDetection.kt:29:79 Unresolved reference 'EUCLID'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/HardwareDetection.kt:44:22 Unresolved reference 'capabilities'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/HardwareDetection.kt:51:44 Unresolved reference 'supportsEccentricMode'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:199:59 Unresolved reference 'eccentricPct'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:200:60 Unresolved reference 'concentricPct'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:201:51 Unresolved reference 'gain'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:202:50 Unresolved reference 'cap'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:203:56 Unresolved reference 'smoothing'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:204:52 Unresolved reference 'floor'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:205:55 Unresolved reference 'negLimit'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:209:42 Unresolved reference 'eccentricPct'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:212:42 Unresolved reference 'concentricPct'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:215:42 Unresolved reference 'smoothing'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:218:42 Unresolved reference 'gain'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:221:42 Unresolved reference 'cap'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:224:42 Unresolved reference 'floor'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:227:42 Unresolved reference 'negLimit'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:261:41 Unresolved reference 'r'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:262:41 Unresolved reference 'g'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:263:41 Unresolved reference 'b'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:357:13 No parameter with name 'eccentricPct' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:358:13 No parameter with name 'concentricPct' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:359:13 No parameter with name 'smoothing' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:360:13 No parameter with name 'floor' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:361:13 No parameter with name 'negLimit' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:362:13 No parameter with name 'gain' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:363:13 No parameter with name 'cap' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:363:13 No value passed for parameter 'level'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:363:13 No value passed for parameter 'eccentricLoadPercent'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:363:13 No value passed for parameter 'targetReps'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:367:43 No parameter with name 'gain' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:367:56 No parameter with name 'cap' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:368:45 No parameter with name 'gain' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:368:59 No parameter with name 'cap' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:369:46 No parameter with name 'gain' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:369:61 No parameter with name 'cap' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:370:43 No parameter with name 'gain' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:370:58 No parameter with name 'cap' found.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:404:40 Unresolved reference 'brightness'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt:404:59 Unresolved reference 'colors'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 13s
+18 actionable tasks: 6 executed, 12 up-to-date

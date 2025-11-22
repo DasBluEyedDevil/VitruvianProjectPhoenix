@@ -14,13 +14,16 @@ object ProtocolBuilder {
 
     /**
      * Build the initial 4-byte command sent before INIT
+     * @deprecated Not used by official Android app (legacy web protocol)
      */
+    @Deprecated("Not used by official Android app")
     fun buildInitCommand(): ByteArray {
         return byteArrayOf(0x0A, 0x00, 0x00, 0x00)
     }
 
     /**
      * Build the INIT preset frame with coefficient table (34 bytes)
+     * Note: This is actually a Color Scheme packet (0x11)
      */
     fun buildInitPreset(): ByteArray {
         return byteArrayOf(
@@ -377,9 +380,19 @@ object ProtocolBuilder {
 
     /**
      * Build the STOP command (4 bytes)
+     * @deprecated Use buildStopPacket() instead - official app uses 0x50
      */
+    @Deprecated("Use buildStopPacket() instead - official app uses 0x50")
     fun buildStopCommand(): ByteArray {
         return byteArrayOf(0x05, 0x00, 0x00, 0x00)
+    }
+
+    /**
+     * Build the STOP packet used by official app (0x50)
+     */
+    fun buildStopPacket(): ByteArray {
+        // Matches official StopPacket: 0x50 0x00
+        return byteArrayOf(0x50, 0x00)
     }
 
     /**
@@ -392,118 +405,3 @@ object ProtocolBuilder {
     }
 
 }
-
-/**
- * Echo parameters data class
- */
-data class EchoParams(
-    val eccentricPct: Int,
-    val concentricPct: Int,
-    val smoothing: Float,
-    val floor: Float,
-    val negLimit: Float,
-    val gain: Float,
-    val cap: Float
-)
-
-/**
- * RGB Color data class
- */
-data class RGBColor(
-    val r: Int,
-    val g: Int,
-    val b: Int
-) {
-    init {
-        require(r in 0..255) { "Red value must be 0-255" }
-        require(g in 0..255) { "Green value must be 0-255" }
-        require(b in 0..255) { "Blue value must be 0-255" }
-    }
-}
-
-/**
- * Predefined color schemes
- */
-object ColorSchemes {
-    val BLUE = ColorScheme(
-        name = "Blue",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0x00, 0xA8, 0xDD),
-            RGBColor(0x00, 0xCF, 0xFC),
-            RGBColor(0x5D, 0xDF, 0xFC)
-        )
-    )
-
-    val GREEN = ColorScheme(
-        name = "Green",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0x7D, 0xC1, 0x47),
-            RGBColor(0xA1, 0xD8, 0x6A),
-            RGBColor(0xBA, 0xE0, 0x94)
-        )
-    )
-
-    val TEAL = ColorScheme(
-        name = "Teal",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0x3E, 0x9A, 0xB7),
-            RGBColor(0x83, 0xBE, 0xD1),
-            RGBColor(0xC2, 0xDF, 0xE8)
-        )
-    )
-
-    val YELLOW = ColorScheme(
-        name = "Yellow",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0xFF, 0x90, 0x51),
-            RGBColor(0xFF, 0xD6, 0x47),
-            RGBColor(0xFF, 0xB7, 0x00)
-        )
-    )
-
-    val PINK = ColorScheme(
-        name = "Pink",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0xFF, 0x00, 0x4C),
-            RGBColor(0xFF, 0x23, 0x8C),
-            RGBColor(0xFF, 0x8C, 0x8C)
-        )
-    )
-
-    val RED = ColorScheme(
-        name = "Red",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0xFF, 0x00, 0x00),
-            RGBColor(0xFF, 0x55, 0x55),
-            RGBColor(0xFF, 0xAA, 0xAA)
-        )
-    )
-
-    val PURPLE = ColorScheme(
-        name = "Purple",
-        brightness = 0.4f,
-        colors = listOf(
-            RGBColor(0x88, 0x00, 0xFF),
-            RGBColor(0xAA, 0x55, 0xFF),
-            RGBColor(0xDD, 0xAA, 0xFF)
-        )
-    )
-
-    val ALL = listOf(BLUE, GREEN, TEAL, YELLOW, PINK, RED, PURPLE)
-}
-
-/**
- * Color scheme data class
- */
-data class ColorScheme(
-    val name: String,
-    val brightness: Float,
-    val colors: List<RGBColor>
-)
-

@@ -30,8 +30,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.vitruvianredux.data.local.ExerciseEntity
-import com.example.vitruvianredux.data.local.ExerciseVideoEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch

@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.graphics.toColorInt
+import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
+import com.example.vitruvianredux.domain.model.HeuristicStatistics
+import com.example.vitruvianredux.domain.model.SafetyEventSummary
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.ui.theme.Spacing
@@ -46,11 +49,13 @@ fun SetSummaryCard(
     onContinue: () -> Unit,
     autoplayEnabled: Boolean = false,
     configuredPerCableKg: Float? = null,
+    heuristics: HeuristicStatistics? = null,
+    safetyEvents: SafetyEventSummary? = null,
     modifier: Modifier = Modifier
 ) {
     // Countdown state for autoplay
     var countdownSeconds by remember { mutableIntStateOf(5) }
-    
+
     // Auto-advance if autoplay is enabled
     // Reset countdown whenever the card is shown (when autoplay is enabled)
     LaunchedEffect(autoplayEnabled, metrics.size) {
@@ -154,6 +159,20 @@ fun SetSummaryCard(
                         .fillMaxWidth()
                         .height(200.dp)
                 )
+            }
+
+            // Phase Analysis
+            heuristics?.let {
+                Spacer(modifier = Modifier.height(Spacing.medium))
+                PhaseAnalysisCard(stats = it, weightUnit = weightUnit, formatWeight = formatWeight)
+            }
+
+            // Safety Events
+            safetyEvents?.let {
+                if (it.hasSafetyEvents) {
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    SafetyEventsCard(summary = it)
+                }
             }
 
             // Continue Button or Countdown (based on autoplay setting)
@@ -317,4 +336,94 @@ private fun ForceGraph(
         },
         modifier = modifier
     )
+}
+
+@Composable
+fun PhaseAnalysisCard(
+    stats: HeuristicStatistics,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Phase Analysis",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.small))
+
+        PhaseSection(
+            title = "Concentric (Lifting)",
+            stats = stats.concentric,
+            color = MaterialTheme.colorScheme.primary,
+            weightUnit = weightUnit,
+            formatWeight = formatWeight
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.small))
+
+        PhaseSection(
+            title = "Eccentric (Lowering)",
+            stats = stats.eccentric,
+            color = MaterialTheme.colorScheme.secondary,
+            weightUnit = weightUnit,
+            formatWeight = formatWeight
+        )
+    }
+}
+
+@Composable
+private fun PhaseSection(
+    title: String,
+    stats: HeuristicPhaseStatistics,
+    color: androidx.compose.ui.graphics.Color,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String
+) {
+    Column {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = color,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                MetricRow("Avg Weight", formatWeight(stats.kgAvg, weightUnit))
+                MetricRow("Avg Velocity", "%.1f m/s".format(stats.velAvg))
+                MetricRow("Avg Power", "${stats.wattAvg.toInt()} W")
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                MetricRow("Max Weight", formatWeight(stats.kgMax, weightUnit), isBold = true)
+                MetricRow("Max Velocity", "%.1f m/s".format(stats.velMax), isBold = true)
+                MetricRow("Max Power", "${stats.wattMax.toInt()} W", isBold = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricRow(label: String, value: String, isBold: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal
+        )
+    }
 }
