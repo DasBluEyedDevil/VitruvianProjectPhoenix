@@ -35,6 +35,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 
 /**
  * Home screen showing workout type selection with modern gradient card design.
@@ -90,13 +92,18 @@ fun HomeScreen(
         viewModel.updateTopBarTitle("")
     }
 
+    // Detect orientation for grid layout
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val gridColumns = if (isLandscape) 4 else 2
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundGradient)
     ) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 150.dp),
+            columns = GridCells.Fixed(gridColumns),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -153,7 +160,7 @@ fun HomeScreen(
             item {
                 WorkoutCard(
                     title = "Daily Routines",
-                    description = "Create and store multi-exercise workouts",
+                    description = "Build multi-exercise workouts",
                     icon = Icons.Default.CalendarToday,
                     gradient = Brush.linearGradient(
                         colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo-500 to violet-600
