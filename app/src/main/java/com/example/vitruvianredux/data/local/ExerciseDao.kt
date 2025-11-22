@@ -1,6 +1,8 @@
 package com.example.vitruvianredux.data.local
 
 import androidx.room.*
+import com.example.vitruvianredux.data.local.entity.ExerciseEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
 import kotlinx.coroutines.flow.Flow
 
 /**

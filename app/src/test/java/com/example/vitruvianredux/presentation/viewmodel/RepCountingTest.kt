@@ -9,7 +9,7 @@ import org.junit.Assert.*
  * Tests the logic that processes machine's own rep counters from notifications
  */
 class RepCountingTest {
-    
+
     /**
      * Test counter delta calculation with normal increment
      */
@@ -20,7 +20,7 @@ class RepCountingTest {
         val delta = calculateCounterDelta(last, current)
         assertEquals(3, delta)
     }
-    
+
     /**
      * Test counter delta calculation with wraparound
      */
@@ -31,7 +31,7 @@ class RepCountingTest {
         val delta = calculateCounterDelta(last, current)
         assertEquals(5, delta) // 65534 -> 65535 -> 0 -> 1 -> 2 -> 3 = 5 increments
     }
-    
+
     /**
      * Test counter delta when counters are equal (no change)
      */
@@ -42,7 +42,7 @@ class RepCountingTest {
         val delta = calculateCounterDelta(last, current)
         assertEquals(0, delta)
     }
-    
+
     /**
      * Simulate a full workout with 3 warmup reps + 5 working reps
      * This tests the complete workflow that should match what the machine sends
@@ -53,60 +53,60 @@ class RepCountingTest {
         var workingReps = 0
         val warmupTarget = 3
         val workingTarget = 5
-        
+
         var lastTopCounter: Int? = null
         var lastRepCounter: Int? = null
-        
+
         // Simulate machine notifications for 8 total reps (3 warmup + 5 working)
         // NOTE: First notification establishes baseline, so we need 9 notifications for 8 counted reps
         val notifications = listOf(
             // Baseline (not counted as a rep)
-            RepNotification(topCounter = 0, completeCounter = 0, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 0.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 0.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Warmup rep 1
-            RepNotification(topCounter = 1, completeCounter = 1, rawData = byteArrayOf(), timestamp = 0L),
-            // Warmup rep 2  
-            RepNotification(topCounter = 2, completeCounter = 2, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 1.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 1.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
+            // Warmup rep 2
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 2.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 2.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Warmup rep 3
-            RepNotification(topCounter = 3, completeCounter = 3, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 3.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 3.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 1
-            RepNotification(topCounter = 4, completeCounter = 4, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 4.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 4.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 2
-            RepNotification(topCounter = 5, completeCounter = 5, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 5.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 5.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 3
-            RepNotification(topCounter = 6, completeCounter = 6, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 6.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 6.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 4
-            RepNotification(topCounter = 7, completeCounter = 7, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 7.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 7.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 5
-            RepNotification(topCounter = 8, completeCounter = 8, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 8.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 8.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
         )
-        
+
         for (notification in notifications) {
-            val topCounter = notification.topCounter
-            val completeCounter = notification.completeCounter
-            
+            val repsRomCount = (notification.repsRomCount ?: 0).toInt()
+            val repsSetCount = (notification.repsSetCount ?: 0).toInt()
+
             // Track top of range
             if (lastTopCounter == null) {
-                lastTopCounter = topCounter
+                lastTopCounter = repsRomCount
             } else {
-                val topDelta = calculateCounterDelta(lastTopCounter, topCounter)
+                val topDelta = calculateCounterDelta(lastTopCounter, repsRomCount)
                 if (topDelta > 0) {
-                    lastTopCounter = topCounter
+                    lastTopCounter = repsRomCount
                 }
             }
-            
+
             // Track rep complete
             if (lastRepCounter == null) {
-                lastRepCounter = completeCounter
+                lastRepCounter = repsSetCount
                 continue
             }
-            
-            val delta = calculateCounterDelta(lastRepCounter, completeCounter)
+
+            val delta = calculateCounterDelta(lastRepCounter, repsSetCount)
             if (delta > 0) {
-                lastRepCounter = completeCounter
-                
+                lastRepCounter = repsSetCount
+
                 // Increment counters
                 val totalReps = warmupReps + workingReps + 1
-                
+
                 if (totalReps <= warmupTarget) {
                     // Still in warmup
                     warmupReps++
@@ -118,12 +118,12 @@ class RepCountingTest {
                 }
             }
         }
-        
+
         // Verify counts
         assertEquals("Should have completed all warmup reps", warmupTarget, warmupReps)
         assertEquals("Should have completed all working reps", workingTarget, workingReps)
     }
-    
+
     /**
      * Test that we correctly identify when to stop at top of final rep
      */
@@ -133,22 +133,22 @@ class RepCountingTest {
         var workingReps = 4 // Completed 4 working reps
         val workingTarget = 5
         val stopAtTop = true
-        
+
         var lastTopCounter = 10
-        
+
         // Simulate reaching top of rep 5
-        val topNotification = RepNotification(topCounter = 11, completeCounter = 10, rawData = byteArrayOf(), timestamp = 0L)
-        
-        val topDelta = calculateCounterDelta(lastTopCounter, topNotification.topCounter)
-        
+        val topNotification = RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 11.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 10.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L)
+
+        val topDelta = calculateCounterDelta(lastTopCounter, (topNotification.repsRomCount ?: 0).toInt())
+
         assertTrue("Top counter should have incremented", topDelta > 0)
-        
+
         // Check if we should stop
         val shouldStop = stopAtTop && workingReps == workingTarget - 1
-        
+
         assertTrue("Should stop at top of final rep", shouldStop)
     }
-    
+
     /**
      * Helper function matching ViewModel's counter delta calculation
      */

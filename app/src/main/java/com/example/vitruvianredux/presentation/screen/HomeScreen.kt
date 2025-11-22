@@ -306,7 +306,7 @@ fun WorkoutCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeActiveProgramCard(
-    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
+    program: com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays,
     routines: List<com.example.vitruvianredux.domain.model.Routine>,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,

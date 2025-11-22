@@ -21,9 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
-import com.example.vitruvianredux.data.local.ProgramDayEntity
-import com.example.vitruvianredux.data.local.WeeklyProgramEntity
-import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
+import com.example.vitruvianredux.data.local.entity.ProgramDayEntity
+import com.example.vitruvianredux.data.local.entity.WeeklyProgramEntity
+import com.example.vitruvianredux.data.local.entity.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel

@@ -1,7 +1,7 @@
 package com.example.vitruvianredux.data.logger
 
 import com.example.vitruvianredux.data.local.ConnectionLogDao
-import com.example.vitruvianredux.data.local.ConnectionLogEntity
+import com.example.vitruvianredux.data.local.entity.ConnectionLogEntity
 import com.example.vitruvianredux.util.DeviceInfo
 import com.example.vitruvianredux.util.HardwareDetection
 import kotlinx.coroutines.CoroutineScope

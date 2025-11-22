@@ -19,7 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.example.vitruvianredux.data.local.ExerciseVideoEntity
+import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.EccentricLoad
 import com.example.vitruvianredux.domain.model.EchoLevel

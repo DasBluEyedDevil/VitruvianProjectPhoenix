@@ -15,12 +15,12 @@ import org.junit.Test
 class RepTrackingTest {
 
     private lateinit var repTracker: RepCounterTracker
-    
+
     @Before
     fun setup() {
         repTracker = RepCounterTracker()
     }
-    
+
     @Test
     fun `test Old School mode - 3 warmup + 5 working reps`() {
         val params = WorkoutParameters(
@@ -30,26 +30,26 @@ class RepTrackingTest {
             progressionRegressionKg = 0f,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes the counter (skipped)
         repTracker.processRepNotification(simulateRepComplete())
         assertEquals(0, repTracker.getRepCount().warmupReps)
-        
+
         // Simulate 3 warmup reps (need 4 notifications total including initialization)
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(3, repTracker.getRepCount().warmupReps)
         assertEquals(0, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.getRepCount().isWarmupComplete)
-        
+
         // Simulate 5 working reps
         repeat(5) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(3, repTracker.getRepCount().warmupReps)
         assertEquals(5, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test Pump mode - 3 warmup + 10 working reps`() {
         val params = WorkoutParameters(
@@ -59,22 +59,22 @@ class RepTrackingTest {
             progressionRegressionKg = 0f,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup (3 more notifications)
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(3, repTracker.getRepCount().warmupReps)
-        
+
         // Working reps
         repeat(10) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(10, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test TUT mode - slower reps tracked correctly`() {
         val params = WorkoutParameters(
@@ -84,21 +84,21 @@ class RepTrackingTest {
             progressionRegressionKg = 0f,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
-        
+
         // Working reps
         repeat(6) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(6, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test TUT Beast mode - ultra-slow reps tracked correctly`() {
         val params = WorkoutParameters(
@@ -108,21 +108,21 @@ class RepTrackingTest {
             progressionRegressionKg = 0f,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
-        
+
         // Working reps (slower but still counted the same way)
         repeat(4) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(4, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test Eccentric Only mode - 3 warmup + 8 working reps`() {
         val params = WorkoutParameters(
@@ -132,22 +132,22 @@ class RepTrackingTest {
             progressionRegressionKg = 0f,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(3, repTracker.getRepCount().warmupReps)
-        
+
         // Working reps
         repeat(8) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(8, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test Just Lift mode - unlimited reps`() {
         val params = WorkoutParameters(
@@ -158,23 +158,23 @@ class RepTrackingTest {
             isJustLift = true,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(3, repTracker.getRepCount().warmupReps)
-        
+
         // Working reps - can do any number in Just Lift mode
         repeat(15) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(15, repTracker.getRepCount().workingReps)
         // Just Lift never completes automatically
         assertEquals(false, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test counter wraparound at u16 max`() {
         val params = WorkoutParameters(
@@ -184,38 +184,56 @@ class RepTrackingTest {
             progressionRegressionKg = 0f,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // Simulate counter near wraparound
         var counter = 0xFFFD
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(RepNotification(
-            topCounter = counter,
-            completeCounter = counter,
+            up = 0,
+            down = 0,
+            rangeTop = 300.0f,
+            rangeBottom = 0.0f,
+            repsRomCount = counter.toShort(),
+            repsRomTotal = 10.toShort(),
+            repsSetCount = counter.toShort(),
+            repsSetTotal = 10.toShort(),
             rawData = byteArrayOf(),
             timestamp = System.currentTimeMillis()
         ))
-        
+
         // 3 warmup reps crossing wraparound
         repeat(3) {
             counter = (counter + 1) and 0xFFFF
             repTracker.processRepNotification(RepNotification(
-                topCounter = counter,
-                completeCounter = counter,
+                up = 0,
+                down = 0,
+                rangeTop = 300.0f,
+                rangeBottom = 0.0f,
+                repsRomCount = counter.toShort(),
+                repsRomTotal = 10.toShort(),
+                repsSetCount = counter.toShort(),
+                repsSetTotal = 10.toShort(),
                 rawData = byteArrayOf(),
                 timestamp = System.currentTimeMillis()
             ))
         }
         assertEquals(3, repTracker.getRepCount().warmupReps)
-        
+
         // 5 working reps after wraparound
         repeat(5) {
             counter = (counter + 1) and 0xFFFF
             repTracker.processRepNotification(RepNotification(
-                topCounter = counter,
-                completeCounter = counter,
+                up = 0,
+                down = 0,
+                rangeTop = 300.0f,
+                rangeBottom = 0.0f,
+                repsRomCount = counter.toShort(),
+                repsRomTotal = 10.toShort(),
+                repsSetCount = counter.toShort(),
+                repsSetTotal = 10.toShort(),
                 rawData = byteArrayOf(),
                 timestamp = System.currentTimeMillis()
             ))
@@ -223,7 +241,7 @@ class RepTrackingTest {
         assertEquals(5, repTracker.getRepCount().workingReps)
         assertEquals(true, repTracker.isWorkoutComplete())
     }
-    
+
     @Test
     fun `test stop at top - completes on second-to-last rep`() {
         val params = WorkoutParameters(
@@ -234,24 +252,24 @@ class RepTrackingTest {
             stopAtTop = true,
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup
         repeat(3) { repTracker.processRepNotification(simulateRepComplete()) }
-        
+
         // Working reps - should complete at top of 5th rep (4th complete)
         repeat(4) { repTracker.processRepNotification(simulateRepComplete()) }
         assertEquals(4, repTracker.getRepCount().workingReps)
-        
+
         // Simulate reaching top of 5th rep
         repTracker.processTopReached()
         assertEquals(true, repTracker.shouldStopAtTop())
     }
-    
+
     @Test
     fun `test progression with warmup calibration`() {
         val params = WorkoutParameters(
@@ -261,35 +279,41 @@ class RepTrackingTest {
             progressionRegressionKg = 2f, // 2kg increase per rep
             warmupReps = 3
         )
-        
+
         repTracker.startWorkout(params)
-        
+
         // First notification initializes counter
         repTracker.processRepNotification(simulateRepComplete())
-        
+
         // Warmup at base weight (10kg)
-        repeat(3) { 
+        repeat(3) {
             repTracker.processRepNotification(simulateRepComplete())
             assertEquals(10f, repTracker.getCurrentWeight(), 0.01f)
         }
-        
+
         // Working reps with progression
         for (repNum in 1..5) {
             val expectedWeight = 10f + ((repNum - 1) * 2f)
             assertEquals(expectedWeight, repTracker.getCurrentWeight(), 0.01f)
             repTracker.processRepNotification(simulateRepComplete())
         }
-        
+
         assertEquals(5, repTracker.getRepCount().workingReps)
     }
-    
+
     private var simulatedCounter = 0
-    
+
     private fun simulateRepComplete(): RepNotification {
         simulatedCounter++
         return RepNotification(
-            topCounter = simulatedCounter,
-            completeCounter = simulatedCounter,
+            up = 0,
+            down = 0,
+            rangeTop = 300.0f,
+            rangeBottom = 0.0f,
+            repsRomCount = simulatedCounter.toShort(),
+            repsRomTotal = 10.toShort(),
+            repsSetCount = simulatedCounter.toShort(),
+            repsSetTotal = 10.toShort(),
             rawData = byteArrayOf(),
             timestamp = System.currentTimeMillis()
         )
@@ -306,7 +330,7 @@ class RepCounterTracker {
     private var repCount = RepCount()
     private var params: WorkoutParameters? = null
     private var currentRepWeight = 0f
-    
+
     fun startWorkout(parameters: WorkoutParameters) {
         params = parameters
         lastTopCounter = null
@@ -314,35 +338,35 @@ class RepCounterTracker {
         repCount = RepCount()
         currentRepWeight = parameters.weightPerCableKg
     }
-    
+
     fun processRepNotification(notification: RepNotification) {
-        val topCounter = notification.topCounter
-        val completeCounter = notification.completeCounter
-        
+        val repsRomCount = (notification.repsRomCount ?: 0).toInt()
+        val repsSetCount = (notification.repsSetCount ?: 0).toInt()
+
         // Track top of range
         if (lastTopCounter == null) {
-            lastTopCounter = topCounter
+            lastTopCounter = repsRomCount
         } else {
-            val topDelta = calculateDelta(lastTopCounter!!, topCounter)
+            val topDelta = calculateDelta(lastTopCounter!!, repsRomCount)
             if (topDelta > 0) {
-                lastTopCounter = topCounter
+                lastTopCounter = repsRomCount
             }
         }
-        
+
         // Track rep complete
         if (lastRepCounter == null) {
-            lastRepCounter = completeCounter
+            lastRepCounter = repsSetCount
             return
         }
-        
-        val delta = calculateDelta(lastRepCounter!!, completeCounter)
+
+        val delta = calculateDelta(lastRepCounter!!, repsSetCount)
         if (delta > 0) {
-            lastRepCounter = completeCounter
-            
+            lastRepCounter = repsSetCount
+
             val currentWarmup = repCount.warmupReps
             val currentWorking = repCount.workingReps
             val totalReps = currentWarmup + currentWorking + 1
-            
+
             if (totalReps <= (params?.warmupReps ?: 3)) {
                 // Warmup rep
                 val newWarmup = currentWarmup + 1
@@ -354,7 +378,7 @@ class RepCounterTracker {
                 // Working rep
                 val newWorking = currentWorking + 1
                 repCount = repCount.copy(workingReps = newWorking)
-                
+
                 // Update weight for next rep with progression
                 params?.let { p ->
                     currentRepWeight = p.weightPerCableKg + (newWorking * p.progressionRegressionKg)
@@ -362,18 +386,18 @@ class RepCounterTracker {
             }
         }
     }
-    
+
     fun processTopReached() {
         // Simulates reaching top of range for stop-at-top logic
     }
-    
+
     fun shouldStopAtTop(): Boolean {
         return params?.stopAtTop == true &&
                params?.isJustLift == false &&
                (params?.reps ?: 0) > 0 &&
                repCount.workingReps == (params?.reps ?: 0) - 1
     }
-    
+
     fun isWorkoutComplete(): Boolean {
         return if (params?.isJustLift == true) {
             false // Just Lift never completes
@@ -381,11 +405,11 @@ class RepCounterTracker {
             repCount.workingReps >= (params?.reps ?: 0)
         }
     }
-    
+
     fun getRepCount() = repCount
-    
+
     fun getCurrentWeight() = currentRepWeight
-    
+
     private fun calculateDelta(last: Int, current: Int): Int {
         return if (current >= last) {
             current - last
