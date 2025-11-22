@@ -567,14 +567,13 @@ class VitruvianBleManager(
     }
     
     /**
-     * Start polling property characteristic every 500ms
-     * This acts as a keep-alive mechanism to maintain BLE connection stability
-     * CRITICAL: Without this, some devices may disconnect after ~5 seconds
+     * Start polling diagnostic characteristic every 500ms (keep-alive + health monitoring)
+     * Matches official app interval - Renamed from startPropertyPolling
      */
-    fun startPropertyPolling() {
+    fun startDiagnosticPolling() {
         propertyPollingJob?.cancel()
         propertyPollingJob = pollingScope.launch {
-            Timber.d("🔄 Starting keep-alive property polling (500ms interval)")
+            Timber.d("🔄 Starting diagnostic polling (500ms interval - matches official app)")
             var successfulReads = 0
             var failedReads = 0
 
@@ -582,7 +581,7 @@ class VitruvianBleManager(
                 try {
                     val char = propertyCharacteristic
                     if (char == null) {
-                        Timber.w("⚠️ Property characteristic is null - cannot maintain keep-alive!")
+                        Timber.w("⚠️ Diagnostic characteristic is null - cannot maintain keep-alive!")
                         delay(500)
                         continue
                     }
@@ -590,37 +589,24 @@ class VitruvianBleManager(
                     readCharacteristic(char)
                         .with { _, data ->
                             successfulReads++
-                            if (successfulReads % 20 == 0) {
-                                Timber.d("✅ Keep-alive active: $successfulReads successful reads, $failedReads failed")
+                            val bytes = data.value
+                            if (bytes != null) {
+                                parseDiagnosticData(bytes)
                             }
-                            Timber.v("Property data: ${data.value?.joinToString(" ") { "%02X".format(it) } ?: "null"}")
                         }
                         .fail { _, status ->
                             failedReads++
-                            Timber.w("⚠️ Keep-alive read failed (status: $status) - total failures: $failedReads")
-
-                            // Log to connection logger if failures are frequent
-                            if (failedReads % 5 == 0) {
-                                connectionLogger?.log(
-                                    eventType = "KEEP_ALIVE_FAILING",
-                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.WARNING,
-                                    deviceName = currentDeviceName,
-                                    deviceAddress = currentDeviceAddress,
-                                    message = "Keep-alive reads failing: $failedReads failures out of ${successfulReads + failedReads} attempts"
-                                )
-                            }
+                            Timber.w("⚠️ Diagnostic read failed (status: $status)")
                         }
                         .enqueue()
 
-                    delay(500) // Poll every 500ms (matches web app)
+                    delay(500) // Poll every 500ms (Official app interval - verified)
                 } catch (e: Exception) {
                     failedReads++
-                    Timber.e(e, "❌ Exception in property polling (keep-alive)")
-                    delay(500) // Still delay to avoid tight loop on persistent errors
+                    Timber.e(e, "❌ Exception in diagnostic polling")
+                    delay(500)
                 }
             }
-
-            Timber.d("🛑 Keep-alive property polling stopped (successful: $successfulReads, failed: $failedReads)")
         }
     }
 
@@ -648,6 +634,64 @@ class VitruvianBleManager(
                     Timber.e(e, "Error in heuristic polling")
                 }
             }
+        }
+    }
+
+    private fun parseDiagnosticData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 20) return
+
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            val seconds = buffer.getInt()
+            
+            val faults = mutableListOf<Short>()
+            repeat(4) { faults.add(buffer.getShort()) }
+            
+            val temps = mutableListOf<Byte>()
+            repeat(8) { temps.add(buffer.get()) }
+            
+            val containsFaults = faults.any { it != 0.toShort() }
+            
+            _diagnosticData.value = DiagnosticDetails(
+                seconds = seconds,
+                faults = faults,
+                temps = temps,
+                containsFaults = containsFaults
+            )
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to parse diagnostic data")
+        }
+    }
+
+    private fun parseHeuristicData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 48) return
+
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+            // Concentric
+            val concentric = HeuristicPhaseStatistics(
+                kgAvg = buffer.getFloat(),
+                kgMax = buffer.getFloat(),
+                velAvg = buffer.getFloat(),
+                velMax = buffer.getFloat(),
+                wattAvg = buffer.getFloat(),
+                wattMax = buffer.getFloat()
+            )
+
+            // Eccentric
+            val eccentric = HeuristicPhaseStatistics(
+                kgAvg = buffer.getFloat(),
+                kgMax = buffer.getFloat(),
+                velAvg = buffer.getFloat(),
+                velMax = buffer.getFloat(),
+                wattAvg = buffer.getFloat(),
+                wattMax = buffer.getFloat()
+            )
+
+            _heuristicData.value = HeuristicStatistics(concentric, eccentric)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to parse heuristic data")
         }
     }
 

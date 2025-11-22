@@ -1,5 +1,12 @@
 package com.example.vitruvianredux.data.repository
 
+import com.example.vitruvianredux.data.local.WorkoutDao
+import com.example.vitruvianredux.data.local.PersonalRecordDao
+import com.example.vitruvianredux.data.local.WorkoutSessionEntity
+import com.example.vitruvianredux.data.local.RoutineEntity
+import com.example.vitruvianredux.data.local.RoutineExerciseEntity
+import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
+import com.example.vitruvianredux.data.local.PersonalRecordEntity
 import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
 import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
@@ -58,7 +65,7 @@ class WorkoutRepository @Inject constructor(
     
     suspend fun saveMetrics(sessionId: String, metrics: List<WorkoutMetric>): Result<Unit> {
         return try {
-            workoutDao.insertMetrics(metrics.map { it.toEntity(sessionId) })
+            workoutDao.insertMetrics(metrics.mapIndexed { index, metric -> metric.toEntity(sessionId, index) })
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to save workout metrics")
