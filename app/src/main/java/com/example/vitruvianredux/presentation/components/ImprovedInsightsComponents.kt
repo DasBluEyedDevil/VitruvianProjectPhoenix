@@ -2,601 +2,273 @@ package com.example.vitruvianredux.presentation.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.example.vitruvianredux.ui.theme.Spacing
-import java.time.Instant
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import java.util.Locale
-import kotlin.math.roundToInt
+import com.example.vitruvianredux.presentation.components.charts.*
+import timber.log.Timber
 
 /**
- * Training Balance Card - Shows which muscle groups need attention
+ * Improved insights components utilizing the chart library
  */
+
 @Composable
-fun TrainingBalanceCard(
+fun MuscleBalanceRadarCard(
     personalRecords: List<PersonalRecord>,
     exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
     modifier: Modifier = Modifier
 ) {
-    val muscleGroupCounts = remember { mutableStateMapOf<String, Int>() }
+    // Calculate muscle group frequency
+    // Map of Muscle Group -> Frequency (0.0 - 1.0)
+    var radarData by remember { mutableStateOf<List<Pair<String, Float>>>(emptyList()) }
     
     LaunchedEffect(personalRecords) {
         val counts = mutableMapOf<String, Int>()
-        personalRecords.groupBy { it.exerciseId }.forEach { (exerciseId, prs) ->
-            @Suppress("SwallowedException")
+        var total = 0
+        
+        personalRecords.forEach { pr ->
             try {
-                val exercise = exerciseRepository.getExerciseById(exerciseId)
-                exercise?.muscleGroups?.split(",")?.forEach { group ->
-                    val trimmed = group.trim()
-                    if (trimmed.isNotBlank()) {
-                        counts[trimmed] = counts.getOrDefault(trimmed, 0) + prs.size
+                val exercise = exerciseRepository.getExerciseById(pr.exerciseId)
+                val groups = exercise?.muscleGroups?.split(",")?.map { it.trim() } ?: listOf("Other")
+                
+                groups.forEach { group ->
+                    // Normalize group names
+                    val normalizedGroup = when {
+                        group.contains("Chest", ignoreCase = true) -> "Chest"
+                        group.contains("Back", ignoreCase = true) -> "Back"
+                        group.contains("Leg", ignoreCase = true) || group.contains("Quadriceps", ignoreCase = true) || group.contains("Hamstrings", ignoreCase = true) -> "Legs"
+                        group.contains("Shoulder", ignoreCase = true) -> "Shoulders"
+                        group.contains("Arm", ignoreCase = true) || group.contains("Bicep", ignoreCase = true) || group.contains("Tricep", ignoreCase = true) -> "Arms"
+                        group.contains("Core", ignoreCase = true) || group.contains("Abs", ignoreCase = true) -> "Core"
+                        else -> "Other"
+                    }
+                    
+                    if (normalizedGroup != "Other") {
+                        counts[normalizedGroup] = counts.getOrDefault(normalizedGroup, 0) + 1
+                        total++
                     }
                 }
             } catch (e: Exception) {
-                // Skip if exercise not found
+                Timber.w("Failed to get exercise for PR: ${e.message}")
             }
         }
-        muscleGroupCounts.clear()
-        muscleGroupCounts.putAll(counts)
+        
+        // Convert to relative frequency (0.0 - 1.0) relative to the max category
+        // This makes the chart look full even if absolute counts are low
+        val maxCount = counts.values.maxOrNull()?.toFloat() ?: 1f
+        
+        // Ensure all standard groups are represented
+        val standardGroups = listOf("Chest", "Back", "Legs", "Shoulders", "Arms", "Core")
+        
+        radarData = standardGroups.map { group ->
+            val count = counts[group] ?: 0
+            group to (if (maxCount > 0) count / maxCount else 0f)
+        }
     }
 
-    if (muscleGroupCounts.isEmpty()) return
-
-    val totalPRs = muscleGroupCounts.values.sum()
-    val sortedGroups = muscleGroupCounts.entries.sortedByDescending { it.value }.take(5)
-
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
         shape = RoundedCornerShape(20.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.FitnessCenter,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Training Balance",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Which muscle groups you're focusing on",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Muscle Balance",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Relative training focus by body part",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(16.dp))
-
-            sortedGroups.forEach { (group, count) ->
-                val percentage = (count.toFloat() / totalPRs * 100).roundToInt()
-                
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = group,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "$percentage%",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { count.toFloat() / totalPRs },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-            }
-
-            // Recommendation
-            val leastTrained = muscleGroupCounts.entries.minByOrNull { it.value }
-            if (leastTrained != null && sortedGroups.size > 2) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.TipsAndUpdates,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Consider adding more ${leastTrained.key} exercises",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    }
-                }
+            
+            if (radarData.isNotEmpty() && radarData.any { it.second > 0 }) {
+                RadarChart(
+                    data = radarData,
+                    maxValue = 1.0f,
+                    modifier = Modifier.height(300.dp)
+                )
+            } else {
+                Text(
+                    "Complete workouts to see your muscle balance analysis.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 32.dp)
+                )
             }
         }
     }
 }
 
-/**
- * Progress Velocity Card - Shows how fast you're improving
- */
 @Composable
-fun ProgressVelocityCard(
+fun ConsistencyGaugeCard(
+    workoutSessions: List<WorkoutSession>,
+    modifier: Modifier = Modifier
+) {
+    val stats = remember(workoutSessions) {
+        val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+        val count = workoutSessions.count { it.timestamp >= thirtyDaysAgo }
+        count
+    }
+    
+    // Dynamic target based on history, defaulting to 12 (3/week)
+    val target = 12f 
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Monthly Consistency",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Workouts in the last 30 days",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            GaugeChart(
+                currentValue = stats.toFloat(),
+                targetValue = target,
+                label = "Workouts",
+                modifier = Modifier.height(250.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun VolumeVsIntensityCard(
+    workoutSessions: List<WorkoutSession>,
+    weightUnit: WeightUnit,
+    modifier: Modifier = Modifier
+) {
+    // Prepare data for the last 7 sessions
+    val (columnData, lineData) = remember(workoutSessions, weightUnit) {
+        val sortedSessions = workoutSessions.sortedBy { it.timestamp }.takeLast(7)
+        
+        if (sortedSessions.isEmpty()) {
+            Pair(emptyList<Pair<String, Float>>(), emptyList<Pair<String, Float>>())
+        } else {
+            val columns = sortedSessions.mapIndexed { index, session ->
+                val label = "S${index + 1}"
+                // Volume = weight * reps (approximate)
+                val volume = (session.weightPerCableKg * 2 * session.totalReps).toFloat()
+                // Convert to lbs if needed
+                val adjustedVolume = if (weightUnit == WeightUnit.LB) volume * 2.20462f else volume
+                label to adjustedVolume
+            }
+            
+            val lines = sortedSessions.mapIndexed { index, session ->
+                val label = "S${index + 1}"
+                val maxWeight = session.weightPerCableKg * 2 // Total weight
+                // Convert to lbs if needed
+                val adjustedWeight = if (weightUnit == WeightUnit.LB) maxWeight * 2.20462f else maxWeight
+                label to adjustedWeight
+            }
+            
+            Pair(columns, lines)
+        }
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Volume vs Intensity",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Last 7 sessions",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            if (columnData.isNotEmpty()) {
+                ComboChart(
+                    columnData = columnData,
+                    lineData = lineData,
+                    columnLabel = "Volume (${if (weightUnit == WeightUnit.KG) "kg" else "lb"})",
+                    lineLabel = "Max Weight",
+                    modifier = Modifier.height(300.dp)
+                )
+            } else {
+                Text(
+                    "No workout data available yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 32.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun WorkoutModeDistributionCard(
     personalRecords: List<PersonalRecord>,
     modifier: Modifier = Modifier
 ) {
-    val prsByMonth = remember(personalRecords) {
+    val modeData = remember(personalRecords) {
         personalRecords
-            .groupBy {
-                val instant = Instant.ofEpochMilli(it.timestamp)
-                val date = instant.atZone(ZoneId.systemDefault()).toLocalDate()
-                "${date.year}-${date.monthValue.toString().padStart(2, '0')}"
-            }
-            .mapValues { it.value.size }
-            .entries
-            .sortedBy { it.key }
-            .takeLast(6)
+            .groupingBy { it.workoutMode }
+            .eachCount()
+            .map { it.key to it.value.toFloat() }
+            .sortedByDescending { it.second }
     }
 
-    val avgPRsPerMonth = if (prsByMonth.isNotEmpty()) {
-        prsByMonth.map { it.value }.average()
-    } else 0.0
-
-    val trend = if (prsByMonth.size >= 2) {
-        val recent = prsByMonth.takeLast(3).map { it.value }.average()
-        val older = prsByMonth.take(3).map { it.value }.average()
-        when {
-            recent > older * 1.1 -> "Accelerating"
-            recent < older * 0.9 -> "Slowing"
-            else -> "Steady"
-        }
-    } else "Too early"
-
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
         shape = RoundedCornerShape(20.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Speed,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Progress Velocity",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "How fast you're improving",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = String.format(Locale.getDefault(), "%.1f", avgPRsPerMonth),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "PRs/Month",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                VerticalDivider(
-                    modifier = Modifier
-                        .height(60.dp)
-                        .width(1.dp)
-                )
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val trendIcon = when (trend) {
-                        "Accelerating" -> Icons.AutoMirrored.Filled.TrendingUp
-                        "Slowing" -> Icons.AutoMirrored.Filled.TrendingDown
-                        else -> Icons.AutoMirrored.Filled.TrendingFlat
-                    }
-                    val trendColor = when (trend) {
-                        "Accelerating" -> Color(0xFF10B981)
-                        "Slowing" -> Color(0xFFEF4444)
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    
-                    Icon(
-                        trendIcon,
-                        contentDescription = null,
-                        tint = trendColor,
-                        modifier = Modifier.size(40.dp)
-                    )
-                    Text(
-                        text = trend,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = trendColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            if (prsByMonth.size >= 3) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Mode Distribution",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Based on Personal Records",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
             Spacer(modifier = Modifier.height(16.dp))
-            @Suppress("NAME_SHADOWING")
-            Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Insights,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (trend == "Accelerating") {
-                                "Great momentum! Keep it up."
-                            } else if (trend == "Slowing") {
-                                "Try mixing up your routine for fresh stimulus"
-                            } else {
-                                "Consistent progress is sustainable progress"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
+            
+            if (modeData.isNotEmpty()) {
+                // Using MuscleGroupCircleChart as a donut chart
+                MuscleGroupCircleChart(
+                    data = modeData,
+                    modifier = Modifier.height(300.dp)
+                )
+            } else {
+                Text(
+                    "No mode data available.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 32.dp)
+                )
             }
         }
     }
 }
-
-/**
- * Consistency Score Card - Actual meaningful consistency metric
- */
-@Composable
-fun ConsistencyScoreCard(
-    workoutSessions: List<WorkoutSession>,
-    modifier: Modifier = Modifier
-) {
-    val last30Days = remember(workoutSessions) {
-        val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
-        workoutSessions.filter { it.timestamp >= thirtyDaysAgo }
-    }
-
-    val workoutsThisMonth = last30Days.size
-    val targetWorkoutsPerMonth = 12 // 3 per week
-    val consistencyScore = ((workoutsThisMonth.toFloat() / targetWorkoutsPerMonth) * 100)
-        .coerceAtMost(100f)
-        .roundToInt()
-
-    val color = when {
-        consistencyScore >= 80 -> Color(0xFF10B981)
-        consistencyScore >= 50 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
-    }
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.CalendarMonth,
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Consistency Score",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Based on $workoutsThisMonth workouts in last 30 days",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    progress = { consistencyScore / 100f },
-                    modifier = Modifier.size(140.dp),
-                    color = color,
-                    strokeWidth = 12.dp,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$consistencyScore%",
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = color
-                    )
-                    Text(
-                        text = "Consistency",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = color.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Target",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "$targetWorkoutsPerMonth workouts/month",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Actual",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "$workoutsThisMonth workouts",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = color
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Weekly Comparison Card - Clear this week vs last week
- */
-@Composable
-fun WeeklyComparisonCard(
-    workoutSessions: List<WorkoutSession>,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String,
-    modifier: Modifier = Modifier
-) {
-    val now = Instant.now().atZone(ZoneId.systemDefault())
-    val thisWeekStart = now.truncatedTo(ChronoUnit.DAYS)
-        .with(java.time.DayOfWeek.MONDAY).toInstant().toEpochMilli()
-    val lastWeekStart = now.minusWeeks(1).truncatedTo(ChronoUnit.DAYS)
-        .with(java.time.DayOfWeek.MONDAY).toInstant().toEpochMilli()
-
-    val thisWeekSessions = workoutSessions.filter { it.timestamp >= thisWeekStart }
-    val lastWeekSessions = workoutSessions.filter { 
-        it.timestamp >= lastWeekStart && it.timestamp < thisWeekStart 
-    }
-
-    val thisWeekVolume = thisWeekSessions.sumOf { 
-        (it.weightPerCableKg * it.totalReps * 2).toDouble() 
-    }.toFloat()
-    val lastWeekVolume = lastWeekSessions.sumOf { 
-        (it.weightPerCableKg * it.totalReps * 2).toDouble() 
-    }.toFloat()
-
-    val change = if (lastWeekVolume > 0) {
-        ((thisWeekVolume - lastWeekVolume) / lastWeekVolume * 100).roundToInt()
-    } else if (thisWeekVolume > 0) {
-        100
-    } else {
-        0
-    }
-
-    val changeColor = when {
-        change > 0 -> Color(0xFF10B981)
-        change < 0 -> Color(0xFFEF4444)
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.CompareArrows,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Weekly Comparison",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "This week vs last week",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "This Week",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = formatWeight(thisWeekVolume, weightUnit),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${thisWeekSessions.size} workouts",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Last Week",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = formatWeight(lastWeekVolume, weightUnit),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = "${lastWeekSessions.size} workouts",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (lastWeekVolume > 0 || thisWeekVolume > 0) {
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = changeColor.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            if (change > 0) Icons.AutoMirrored.Filled.TrendingUp 
-                            else if (change < 0) Icons.AutoMirrored.Filled.TrendingDown 
-                            else Icons.AutoMirrored.Filled.TrendingFlat,
-                            contentDescription = null,
-                            tint = changeColor,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "${if (change > 0) "+" else ""}$change% vs last week",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = changeColor
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-

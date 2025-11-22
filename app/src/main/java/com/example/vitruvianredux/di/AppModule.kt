@@ -10,6 +10,9 @@ import com.example.vitruvianredux.data.local.ExerciseDao
 import com.example.vitruvianredux.data.local.ExerciseImporter
 import com.example.vitruvianredux.data.local.PersonalRecordDao
 import com.example.vitruvianredux.data.local.ConnectionLogDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.ble.VitruvianBleManager
 import com.example.vitruvianredux.data.logger.ConnectionLogger
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
@@ -741,8 +744,8 @@ object AppModule {
     fun provideWorkoutRepository(
         workoutDao: WorkoutDao,
         personalRecordDao: PersonalRecordDao,
-        phaseStatisticsDao: com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao,
-        diagnosticsDao: com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+        phaseStatisticsDao: PhaseStatisticsDao,
+        diagnosticsDao: DiagnosticsDao
     ): WorkoutRepository {
         return WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
     }
@@ -798,13 +801,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun providePhaseStatisticsDao(database: WorkoutDatabase): com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao {
+    fun providePhaseStatisticsDao(database: WorkoutDatabase): PhaseStatisticsDao {
         return database.phaseStatisticsDao()
     }
 
     @Provides
     @Singleton
-    fun provideDiagnosticsDao(database: WorkoutDatabase): com.example.vitruvianredux.data.local.dao.DiagnosticsDao {
+    fun provideDiagnosticsDao(database: WorkoutDatabase): DiagnosticsDao {
         return database.diagnosticsDao()
     }
 }
