@@ -33,11 +33,17 @@ data class WorkoutSessionEntity(
     val exerciseName: String? = null,  // Exercise name for display (added in v16)
     // Routine tracking (for grouping sets from the same routine)
     val routineSessionId: String? = null,  // Unique ID for this routine session
-    val routineName: String? = null  // Name of the routine being performed
+    val routineName: String? = null,  // Name of the routine being performed
+    
+    // Safety Tracking (added in v23)
+    val safetyFlags: Int = 0,
+    val deloadWarningCount: Int = 0,
+    val romViolationCount: Int = 0,
+    val spotterActivations: Int = 0
 )
 
 /**
- * Room entity for workout metrics (time series data)
+ * Workout metric entity for storing time-series data
  */
 @Entity(tableName = "workout_metrics")
 data class WorkoutMetricEntity(

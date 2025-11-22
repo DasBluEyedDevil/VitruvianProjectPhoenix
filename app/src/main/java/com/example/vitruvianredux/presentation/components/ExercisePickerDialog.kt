@@ -149,169 +149,6 @@ fun ExercisePickerDialog(
         exerciseRepository.importExercises()
     }
 
-    // Content composable to be reused in both ModalBottomSheet and Dialog
-    @Composable
-    fun PickerContent() {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
-                .padding(horizontal = 16.dp)
-        ) {
-            // Title (only show in bottom sheet mode, not in fullscreen mode where TopAppBar has the title) - Material 3 Expressive
-            if (!fullScreen) {
-                Text(
-                    text = "Select Exercise",
-                    style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
-                    fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-            }
-
-            // Search field
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                placeholder = { Text("Search exercises...") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = "Search")
-                },
-                singleLine = true
-            )
-
-            // Favorites filter toggle
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Show Favorites Only",
-                    style = MaterialTheme.typography.labelMedium
-                )
-                Switch(
-                    checked = showFavoritesOnly,
-                    onCheckedChange = {
-                        showFavoritesOnly = it
-                        // Reset other filters when showing favorites
-                        if (it) {
-                            searchQuery = ""
-                            selectedMuscleFilter = "All"
-                            selectedEquipmentFilter = "All"
-                        }
-                    }
-                )
-            }
-
-            // Muscle group filter chips
-            Text(
-                text = "Muscle Groups",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                val muscleFilters = listOf("All", "Chest", "Back", "Legs", "Shoulders", "Arms", "Core")
-                items(muscleFilters) { filter ->
-                    FilterChip(
-                        selected = selectedMuscleFilter == filter,
-                        onClick = { selectedMuscleFilter = filter },
-                        label = { Text(filter) }
-                    )
-                }
-            }
-
-            // Equipment filter chips - Official Vitruvian equipment
-            Text(
-                text = "Equipment",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
-                val equipmentFilters = listOf(
-                    "All",
-                    "Long Bar",
-                    "Short Bar",
-                    "Handles",
-                    "Rope",
-                    "Belt",
-                    "Ankle Strap",
-                    "Bench",
-                    "Bodyweight"
-                )
-                items(equipmentFilters) { filter ->
-                    FilterChip(
-                        selected = selectedEquipmentFilter == filter,
-                        onClick = { selectedEquipmentFilter = filter },
-                        label = { Text(filter) }
-                    )
-                }
-            }
-
-            // Exercise list
-            if (exercises.isEmpty()) {
-                // Empty state
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Check if any filter is active
-                        val hasActiveFilters = searchQuery.isNotBlank() || 
-                                               selectedMuscleFilter != "All" || 
-                                               selectedEquipmentFilter != "All"
-                        
-                        if (hasActiveFilters) {
-                            // Show "No exercises found" when filters are active
-                            Text(
-                                text = "No exercises found",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            // Show loading state only when no filters are active
-                            CircularProgressIndicator()
-                            Text(
-                                text = "Loading exercises...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(exercises) { exercise ->
-                        ExerciseListItem(
-                            exercise = exercise,
-                            exerciseRepository = exerciseRepository,
-                            onClick = {
-                                onExerciseSelected(exercise)
-                                onDismiss()
-                            },
-                            enableVideoPlayback = enableVideoPlayback
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     // Use Dialog for fullscreen, ModalBottomSheet otherwise
     if (fullScreen) {
         Dialog(
@@ -344,7 +181,31 @@ fun ExercisePickerDialog(
                 containerColor = MaterialTheme.colorScheme.surface
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(paddingValues)) {
-                    PickerContent()
+                    ExercisePickerContent(
+                        exercises = exercises,
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = { searchQuery = it },
+                        showFavoritesOnly = showFavoritesOnly,
+                        onShowFavoritesOnlyChange = { 
+                            showFavoritesOnly = it
+                            if (it) {
+                                searchQuery = ""
+                                selectedMuscleFilter = "All"
+                                selectedEquipmentFilter = "All"
+                            }
+                        },
+                        selectedMuscleFilter = selectedMuscleFilter,
+                        onMuscleFilterChange = { selectedMuscleFilter = it },
+                        selectedEquipmentFilter = selectedEquipmentFilter,
+                        onEquipmentFilterChange = { selectedEquipmentFilter = it },
+                        onExerciseSelected = { 
+                            onExerciseSelected(it)
+                            onDismiss()
+                        },
+                        exerciseRepository = exerciseRepository,
+                        enableVideoPlayback = enableVideoPlayback,
+                        fullScreen = true
+                    )
                 }
             }
         }
@@ -355,7 +216,196 @@ fun ExercisePickerDialog(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Material 3 Expressive: Very rounded for bottom sheets
         ) {
-            PickerContent()
+            ExercisePickerContent(
+                exercises = exercises,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                showFavoritesOnly = showFavoritesOnly,
+                onShowFavoritesOnlyChange = { 
+                    showFavoritesOnly = it
+                    if (it) {
+                        searchQuery = ""
+                        selectedMuscleFilter = "All"
+                        selectedEquipmentFilter = "All"
+                    }
+                },
+                selectedMuscleFilter = selectedMuscleFilter,
+                onMuscleFilterChange = { selectedMuscleFilter = it },
+                selectedEquipmentFilter = selectedEquipmentFilter,
+                onEquipmentFilterChange = { selectedEquipmentFilter = it },
+                onExerciseSelected = { 
+                    onExerciseSelected(it)
+                    onDismiss()
+                },
+                exerciseRepository = exerciseRepository,
+                enableVideoPlayback = enableVideoPlayback,
+                fullScreen = false
+            )
+        }
+    }
+}
+
+@Composable
+fun ExercisePickerContent(
+    exercises: List<ExerciseEntity>,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    showFavoritesOnly: Boolean,
+    onShowFavoritesOnlyChange: (Boolean) -> Unit,
+    selectedMuscleFilter: String,
+    onMuscleFilterChange: (String) -> Unit,
+    selectedEquipmentFilter: String,
+    onEquipmentFilterChange: (String) -> Unit,
+    onExerciseSelected: (ExerciseEntity) -> Unit,
+    exerciseRepository: ExerciseRepository,
+    enableVideoPlayback: Boolean,
+    fullScreen: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier.fillMaxHeight(0.9f))
+            .padding(horizontal = 16.dp)
+    ) {
+        // Title (only show in bottom sheet mode, not in fullscreen mode where TopAppBar has the title) - Material 3 Expressive
+        if (!fullScreen) {
+            Text(
+                text = "Select Exercise",
+                style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
+                fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
+        // Search field
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            placeholder = { Text("Search exercises...") },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = "Search")
+            },
+            singleLine = true
+        )
+
+        // Favorites filter toggle
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Show Favorites Only",
+                style = MaterialTheme.typography.labelMedium
+            )
+            Switch(
+                checked = showFavoritesOnly,
+                onCheckedChange = onShowFavoritesOnlyChange
+            )
+        }
+
+        // Muscle group filter chips
+        Text(
+            text = "Muscle Groups",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 12.dp)
+        ) {
+            val muscleFilters = listOf("All", "Chest", "Back", "Legs", "Shoulders", "Arms", "Core")
+            items(muscleFilters) { filter ->
+                FilterChip(
+                    selected = selectedMuscleFilter == filter,
+                    onClick = { onMuscleFilterChange(filter) },
+                    label = { Text(filter) }
+                )
+            }
+        }
+
+        // Equipment filter chips - Official Vitruvian equipment
+        Text(
+            text = "Equipment",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(bottom = 16.dp)
+        ) {
+            val equipmentFilters = listOf(
+                "All",
+                "Long Bar",
+                "Short Bar",
+                "Handles",
+                "Rope",
+                "Belt",
+                "Ankle Strap",
+                "Bench",
+                "Bodyweight"
+            )
+            items(equipmentFilters) { filter ->
+                FilterChip(
+                    selected = selectedEquipmentFilter == filter,
+                    onClick = { onEquipmentFilterChange(filter) },
+                    label = { Text(filter) }
+                )
+            }
+        }
+
+        // Exercise list
+        if (exercises.isEmpty()) {
+            // Empty state
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Check if any filter is active
+                    val hasActiveFilters = searchQuery.isNotBlank() || 
+                                           selectedMuscleFilter != "All" || 
+                                           selectedEquipmentFilter != "All"
+                    
+                    if (hasActiveFilters) {
+                        // Show "No exercises found" when filters are active
+                        Text(
+                            text = "No exercises found",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        // Show loading state only when no filters are active
+                        CircularProgressIndicator()
+                        Text(
+                            text = "Loading exercises...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(exercises) { exercise ->
+                    ExerciseListItem(
+                        exercise = exercise,
+                        exerciseRepository = exerciseRepository,
+                        onClick = { onExerciseSelected(exercise) },
+                        enableVideoPlayback = enableVideoPlayback
+                    )
+                }
+            }
         }
     }
 }

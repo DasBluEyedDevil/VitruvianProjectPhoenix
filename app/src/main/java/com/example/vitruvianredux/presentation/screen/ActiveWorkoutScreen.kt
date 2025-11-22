@@ -60,6 +60,46 @@ fun ActiveWorkoutScreen(
         }
     }
 
+    // Set global title
+    LaunchedEffect(screenTitle) {
+        viewModel.updateTopBarTitle(screenTitle)
+    }
+
+    // Handle Back Button (System + Top Bar)
+    LaunchedEffect(Unit) {
+        val onBack: () -> Unit = {
+            // Show confirmation if workout is active
+            if (viewModel.workoutState.value is WorkoutState.Active ||
+                viewModel.workoutState.value is WorkoutState.Resting ||
+                viewModel.workoutState.value is WorkoutState.Countdown
+            ) {
+                showExitConfirmation = true
+            } else {
+                navController.navigateUp()
+            }
+        }
+        viewModel.setTopBarBackAction(onBack)
+    }
+
+    // Clean up back action
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearTopBarBackAction()
+        }
+    }
+
+    // System Back Handler
+    androidx.activity.compose.BackHandler(enabled = true) {
+        if (workoutState is WorkoutState.Active ||
+            workoutState is WorkoutState.Resting ||
+            workoutState is WorkoutState.Countdown
+        ) {
+            showExitConfirmation = true
+        } else {
+            navController.navigateUp()
+        }
+    }
+
     // Haptic and audio feedback effect
     HapticFeedbackEffect(hapticEvents = hapticEvents)
 
@@ -83,91 +123,44 @@ fun ActiveWorkoutScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(screenTitle)
-                        // Show progress indicator for routines
-                        loadedRoutine?.let { routine ->
-                            val totalExercises = routine.exercises.size
-                            val currentExerciseNum = currentExerciseIndex + 1
-                            if (totalExercises > 1) {
-                                Text(
-                                    text = "Exercise $currentExerciseNum of $totalExercises",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            // Show confirmation if workout is active
-                            if (workoutState is WorkoutState.Active ||
-                                workoutState is WorkoutState.Resting ||
-                                workoutState is WorkoutState.Countdown
-                            ) {
-                                showExitConfirmation = true
-                            } else {
-                                navController.navigateUp()
-                            }
-                        }
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
+    WorkoutTab(
+        connectionState = connectionState,
+        workoutState = workoutState,
+        currentMetric = currentMetric,
+        workoutParameters = workoutParameters,
+        repCount = repCount,
+        repRanges = repRanges,
+        autoStopState = autoStopState,
+        weightUnit = weightUnit,
+        enableVideoPlayback = enableVideoPlayback,
+        exerciseRepository = exerciseRepository,
+        isWorkoutSetupDialogVisible = false,
+        hapticEvents = hapticEvents,
+        loadedRoutine = loadedRoutine,
+        currentExerciseIndex = currentExerciseIndex,
+        autoplayEnabled = userPreferences.autoplayEnabled,
+        kgToDisplay = viewModel::kgToDisplay,
+        displayToKg = viewModel::displayToKg,
+        formatWeight = viewModel::formatWeight,
+        onScan = { viewModel.startScanning() },
+        onDisconnect = { viewModel.disconnect() },
+        onStartWorkout = {
+            viewModel.ensureConnection(
+                onConnected = { viewModel.startWorkout() },
+                onFailed = { /* Error shown via StateFlow */ }
             )
-        }
-    ) { padding ->
-        WorkoutTab(
-            connectionState = connectionState,
-            workoutState = workoutState,
-            currentMetric = currentMetric,
-            workoutParameters = workoutParameters,
-            repCount = repCount,
-            repRanges = repRanges,
-            autoStopState = autoStopState,
-            weightUnit = weightUnit,
-            enableVideoPlayback = enableVideoPlayback,
-            exerciseRepository = exerciseRepository,
-            isWorkoutSetupDialogVisible = false,
-            hapticEvents = hapticEvents,
-            loadedRoutine = loadedRoutine,
-            currentExerciseIndex = currentExerciseIndex,
-            autoplayEnabled = userPreferences.autoplayEnabled,
-            kgToDisplay = viewModel::kgToDisplay,
-            displayToKg = viewModel::displayToKg,
-            formatWeight = viewModel::formatWeight,
-            onScan = { viewModel.startScanning() },
-            onDisconnect = { viewModel.disconnect() },
-            onStartWorkout = {
-                viewModel.ensureConnection(
-                    onConnected = { viewModel.startWorkout() },
-                    onFailed = { /* Error shown via StateFlow */ }
-                )
-            },
-            onStopWorkout = { showExitConfirmation = true },
-            onSkipRest = { viewModel.skipRest() },
-            onProceedFromSummary = { viewModel.proceedFromSummary() },
-            onResetForNewWorkout = { viewModel.resetForNewWorkout() },
-            onStartNextExercise = { viewModel.advanceToNextExercise() },
-            onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
-            onShowWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
-            onHideWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
-            showConnectionCard = false,
-            showWorkoutSetupCard = false,
-            modifier = Modifier.padding(padding)
-        )
-    }
+        },
+        onStopWorkout = { showExitConfirmation = true },
+        onSkipRest = { viewModel.skipRest() },
+        onProceedFromSummary = { viewModel.proceedFromSummary() },
+        onResetForNewWorkout = { viewModel.resetForNewWorkout() },
+        onStartNextExercise = { viewModel.advanceToNextExercise() },
+        onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
+        onShowWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
+        onHideWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
+        showConnectionCard = false,
+        showWorkoutSetupCard = false
+    )
 
     // Exit confirmation dialog
     if (showExitConfirmation) {

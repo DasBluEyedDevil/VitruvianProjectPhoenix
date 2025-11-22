@@ -53,34 +53,35 @@ fun ConnectionLogsScreen(
     var showClearDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Connection Logs") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                    }
-                },
-                actions = {
-                    // Export button
-                    IconButton(onClick = { showExportDialog = true }) {
-                        Icon(Icons.Default.Share, "Export logs")
-                    }
-                    // Clear logs button
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.Delete, "Clear all logs")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
+    // Set global title
+    LaunchedEffect(Unit) {
+        mainViewModel.updateTopBarTitle("Connection Logs")
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Actions Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            TextButton(onClick = { showExportDialog = true }) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Export")
+            }
+            TextButton(onClick = { showClearDialog = true }) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Clear")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
             // Stats card
             LogStatsCard(stats = logStats)
 
@@ -176,7 +177,7 @@ fun ConnectionLogsScreen(
                 }
             }
         }
-    }
+
 
     // Clear dialog
     if (showClearDialog) {

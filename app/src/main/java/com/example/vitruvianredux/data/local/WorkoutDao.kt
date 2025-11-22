@@ -3,171 +3,101 @@ package com.example.vitruvianredux.data.local
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Data Access Object for workout data
- */
 @Dao
 interface WorkoutDao {
-    
-    // Sessions
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // --- Sessions ---
+    @Insert
     suspend fun insertSession(session: WorkoutSessionEntity)
-    
+
+    @Insert
+    suspend fun insertMetrics(metrics: List<WorkoutMetricEntity>)
+
     @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC")
     fun getAllSessions(): Flow<List<WorkoutSessionEntity>>
-    
+
+    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC LIMIT :limit")
+    fun getRecentSessions(limit: Int): Flow<List<WorkoutSessionEntity>>
+
+    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentSessionsSync(limit: Int): List<WorkoutSessionEntity>
+
     @Query("SELECT * FROM workout_sessions WHERE id = :sessionId")
     suspend fun getSession(sessionId: String): WorkoutSessionEntity?
-    
-    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC LIMIT :limit")
-    fun getRecentSessions(limit: Int = 10): Flow<List<WorkoutSessionEntity>>
-    
-    @Query("DELETE FROM workout_sessions WHERE id = :sessionId")
-    suspend fun deleteSession(sessionId: String)
-    
-    @Query("DELETE FROM workout_sessions")
-    suspend fun deleteAllSessions()
-    
-    // Metrics
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMetric(metric: WorkoutMetricEntity)
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMetrics(metrics: List<WorkoutMetricEntity>)
-    
+
     @Query("SELECT * FROM workout_metrics WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun getMetricsForSession(sessionId: String): Flow<List<WorkoutMetricEntity>>
-    
+
     @Query("SELECT * FROM workout_metrics WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getMetricsForSessionSync(sessionId: String): List<WorkoutMetricEntity>
-    
-    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC LIMIT :limit")
-    suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSessionEntity>
-    
+
+    @Query("DELETE FROM workout_sessions WHERE id = :sessionId")
+    suspend fun deleteWorkout(sessionId: String)
+
+    @Query("DELETE FROM workout_sessions")
+    suspend fun deleteAllWorkouts()
+
     @Query("DELETE FROM workout_metrics WHERE sessionId = :sessionId")
-    suspend fun deleteMetricsForSession(sessionId: String)
-    
-    @Query("DELETE FROM workout_metrics")
-    suspend fun deleteAllMetrics()
-    
-    // Combined operations
-    @Transaction
-    suspend fun deleteWorkout(sessionId: String) {
-        deleteSession(sessionId)
-        deleteMetricsForSession(sessionId)
-    }
-    
-    @Transaction
-    suspend fun deleteAllWorkouts() {
-        deleteAllSessions()
-        deleteAllMetrics()
-    }
-    
-    // ========== Routine Operations ==========
-    
+    suspend fun deleteMetrics(sessionId: String)
+
+    // --- Routines ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRoutine(routine: RoutineEntity)
-    
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRoutineExercises(exercises: List<RoutineExerciseEntity>)
+
     @Update
     suspend fun updateRoutine(routine: RoutineEntity)
-    
-    @Delete
-    suspend fun deleteRoutine(routine: RoutineEntity)
-    
-    @Query("DELETE FROM routines WHERE id = :routineId")
-    suspend fun deleteRoutineById(routineId: String)
-    
+
+    @Transaction
+    suspend fun insertRoutineWithExercises(routine: RoutineEntity, exercises: List<RoutineExerciseEntity>) {
+        insertRoutine(routine)
+        // Clear old exercises for this routine before inserting new ones
+        deleteRoutineExercises(routine.id)
+        insertRoutineExercises(exercises)
+    }
+
+    @Transaction
+    suspend fun updateRoutineWithExercises(routine: RoutineEntity, exercises: List<RoutineExerciseEntity>) {
+        updateRoutine(routine)
+        // Clear old exercises for this routine before inserting new ones
+        deleteRoutineExercises(routine.id)
+        insertRoutineExercises(exercises)
+    }
+
+    @Query("DELETE FROM routine_exercises WHERE routineId = :routineId")
+    suspend fun deleteRoutineExercises(routineId: String)
+
     @Query("SELECT * FROM routines ORDER BY lastUsed DESC, createdAt DESC")
     fun getAllRoutines(): Flow<List<RoutineEntity>>
-    
-    @Query("SELECT * FROM routines WHERE id = :routineId")
-    suspend fun getRoutineById(routineId: String): RoutineEntity?
-    
+
     @Query("SELECT * FROM routines WHERE id = :routineId")
     fun observeRoutineById(routineId: String): Flow<RoutineEntity?>
-    
-    @Query("UPDATE routines SET lastUsed = :timestamp, useCount = useCount + 1 WHERE id = :routineId")
-    suspend fun markRoutineUsed(routineId: String, timestamp: Long = System.currentTimeMillis())
-    
-    // ========== Routine Exercise Operations ==========
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExercise(exercise: RoutineExerciseEntity)
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExercises(exercises: List<RoutineExerciseEntity>)
-    
-    @Update
-    suspend fun updateExercise(exercise: RoutineExerciseEntity)
-    
-    @Delete
-    suspend fun deleteExercise(exercise: RoutineExerciseEntity)
-    
-    @Query("DELETE FROM routine_exercises WHERE id = :exerciseId")
-    suspend fun deleteExerciseById(exerciseId: String)
-    
-    @Query("DELETE FROM routine_exercises WHERE routineId = :routineId")
-    suspend fun deleteExercisesForRoutine(routineId: String)
-    
-    @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY orderIndex ASC")
-    fun getExercisesForRoutine(routineId: String): Flow<List<RoutineExerciseEntity>>
-    
+
+    @Query("SELECT * FROM routines WHERE id = :routineId")
+    suspend fun getRoutineById(routineId: String): RoutineEntity?
+
     @Query("SELECT * FROM routine_exercises WHERE routineId = :routineId ORDER BY orderIndex ASC")
     suspend fun getExercisesForRoutineSync(routineId: String): List<RoutineExerciseEntity>
-    
-    @Query("SELECT * FROM routine_exercises WHERE id = :exerciseId")
-    suspend fun getExerciseById(exerciseId: String): RoutineExerciseEntity?
-    
-    // ========== Transaction Operations ==========
-    
-    @Transaction
-    suspend fun insertRoutineWithExercises(
-        routine: RoutineEntity,
-        exercises: List<RoutineExerciseEntity>
-    ) {
-        insertRoutine(routine)
-        insertExercises(exercises)
-    }
-    
-    @Transaction
-    suspend fun updateRoutineWithExercises(
-        routine: RoutineEntity,
-        exercises: List<RoutineExerciseEntity>
-    ) {
-        updateRoutine(routine)
-        deleteExercisesForRoutine(routine.id)
-        insertExercises(exercises)
-    }
-    
+
+    @Query("DELETE FROM routines WHERE id = :routineId")
+    suspend fun deleteRoutine(routineId: String)
+
     @Transaction
     suspend fun deleteRoutineComplete(routineId: String) {
-        deleteExercisesForRoutine(routineId)
-        deleteRoutineById(routineId)
+        deleteRoutineExercises(routineId)
+        deleteRoutine(routineId)
     }
 
-    // ========== Weekly Programs ==========
-
-    @Query("SELECT * FROM weekly_programs ORDER BY lastUsed DESC")
-    fun getAllPrograms(): Flow<List<WeeklyProgramEntity>>
+    @Query("UPDATE routines SET lastUsed = :timestamp, useCount = useCount + 1 WHERE id = :routineId")
+    suspend fun updateRoutineUsage(routineId: String, timestamp: Long)
 
     @Transaction
-    @Query("SELECT * FROM weekly_programs ORDER BY lastUsed DESC")
-    fun getAllProgramsWithDays(): Flow<List<WeeklyProgramWithDays>>
+    suspend fun markRoutineUsed(routineId: String) {
+        updateRoutineUsage(routineId, System.currentTimeMillis())
+    }
 
-    @Query("SELECT * FROM weekly_programs WHERE isActive = 1 LIMIT 1")
-    fun getActiveProgram(): Flow<WeeklyProgramEntity?>
-
-    @Transaction
-    @Query("SELECT * FROM weekly_programs WHERE isActive = 1 LIMIT 1")
-    fun getActiveProgramWithDays(): Flow<WeeklyProgramWithDays?>
-
-    @Query("SELECT * FROM weekly_programs WHERE id = :programId")
-    fun getProgramById(programId: String): Flow<WeeklyProgramEntity?>
-
-    @Transaction
-    @Query("SELECT * FROM weekly_programs WHERE id = :programId")
-    fun getProgramWithDaysById(programId: String): Flow<WeeklyProgramWithDays?>
-
+    // --- Weekly Programs ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProgram(program: WeeklyProgramEntity)
 
@@ -184,18 +114,21 @@ interface WorkoutDao {
         insertProgramDays(days)
     }
 
-    @Query("DELETE FROM weekly_programs WHERE id = :programId")
-    suspend fun deleteProgram(programId: String)
-
-    @Query("UPDATE weekly_programs SET isActive = 0")
-    suspend fun setAllProgramsInactive()
-
-    @Query("UPDATE weekly_programs SET isActive = 1, lastUsed = :timestamp WHERE id = :programId")
-    suspend fun setProgramActive(programId: String, timestamp: Long = System.currentTimeMillis())
+    @Transaction
+    @Query("SELECT * FROM weekly_programs ORDER BY createdAt DESC")
+    fun getAllProgramsWithDays(): Flow<List<WeeklyProgramWithDays>>
 
     @Transaction
-    suspend fun activateProgram(programId: String) {
-        setAllProgramsInactive()
-        setProgramActive(programId)
-    }
+    @Query("SELECT * FROM weekly_programs WHERE isActive = 1 LIMIT 1")
+    fun getActiveProgramWithDays(): Flow<WeeklyProgramWithDays?>
+
+    @Transaction
+    @Query("SELECT * FROM weekly_programs WHERE id = :programId")
+    fun getProgramWithDaysById(programId: String): Flow<WeeklyProgramWithDays?>
+
+    @Query("UPDATE weekly_programs SET isActive = CASE WHEN id = :programId THEN 1 ELSE 0 END")
+    suspend fun activateProgram(programId: String)
+
+    @Query("DELETE FROM weekly_programs WHERE id = :programId")
+    suspend fun deleteProgram(programId: String)
 }

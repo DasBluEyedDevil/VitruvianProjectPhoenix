@@ -26,12 +26,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.domain.model.WeightUnit
-import com.example.vitruvianredux.presentation.components.StatsCard
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
 import com.example.vitruvianredux.ui.theme.ThemeMode
 import java.time.LocalDate
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 
 /**
  * Home screen showing workout type selection with modern gradient card design.
@@ -49,7 +54,6 @@ fun HomeScreen(
     val progressPercentage by viewModel.progressPercentage.collectAsState()
 
     // Collect connection state
-    val connectionState by viewModel.connectionState.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
@@ -57,9 +61,6 @@ fun HomeScreen(
     val activeProgram by viewModel.activeProgram.collectAsState()
     val routines by viewModel.routines.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
-
-    // Determine if we have any stats to show
-    val hasStats = workoutStreak != null || completedWorkouts != null || progressPercentage != null
 
     // Determine actual theme (matching Theme.kt logic)
     val useDarkColors = when (themeMode) {
@@ -86,89 +87,99 @@ fun HomeScreen(
         )
     }
 
+    // Clear title to allow global branding to show
+    LaunchedEffect(Unit) {
+        viewModel.updateTopBarTitle("")
+    }
+
+    // Detect orientation for grid layout
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val gridColumns = if (isLandscape) 4 else 2
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundGradient)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(gridColumns),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Simple header with just "Start a workout" title
-            Text(
-                "Start a workout",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            // Active Program Widget - Full Width
+            if (activeProgram != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    HomeActiveProgramCard(
+                        program = activeProgram!!,
+                        routines = routines,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        kgToDisplay = viewModel::kgToDisplay,
+                        onStartRoutine = { routineId ->
+                            viewModel.ensureConnection(
+                                onConnected = {
+                                    viewModel.loadRoutineById(routineId)
+                                    viewModel.startWorkout()
+                                    navController.navigate(NavigationRoutes.DailyRoutines.route)
+                                },
+                                onFailed = { /* Error shown via StateFlow */ }
+                            )
+                        }
+                    )
+                }
+            }
 
-            // Active Program Widget - shows today's routine from active program
-            activeProgram?.let { program ->
-                HomeActiveProgramCard(
-                    program = program,
-                    routines = routines,
-                    weightUnit = weightUnit,
-                    formatWeight = viewModel::formatWeight,
-                    kgToDisplay = viewModel::kgToDisplay,
-                    onStartRoutine = { routineId ->
-                        viewModel.ensureConnection(
-                            onConnected = {
-                                viewModel.loadRoutineById(routineId)
-                                viewModel.startWorkout()
-                                navController.navigate(NavigationRoutes.DailyRoutines.route)
-                            },
-                            onFailed = { /* Error shown via StateFlow */ }
-                        )
-                    }
+            // Cards Grid
+            item {
+                WorkoutCard(
+                    title = "Just Lift",
+                    description = "Quick setup, start lifting immediately",
+                    icon = Icons.Default.FitnessCenter,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE)) // purple-500 to purple-700
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.JustLift.route) }
                 )
             }
 
-            // Stats overview hidden (not needed per user request)
-            // Future: can be re-enabled by changing condition to: if (hasStats)
+            item {
+                WorkoutCard(
+                    title = "Single Exercise",
+                    description = "Perform a single customized exercise",
+                    icon = Icons.Default.PlayArrow,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA)) // violet-500 to purple-600
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.SingleExercise.route) }
+                )
+            }
 
-            WorkoutCard(
-                title = "Just Lift",
-                description = "Quick setup, start lifting immediately",
-                icon = Icons.Default.FitnessCenter,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE)) // purple-500 to purple-700
-                ),
-                onClick = { navController.navigate(NavigationRoutes.JustLift.route) }
-            )
+            item {
+                WorkoutCard(
+                    title = "Daily Routines",
+                    description = "Build multi-exercise workouts",
+                    icon = Icons.Default.CalendarToday,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo-500 to violet-600
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.DailyRoutines.route) }
+                )
+            }
 
-            WorkoutCard(
-                title = "Single Exercise",
-                description = "Perform one exercise with custom configuration",
-                icon = Icons.Default.PlayArrow,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA)) // violet-500 to purple-600
-                ),
-                onClick = { navController.navigate(NavigationRoutes.SingleExercise.route) }
-            )
-
-            WorkoutCard(
-                title = "Daily Routines",
-                description = "Choose from your saved multi-exercise routines",
-                icon = Icons.Default.CalendarToday,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo-500 to violet-600
-                ),
-                onClick = { navController.navigate(NavigationRoutes.DailyRoutines.route) }
-            )
-
-            WorkoutCard(
-                title = "Weekly Programs",
-                description = "Follow a structured weekly training schedule",
-                icon = Icons.Default.DateRange,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue-500 to indigo-600
-                ),
-                onClick = { navController.navigate(NavigationRoutes.WeeklyPrograms.route) }
-            )
+            item {
+                WorkoutCard(
+                    title = "Weekly Programs",
+                    description = "Build a structured schedule of routines",
+                    icon = Icons.Default.DateRange,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue-500 to indigo-600
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.WeeklyPrograms.route) }
+                )
+            }
         }
 
         // Auto-connect UI overlays (same as exercise start screens)
@@ -228,12 +239,12 @@ fun WorkoutCard(
         ),
         border = BorderStroke(2.dp, Color(0xFFF5F3FF)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(20.dp), // Material 3 Expressive: More padding (was 16dp)
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Material 3 Expressive: Larger Gradient Icon Container (72dp)
             Box(
@@ -253,39 +264,21 @@ fun WorkoutCard(
 
             // Content Column - Only title and description
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = description,
-                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-            }
-
-            // Material 3 Expressive: Larger Arrow Icon
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.primaryContainer, // Material 3 Expressive: Use theme color
-                modifier = Modifier.size(40.dp) // Material 3 Expressive: Larger (was 36dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer, // Use theme color
-                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 16dp)
-                    )
-                }
             }
         }
     }

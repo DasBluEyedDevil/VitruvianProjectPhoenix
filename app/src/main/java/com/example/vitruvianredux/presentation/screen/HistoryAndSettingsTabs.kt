@@ -50,7 +50,10 @@ fun HistoryTab(
             .background(MaterialTheme.colorScheme.background)
             .padding(Spacing.medium)
     ) {
-        // Header with refresh button
+        // Header removed for global scaffold integration
+        // Refresh functionality should be handled automatically or via pull-to-refresh if needed
+        
+        /*
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -58,7 +61,7 @@ fun HistoryTab(
         ) {
             Text(
                 "Workout History",
-                style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineMedium)
+                style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -66,7 +69,6 @@ fun HistoryTab(
                 onClick = {
                     isRefreshing = true
                     onRefresh()
-                    // Reset after a short delay
                     kotlinx.coroutines.MainScope().launch {
                         kotlinx.coroutines.delay(1000)
                         isRefreshing = false
@@ -86,6 +88,7 @@ fun HistoryTab(
             }
         }
         Spacer(modifier = Modifier.height(Spacing.medium))
+        */
 
         if (groupedWorkoutHistory.isEmpty()) {
             EmptyState(
@@ -776,11 +779,17 @@ fun SettingsTab(
     connectionError: String? = null,
     onClearConnectionError: () -> Unit = {},
     onCancelAutoConnecting: () -> Unit = {},
+    onSetTitle: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     // Optimistic UI state for immediate visual feedback
     var localWeightUnit by remember(weightUnit) { mutableStateOf(weightUnit) }
+
+    // Set global title
+    LaunchedEffect(Unit) {
+        onSetTitle("Settings")
+    }
 
     Column(
         modifier = modifier
@@ -789,12 +798,7 @@ fun SettingsTab(
             .padding(Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
-        Text(
-            "Settings",
-            style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineMedium)
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        // Header removed for global scaffold integration
 
     // Weight Unit Section - Material 3 Expressive
     Card(

@@ -42,65 +42,53 @@ fun WeeklyProgramsScreen(
     // Get programs from ViewModel's database StateFlows
     val programs by viewModel.weeklyPrograms.collectAsState()
     val activeProgram by viewModel.activeProgram.collectAsState()
+    val routines by viewModel.routines.collectAsState()
 
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Weekly Programs") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-    ) { padding ->
-        // Determine actual theme (matching Theme.kt logic)
-        val useDarkColors = when (themeMode) {
-            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
-            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
-        }
 
-        val backgroundGradient = if (useDarkColors) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF0F172A), // slate-900
-                    Color(0xFF1E1B4B), // indigo-950
-                    Color(0xFF172554)  // blue-950
-                )
-            )
-        } else {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFE0E7FF), // soft indigo
-                    Color(0xFFEDE9FE), // soft violet
-                    Color(0xFFDFF6FF)  // soft sky blue
-                )
-            )
-        }
+    // Set global title
+    LaunchedEffect(Unit) {
+        viewModel.updateTopBarTitle("Weekly Programs")
+    }
 
-        Box(
+    // Determine actual theme (matching Theme.kt logic)
+    val useDarkColors = when (themeMode) {
+        com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
+        com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
+    }
+
+    val backgroundGradient = if (useDarkColors) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0F172A), // slate-900
+                Color(0xFF1E1B4B), // indigo-950
+                Color(0xFF172554)  // blue-950
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFE0E7FF), // soft indigo
+                Color(0xFFEDE9FE), // soft violet
+                Color(0xFFDFF6FF)  // soft sky blue
+            )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundGradient)
+    ) {
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundGradient)
+                .padding(Spacing.medium),
+            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(Spacing.medium),
-                verticalArrangement = Arrangement.spacedBy(Spacing.medium)
-            ) {
             // Active Program Card
             if (activeProgram != null) {
                 item {
@@ -215,6 +203,9 @@ fun WeeklyProgramsScreen(
                     ProgramListItem(
                         program = program,
                         isActive = program.program.id == activeProgram?.program?.id,
+                        routineNameLookup = { routineId ->
+                            routines.find { it.id == routineId }?.name ?: "Unknown Routine"
+                        },
                         onClick = {
                             navController.navigate(
                                 NavigationRoutes.ProgramBuilder.createRoute(program.program.id)
@@ -229,21 +220,20 @@ fun WeeklyProgramsScreen(
                     )
                 }
             }
-            }
+        }
 
-            // Auto-connect UI overlays
-            if (isAutoConnecting) {
-                com.example.vitruvianredux.presentation.components.ConnectingOverlay(
-                    onCancel = { viewModel.cancelAutoConnecting() }
-                )
-            }
+        // Auto-connect UI overlays
+        if (isAutoConnecting) {
+            com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+                onCancel = { viewModel.cancelAutoConnecting() }
+            )
+        }
 
-            connectionError?.let { error ->
-                com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
-                    message = error,
-                    onDismiss = { viewModel.clearConnectionError() }
-                )
-            }
+        connectionError?.let { error ->
+            com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+                message = error,
+                onDismiss = { viewModel.clearConnectionError() }
+            )
         }
     }
 }
@@ -365,20 +355,25 @@ fun ActiveProgramCard(
 /**
  * List item for a program.
  */
+/**
+ * List item for a program.
+ */
 @Composable
 fun ProgramListItem(
     program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     isActive: Boolean,
+    routineNameLookup: (String) -> String,
     onClick: () -> Unit,
     onActivate: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = { expanded = !expanded }),
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) {
                 MaterialTheme.colorScheme.primaryContainer // Material 3 Expressive: Use primary container for active
@@ -397,64 +392,145 @@ fun ProgramListItem(
             }
         ) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.medium),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(Spacing.medium)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    program.program.title,
-                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "${program.days.size} workout days",
-                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
             Row(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Delete button
-                IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete program",
-                        tint = MaterialTheme.colorScheme.error
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        program.program.title,
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "${program.days.size} workout days",
+                        style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Activate/Active status - Material 3 Expressive
-                if (!isActive) {
-                    TextButton(
-                        onClick = onActivate,
-                        modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
-                        shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
-                    ) {
-                        Text(
-                            "Activate",
-                            style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
-                            fontWeight = FontWeight.Bold
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Edit button
+                    IconButton(onClick = onClick) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit program",
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                } else {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(12.dp) // Material 3 Expressive: More rounded (was 8dp)
-                    ) {
+
+                    // Activate/Active status - Material 3 Expressive
+                    if (!isActive) {
+                        TextButton(
+                            onClick = onActivate,
+                            modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ) {
+                            Text(
+                                "Activate",
+                                style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(12.dp) // Material 3 Expressive: More rounded (was 8dp)
+                        ) {
+                            Text(
+                                "Active",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), // Material 3 Expressive: More padding
+                                style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
+                                fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                    
+                    // Expand icon
+                    Icon(
+                        if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            // Expanded Content: Schedule
+            androidx.compose.animation.AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.medium)
+                ) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    
+                    Text(
+                        "Schedule",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                    
+                    val sortedDays = program.days.sortedBy { it.dayOfWeek }
+                    if (sortedDays.isEmpty()) {
                         Text(
-                            "Active",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), // Material 3 Expressive: More padding
-                            style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
-                            fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
-                            color = MaterialTheme.colorScheme.onPrimary
+                            "No workouts scheduled",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                         )
+                    } else {
+                        sortedDays.forEach { day ->
+                            val dayName = DayOfWeek.of(day.dayOfWeek).getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                            val routineName = routineNameLookup(day.routineId)
+                            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    dayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(60.dp)
+                                )
+                                Text(
+                                    routineName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    
+                    // Delete button (only visible when expanded to avoid clutter)
+                    OutlinedButton(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text("Delete Program")
                     }
                 }
             }

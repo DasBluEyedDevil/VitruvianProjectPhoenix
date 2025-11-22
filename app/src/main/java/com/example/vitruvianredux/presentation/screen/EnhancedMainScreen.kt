@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
@@ -45,6 +46,9 @@ fun EnhancedMainScreen(
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
     val connectionLostDuringWorkout by viewModel.connectionLostDuringWorkout.collectAsState()
+    val topBarTitle by viewModel.topBarTitle.collectAsState()
+    val topBarActions by viewModel.topBarActions.collectAsState()
+    val topBarBackAction by viewModel.topBarBackAction.collectAsState()
 
     val themeViewModel: ThemeViewModel = hiltViewModel()
     val themeMode by themeViewModel.themeMode.collectAsState()
@@ -77,6 +81,30 @@ fun EnhancedMainScreen(
         currentRoute.startsWith(NavigationRoutes.ProgramBuilder.route.replace("/{programId}", ""))
     }
 
+    // Determine if we should show the TopBar
+    // Always show TopBar now (ActiveWorkout uses global header)
+    val shouldShowTopBar = remember(currentRoute) {
+        true
+    }
+
+    // Determine if we should show the BottomBar
+    // Show only for main tabs
+    val shouldShowBottomBar = remember(currentRoute) {
+        currentRoute == NavigationRoutes.Home.route ||
+        currentRoute == NavigationRoutes.DailyRoutines.route ||
+        currentRoute == NavigationRoutes.WeeklyPrograms.route ||
+        currentRoute == NavigationRoutes.Analytics.route ||
+        currentRoute == NavigationRoutes.Settings.route
+    }
+
+    // Determine if we should show the Back button
+    // Show back button for all screens except Home, Analytics, and Settings (main tabs)
+    val showBackButton = remember(currentRoute) {
+        currentRoute != NavigationRoutes.Home.route &&
+        currentRoute != NavigationRoutes.Analytics.route &&
+        currentRoute != NavigationRoutes.Settings.route
+    }
+
     // Request BLE permissions (REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward notifications to BLE device!)
     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         listOf(
@@ -97,44 +125,71 @@ fun EnhancedMainScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0), // Let components handle their own insets
         topBar = {
-            TopAppBar(
-                modifier = Modifier.statusBarsPadding(), // Handle status bar for edge-to-edge
-                title = {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
-                        Text(
-                            text = "Vitruvian",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        Color(0xFFEAB308), // Bright Gold
-                                        Color(0xFFF59E0B)  // Amber
-                                    )
-                                ),
-                                fontWeight = FontWeight.Bold
+            if (shouldShowTopBar) {
+                TopAppBar(
+                    modifier = Modifier.statusBarsPadding(), // Handle status bar for edge-to-edge
+                    title = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            // Main title - either dynamic or default
+                            Text(
+                                text = if (!topBarTitle.isNullOrEmpty()) topBarTitle ?: "" else getScreenTitle(currentRoute),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                        )
-                        Text(
-                            text = "Project Phoenix",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        Color(0xFFF97316), // Orange
-                                        Color(0xFFEF4444)  // Red
-                                    )
-                                ),
-                                fontWeight = FontWeight.Medium
+                            // Subtitle - always show "Vitruvian Project Phoenix"
+                            Text(
+                                text = "Vitruvian Project Phoenix",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(
+                                            Color(0xFFF97316), // Orange
+                                            Color(0xFFEF4444)  // Red
+                                        )
+                                    ),
+                                    fontWeight = FontWeight.Medium
+                                )
                             )
-                        )
-                    }
-                },
+                        }
+                    },
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(onClick = {
+                                if (topBarBackAction != null) {
+                                    topBarBackAction?.invoke()
+                                } else {
+                                    navController.navigateUp()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (isDarkMode) TopAppBarDark else TopAppBarLight,
                     titleContentColor = TextPrimary,
                     actionIconContentColor = TextPrimary
                 ),
                 actions = {
+                    // Dynamic Actions from Screens
+                    topBarActions.forEach { action ->
+                        IconButton(onClick = action.onClick) {
+                            Icon(
+                                imageVector = action.icon,
+                                contentDescription = action.description,
+                                tint = TextPrimary
+                            )
+                        }
+                    }
+
                     // Connection status icon (Bluetooth) with text label
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -207,191 +262,97 @@ fun EnhancedMainScreen(
                     )
                 }
             )
+            }
         },
         bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
+            if (shouldShowBottomBar) {
+                NavigationBar(
+                    containerColor = if (isDarkMode) Color(0xFF1C1B1F) else Color(0xFFF3F3F3),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.navigationBarsPadding()
                 ) {
-                    BottomAppBar(
-                        containerColor = Color.Transparent,
-                        modifier = Modifier.height(80.dp),
-                        tonalElevation = 0.dp
-                    ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // LEFT: Analytics (small)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        IconButton(
-                            onClick = {
+                    // Analytics tab
+                    NavigationBarItem(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.BarChart,
+                                contentDescription = "Analytics"
+                            )
+                        },
+                        label = { Text("Analytics") },
+                        selected = currentRoute == NavigationRoutes.Analytics.route,
+                        onClick = {
+                            if (currentRoute != NavigationRoutes.Analytics.route) {
                                 navController.navigate(NavigationRoutes.Analytics.route) {
-                                    popUpTo(NavigationRoutes.Home.route)
+                                    popUpTo(NavigationRoutes.Home.route) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
                             }
-                        ) {
-                            Icon(
-                                imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
-                                    Icons.Filled.BarChart
-                                else
-                                    Icons.Outlined.BarChart,
-                                contentDescription = "Analytics",
-                                modifier = Modifier.size(24.dp),
-                                tint = if (currentRoute == NavigationRoutes.Analytics.route)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            "Analytics",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (currentRoute == NavigationRoutes.Analytics.route)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Visible
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        // Active indicator
-                        if (currentRoute == NavigationRoutes.Analytics.route) {
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier
-                                    .width(64.dp)
-                                    .height(4.dp)
-                            ) {
-                                drawRoundRect(
-                                    color = Color(0xFF9333EA),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-                                )
-                            }
-                        }
-                    }
+                    )
 
-                    // CENTER: Workouts (LARGER - FloatingActionButton)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FloatingActionButton(
-                            onClick = {
+                    // Workouts tab (Home) - center
+                    NavigationBarItem(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Home,
+                                contentDescription = "Workouts"
+                            )
+                        },
+                        label = { Text("Workouts") },
+                        selected = isWorkoutsRoute,
+                        onClick = {
+                            if (currentRoute != NavigationRoutes.Home.route) {
                                 navController.navigate(NavigationRoutes.Home.route) {
-                                    popUpTo(NavigationRoutes.Home.route)
+                                    popUpTo(NavigationRoutes.Home.route) { inclusive = true }
                                     launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            modifier = Modifier.size(64.dp),
-                            containerColor = if (isWorkoutsRoute)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceContainerHighest,
-                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isWorkoutsRoute)
-                                        Icons.Filled.Home
-                                    else
-                                        Icons.Outlined.Home,
-                                    contentDescription = "Workouts",
-                                    modifier = Modifier.size(28.dp),
-                                    tint = if (isWorkoutsRoute)
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    "Workouts",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isWorkoutsRoute)
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        // Active indicator
-                        if (isWorkoutsRoute) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier
-                                    .width(48.dp)
-                                    .height(4.dp)
-                            ) {
-                                drawRoundRect(
-                                    color = Color(0xFF9333EA),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-                                )
-                            }
-                        }
-                    }
-
-                    // RIGHT: Settings (small)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        IconButton(
-                            onClick = {
-                                navController.navigate(NavigationRoutes.Settings.route) {
-                                    popUpTo(NavigationRoutes.Home.route)
-                                    launchSingleTop = true
-                                    restoreState = true
                                 }
                             }
-                        ) {
-                            Icon(
-                                imageVector = if (currentRoute == NavigationRoutes.Settings.route)
-                                    Icons.Filled.Settings
-                                else
-                                    Icons.Outlined.Settings,
-                                contentDescription = "Settings",
-                                modifier = Modifier.size(24.dp),
-                                tint = if (currentRoute == NavigationRoutes.Settings.route)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            "Settings",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (currentRoute == NavigationRoutes.Settings.route)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Visible
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        // Active indicator
-                        if (currentRoute == NavigationRoutes.Settings.route) {
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier
-                                    .width(64.dp)
-                                    .height(4.dp)
-                            ) {
-                                drawRoundRect(
-                                    color = Color(0xFF9333EA),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-                                )
+                    )
+
+                    // Settings tab
+                    NavigationBarItem(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings"
+                            )
+                        },
+                        label = { Text("Settings") },
+                        selected = currentRoute == NavigationRoutes.Settings.route,
+                        onClick = {
+                            if (currentRoute != NavigationRoutes.Settings.route) {
+                                navController.navigate(NavigationRoutes.Settings.route) {
+                                    popUpTo(NavigationRoutes.Home.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
-                        }
-                    }
-                }
-                    }
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 }
             }
         }
@@ -580,4 +541,23 @@ fun DeviceSelectorDialog(
             }
         }
     )
+}
+
+/**
+ * Get the screen title based on the current route.
+ */
+private fun getScreenTitle(route: String): String {
+    return when {
+        route == NavigationRoutes.Home.route -> "Choose Your Workout"
+        route == NavigationRoutes.Analytics.route -> "Analytics"
+        route == NavigationRoutes.Settings.route -> "Settings"
+        route == NavigationRoutes.JustLift.route -> "Just Lift"
+        route == NavigationRoutes.SingleExercise.route -> "Single Exercise"
+        route == NavigationRoutes.DailyRoutines.route -> "Daily Routines"
+        route == NavigationRoutes.WeeklyPrograms.route -> "Weekly Programs"
+        route == NavigationRoutes.ActiveWorkout.route -> "Active Workout"
+        route == NavigationRoutes.ConnectionLogs.route -> "Connection Logs"
+        route.startsWith("program_builder") -> "Program Builder"
+        else -> "Choose Your Workout"
+    }
 }
