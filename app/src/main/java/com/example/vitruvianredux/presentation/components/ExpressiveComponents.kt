@@ -74,8 +74,8 @@ fun ExpressiveSlider(
     modifier: Modifier = Modifier,
     steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
-    trackColor: Color = MaterialTheme.colorScheme.primary,
-    thumbColor: Color = MaterialTheme.colorScheme.primary
+    trackColor: Color = MaterialTheme.colorScheme.onSurface,
+    thumbColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Slider(
         value = value,
@@ -110,7 +110,7 @@ fun ProgressionSlider(
     
     val activeColor = when {
         isNegative -> MaterialTheme.colorScheme.error
-        isPositive -> MaterialTheme.colorScheme.primary
+        isPositive -> MaterialTheme.colorScheme.onSurface
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
