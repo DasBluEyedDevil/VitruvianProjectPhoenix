@@ -630,6 +630,63 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 22 to 23: Add safety tracking, phase statistics, and diagnostics
+     */
+    internal val MIGRATION_22_23 = object : Migration(22, 23) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add safety tracking columns to workout_sessions
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN safetyFlags INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN deloadWarningCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN romViolationCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN spotterActivations INTEGER NOT NULL DEFAULT 0")
+
+            // Create phase_statistics table
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS phase_statistics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    sessionId TEXT NOT NULL,
+                    concentricKgAvg REAL NOT NULL,
+                    concentricKgMax REAL NOT NULL,
+                    concentricVelAvg REAL NOT NULL,
+                    concentricVelMax REAL NOT NULL,
+                    concentricWattAvg REAL NOT NULL,
+                    concentricWattMax REAL NOT NULL,
+                    eccentricKgAvg REAL NOT NULL,
+                    eccentricKgMax REAL NOT NULL,
+                    eccentricVelAvg REAL NOT NULL,
+                    eccentricVelMax REAL NOT NULL,
+                    eccentricWattAvg REAL NOT NULL,
+                    eccentricWattMax REAL NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    FOREIGN KEY(sessionId) REFERENCES workout_sessions(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create index on sessionId for phase_statistics
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_phase_statistics_sessionId ON phase_statistics(sessionId)")
+
+            // Create diagnostics_history table
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS diagnostics_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    runtimeSeconds INTEGER NOT NULL,
+                    faultMask INTEGER NOT NULL,
+                    temp1 INTEGER NOT NULL,
+                    temp2 INTEGER NOT NULL,
+                    temp3 INTEGER NOT NULL,
+                    temp4 INTEGER NOT NULL,
+                    temp5 INTEGER NOT NULL,
+                    temp6 INTEGER NOT NULL,
+                    temp7 INTEGER NOT NULL,
+                    temp8 INTEGER NOT NULL,
+                    containsFaults INTEGER NOT NULL,
+                    timestamp INTEGER NOT NULL
+                )
+            """.trimIndent())
+        }
+    }
+
     @Provides
     @Singleton
     fun provideConnectionLogDao(database: WorkoutDatabase): ConnectionLogDao {
@@ -645,10 +702,16 @@ object AppModule {
     @Provides
     @Singleton
     fun provideBleRepository(
+        impl: BleRepositoryImpl // Hilt will provide BleRepositoryImpl
+    ): BleRepository = impl
+    
+    @Provides
+    @Singleton
+    fun provideVitruvianBleManager(
         @ApplicationContext context: Context,
         connectionLogger: ConnectionLogger
-    ): BleRepository {
-        return BleRepositoryImpl(context, connectionLogger)
+    ): VitruvianBleManager {
+        return VitruvianBleManager(context, connectionLogger)
     }
 
     @Provides
@@ -661,7 +724,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_21_22)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_21_22, MIGRATION_22_23)
         // MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19 removed - use destructive migration for v16-18 users
         .fallbackToDestructiveMigration(dropAllTables = true)  // Allow destructive migration for beta (will delete and recreate DB if migration missing)
         .build()
@@ -677,9 +740,11 @@ object AppModule {
     @Singleton
     fun provideWorkoutRepository(
         workoutDao: WorkoutDao,
-        personalRecordDao: PersonalRecordDao
+        personalRecordDao: PersonalRecordDao,
+        phaseStatisticsDao: com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao,
+        diagnosticsDao: com.example.vitruvianredux.data.local.dao.DiagnosticsDao
     ): WorkoutRepository {
-        return WorkoutRepository(workoutDao, personalRecordDao)
+        return WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
     }
 
     @Provides
@@ -729,5 +794,17 @@ object AppModule {
     @Singleton
     fun providePersonalRecordRepository(personalRecordDao: PersonalRecordDao): PersonalRecordRepository {
         return PersonalRecordRepository(personalRecordDao)
+    }
+
+    @Provides
+    @Singleton
+    fun providePhaseStatisticsDao(database: WorkoutDatabase): com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao {
+        return database.phaseStatisticsDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDiagnosticsDao(database: WorkoutDatabase): com.example.vitruvianredux.data.local.dao.DiagnosticsDao {
+        return database.diagnosticsDao()
     }
 }
