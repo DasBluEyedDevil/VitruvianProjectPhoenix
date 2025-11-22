@@ -27,6 +27,9 @@ import com.example.vitruvianredux.domain.model.RoutineExercise
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutMode
 import com.example.vitruvianredux.presentation.components.VideoPlayer
+import com.example.vitruvianredux.presentation.components.ProgressionSlider
+import com.example.vitruvianredux.presentation.components.ExpressiveSlider
+import com.example.vitruvianredux.presentation.components.ExpressiveCard
 import com.example.vitruvianredux.presentation.viewmodel.ExerciseConfigViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ExerciseType
 import com.example.vitruvianredux.presentation.viewmodel.SetConfiguration
@@ -333,27 +336,37 @@ fun ExerciseEditBottomSheet(
                 }
 
                 if (exerciseType == ExerciseType.STANDARD && !isEchoMode) {
-                    Surface(
+                    ExpressiveCard(
+                        onClick = {},
+                        enabled = false,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                        shadowElevation = 2.dp
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
-                        Column(modifier = Modifier.padding(Spacing.small)) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = weightChange,
-                                onValueChange = viewModel::onWeightChange,
-                                range = -maxWeightChange..maxWeightChange,
-                                label = "Weight Change Per Rep",
-                                suffix = weightSuffix,
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium)
+                        ) {
+                            Text(
+                                "Weight Change Per Rep",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.medium))
+
+                            ProgressionSlider(
+                                value = weightChange.toFloat(),
+                                onValueChange = { viewModel.onWeightChange(it.toInt()) },
+                                valueRange = -maxWeightChange.toFloat()..maxWeightChange.toFloat(),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
                                 "Negative = Regression, Positive = Progression",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = Spacing.extraSmall)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Spacing.small)
                             )
                         }
                     }
@@ -419,12 +432,19 @@ fun ExerciseEditBottomSheet(
                         shadowElevation = 2.dp
                     ) {
                         Column(modifier = Modifier.padding(Spacing.small)) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = rest,
-                                onValueChange = viewModel::onRestChange,
-                                range = 0..300,
-                                label = "Rest Time",
-                                suffix = "sec",
+                            Text(
+                                "Rest Time: ${rest}s",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                            )
+                            ExpressiveSlider(
+                                value = rest.toFloat(),
+                                onValueChange = { viewModel.onRestChange(it.toInt()) },
+                                valueRange = 0f..300f,
+                                steps = 59, // 5s increments roughly? No, 0-300 is large. Let's use 0 steps for continuous or calculate steps.
+                                // 300 steps is too many ticks. Let's use 0 steps (continuous) or 5s increments (60 steps).
+                                // Using 5s increments: 300/5 = 60 intervals -> 59 steps.
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -790,12 +810,17 @@ fun SetRow(
 
             // Rest Time picker (per-set) - only shown when perSetRestTime toggle is enabled
             if (perSetRestTime) {
-                com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                    value = setConfig.restSeconds,
-                    onValueChange = onRestChange,
-                    range = 10..300,
-                    label = if (setConfig.setNumber == 1) "Rest Time" else "",
-                    suffix = "sec",
+                Text(
+                    "Rest Time: ${setConfig.restSeconds}s",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                )
+                ExpressiveSlider(
+                    value = setConfig.restSeconds.toFloat(),
+                    onValueChange = { onRestChange(it.toInt()) },
+                    valueRange = 0f..300f,
+                    steps = 59,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -877,74 +902,72 @@ fun EccentricLoadSelector(
     eccentricLoad: EccentricLoad,
     onLoadChange: (EccentricLoad) -> Unit
 ) {
-    Column(
+    ExpressiveCard(
+        onClick = {},
+        enabled = false,
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Text(
-            "Eccentric Load",
-            style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was titleSmall)
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = Spacing.extraSmall)
-        )
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-            color = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
-            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), // Material 3 Expressive: Thicker border (was 1dp)
-            shadowElevation = 8.dp // Material 3 Expressive: Higher elevation (was 4dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
         ) {
-            Column(modifier = Modifier.padding(Spacing.medium)) {
-                // Display current percentage value
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Eccentric Load: ${eccentricLoad.percentage}%",
-                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Eccentric Load: ${eccentricLoad.percentage}%",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
 
-                // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150% (machine hardware limit)
-                val eccentricLoadValues = listOf(
-                    EccentricLoad.LOAD_0,
-                    EccentricLoad.LOAD_50,
-                    EccentricLoad.LOAD_75,
-                    EccentricLoad.LOAD_100,
-                    EccentricLoad.LOAD_125,
-                    EccentricLoad.LOAD_150
-                )
-                val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let { 
-                    if (it < 0) 3 else it // Default to 100% if not found
-                }
+            val eccentricLoadValues = listOf(
+                EccentricLoad.LOAD_0,
+                EccentricLoad.LOAD_50,
+                EccentricLoad.LOAD_75,
+                EccentricLoad.LOAD_100,
+                EccentricLoad.LOAD_125,
+                EccentricLoad.LOAD_150
+            )
+            val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let {
+                if (it < 0) 3 else it
+            }
 
-                Slider(
-                    value = currentIndex.toFloat(),
-                    onValueChange = { value ->
-                        val index = value.toInt().coerceIn(0, eccentricLoadValues.size - 1)
-                        onLoadChange(eccentricLoadValues[index])
-                    },
-                    valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
-                    steps = eccentricLoadValues.size - 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    "Percentage of concentric load applied during eccentric phase",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(top = Spacing.small)
+                    text = "0%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "150%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            ExpressiveSlider(
+                value = currentIndex.toFloat(),
+                onValueChange = { value ->
+                    val index = value.toInt().coerceIn(0, eccentricLoadValues.size - 1)
+                    onLoadChange(eccentricLoadValues[index])
+                },
+                valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
+                steps = eccentricLoadValues.size - 2,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            Text(
+                "Load percentage applied during eccentric (lowering) phase",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -954,51 +977,41 @@ fun EchoLevelSelector(
     level: EchoLevel,
     onLevelChange: (EchoLevel) -> Unit
 ) {
-    Column(
+    ExpressiveCard(
+        onClick = {},
+        enabled = false,
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Text(
-            "Difficulty Level",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = Spacing.extraSmall)
-        )
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-            shadowElevation = 4.dp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
         ) {
-            Column(modifier = Modifier.padding(Spacing.medium)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    EchoLevel.entries.forEach { echoLevel ->
-                        FilterChip(
-                            selected = level == echoLevel,
-                            onClick = { onLevelChange(echoLevel) },
-                            label = { 
-                                Text(
-                                    echoLevel.displayName, 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1
-                                ) 
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
+            Text(
+                "Echo Level",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val levels = EchoLevel.entries
+                levels.forEachIndexed { index, echoLevel ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = levels.size),
+                        onClick = {
+                            onLevelChange(echoLevel)
+                        },
+                        selected = level == echoLevel
+                    ) {
+                        Text(echoLevel.displayName, maxLines = 1)
                     }
                 }
-
-                Text(
-                    "Select difficulty level for Echo mode training",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(top = Spacing.small)
-                )
             }
         }
     }

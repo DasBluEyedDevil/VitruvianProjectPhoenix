@@ -389,15 +389,24 @@ class BleRepositoryImpl @Inject constructor(
     override suspend fun disconnect() = withContext(Dispatchers.Main) {
         try {
             Timber.d("Disconnecting from device...")
-            bleManager?.stopPolling()
-            bleManager?.cleanup()  // Clean up resources and cancel polling jobs
-            bleManager?.disconnect()?.enqueue()
+            val manager = bleManager
+            if (manager != null) {
+                manager.stopPolling()
+                manager.cleanup()  // Clean up resources and cancel polling jobs
+                // Use await() instead of enqueue() to ensure disconnect completes
+                manager.disconnect().await()
+                Timber.d("BLE disconnect completed")
+            }
             bleManager = null
             connectingBleManager = null
             _connectionState.value = ConnectionState.Disconnected
-            Timber.d("Disconnected from device")
+            Timber.d("Disconnected from device - state updated")
         } catch (e: Exception) {
             Timber.e(e, "Error disconnecting")
+            // Still update state even on error to allow reconnection
+            bleManager = null
+            connectingBleManager = null
+            _connectionState.value = ConnectionState.Disconnected
         }
     }
 
@@ -634,7 +643,7 @@ class BleRepositoryImpl @Inject constructor(
 
     override fun enableHandleDetection() {
         Timber.d("Enabling handle detection - starting monitor polling for auto-start")
-        bleManager?.startMonitorPolling()
+        bleManager?.startMonitorPolling(forAutoStart = true)
     }
 
     override fun enableJustLiftWaitingMode() {

@@ -1,31 +1,36 @@
 package com.example.vitruvianredux.data.repository
 
 import com.example.vitruvianredux.data.local.WorkoutDao
-import com.example.vitruvianredux.data.local.WorkoutMetricEntity
-import com.example.vitruvianredux.data.local.WorkoutSessionEntity
-import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.local.PersonalRecordDao
+import com.example.vitruvianredux.data.local.WorkoutSessionEntity
+import com.example.vitruvianredux.data.local.RoutineEntity
+import com.example.vitruvianredux.data.local.RoutineExerciseEntity
+import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.local.PersonalRecordEntity
-import com.example.vitruvianredux.domain.model.WorkoutMetric
-import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.example.vitruvianredux.domain.model.Routine
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
+import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
+import com.example.vitruvianredux.domain.model.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository for workout history management
+ * Repository for managing workout data
  */
 @Singleton
 class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
-    private val personalRecordDao: PersonalRecordDao
+    private val personalRecordDao: PersonalRecordDao,
+    private val phaseStatisticsDao: PhaseStatisticsDao,
+    private val diagnosticsDao: DiagnosticsDao
 ) {
     
     /**
-     * Save a workout session
+     * Save a completed workout session
      */
     suspend fun saveSession(session: WorkoutSession): Result<Unit> {
         return try {
@@ -58,27 +63,42 @@ class WorkoutRepository @Inject constructor(
         }
     }
     
-    /**
-     * Save workout metrics (batch insert for performance)
-     */
     suspend fun saveMetrics(sessionId: String, metrics: List<WorkoutMetric>): Result<Unit> {
         return try {
-            val entities = metrics.map { metric ->
-                WorkoutMetricEntity(
-                    sessionId = sessionId,
-                    timestamp = metric.timestamp,
-                    loadA = metric.loadA,
-                    loadB = metric.loadB,
-                    positionA = metric.positionA,
-                    positionB = metric.positionB,
-                    ticks = metric.ticks
-                )
-            }
-            workoutDao.insertMetrics(entities)
-            Timber.d("Saved ${entities.size} metrics for session $sessionId")
+            workoutDao.insertMetrics(metrics.mapIndexed { index, metric -> metric.toEntity(sessionId, index) })
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to save workout metrics")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Save phase statistics
+     */
+    suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics): Result<Unit> {
+        return try {
+            val entity = PhaseStatisticsEntity(
+                sessionId = sessionId,
+                concentricKgAvg = stats.concentric.kgAvg,
+                concentricKgMax = stats.concentric.kgMax,
+                concentricVelAvg = stats.concentric.velAvg,
+                concentricVelMax = stats.concentric.velMax,
+                concentricWattAvg = stats.concentric.wattAvg,
+                concentricWattMax = stats.concentric.wattMax,
+                eccentricKgAvg = stats.eccentric.kgAvg,
+                eccentricKgMax = stats.eccentric.kgMax,
+                eccentricVelAvg = stats.eccentric.velAvg,
+                eccentricVelMax = stats.eccentric.velMax,
+                eccentricWattAvg = stats.eccentric.wattAvg,
+                eccentricWattMax = stats.eccentric.wattMax,
+                timestamp = stats.timestamp
+            )
+            phaseStatisticsDao.insert(entity)
+            Timber.d("Saved phase statistics for session $sessionId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to save phase statistics")
             Result.failure(e)
         }
     }
@@ -129,6 +149,13 @@ class WorkoutRepository @Inject constructor(
      */
     suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSession> {
         return workoutDao.getRecentSessionsSync(limit).map { it.toWorkoutSession() }
+    }
+
+    /**
+     * Get all phase statistics
+     */
+    fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> {
+        return phaseStatisticsDao.getAll()
     }
     
     /**

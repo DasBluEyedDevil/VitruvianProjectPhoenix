@@ -51,10 +51,10 @@ fun InsightsTab(
             )
         }
 
-        // Training Balance - Which muscles need attention
+        // 1. Muscle Balance Radar Chart (Replaces linear progress bars)
         if (prs.isNotEmpty()) {
             item {
-                TrainingBalanceCard(
+                MuscleBalanceRadarCard(
                     personalRecords = prs,
                     exerciseRepository = exerciseRepository,
                     modifier = Modifier.fillMaxWidth()
@@ -62,31 +62,30 @@ fun InsightsTab(
             }
         }
 
-        // Progress Velocity - How fast you're improving
-        if (prs.isNotEmpty()) {
-            item {
-                ProgressVelocityCard(
-                    personalRecords = prs,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        // Consistency Score - Based on actual workout frequency
+        // 2. Workout Consistency Gauge (Replaces circular progress)
         item {
-            ConsistencyScoreCard(
+            ConsistencyGaugeCard(
                 workoutSessions = workoutSessions,
                 modifier = Modifier.fillMaxWidth()
             )
         }
 
-        // Weekly Comparison - Clear week-over-week metrics
+        // 3. Volume vs Intensity Combo Chart (New Metric)
         if (workoutSessions.isNotEmpty()) {
             item {
-                WeeklyComparisonCard(
+                VolumeVsIntensityCard(
                     workoutSessions = workoutSessions,
                     weightUnit = weightUnit,
-                    formatWeight = formatWeight,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        
+        // 4. Mode Distribution Donut Chart (New Metric)
+        if (prs.isNotEmpty()) {
+            item {
+                WorkoutModeDistributionCard(
+                    personalRecords = prs,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
