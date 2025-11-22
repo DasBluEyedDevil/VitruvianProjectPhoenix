@@ -341,7 +341,7 @@ fun RoutineCard(
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Edit")
+                            Text("Edit", maxLines = 1, softWrap = false)
                         }
                         Spacer(Modifier.width(8.dp))
                         OutlinedButton(
@@ -351,7 +351,7 @@ fun RoutineCard(
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Copy")
+                            Text("Copy", maxLines = 1, softWrap = false)
                         }
                         Spacer(Modifier.width(8.dp))
                         OutlinedButton(
@@ -362,7 +362,7 @@ fun RoutineCard(
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Del")
+                            Text("Delete", maxLines = 1, softWrap = false)
                         }
                     }
                 }
