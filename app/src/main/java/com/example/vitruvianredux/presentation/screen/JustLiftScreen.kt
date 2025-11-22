@@ -68,13 +68,14 @@ fun JustLiftScreen(
         }
     }
 
+    // Navigate to ActiveWorkout when workout becomes active
     LaunchedEffect(workoutState) {
         if (workoutState is WorkoutState.Active) {
             navController.navigate(NavigationRoutes.ActiveWorkout.route)
         }
     }
 
-    // Enable handle detection for auto-start when screen is shown and connected
+    // Enable handle detection for auto-start when connected (matches official app)
     val connectionState by viewModel.connectionState.collectAsState()
     LaunchedEffect(connectionState) {
         if (connectionState is ConnectionState.Connected) {
@@ -82,7 +83,7 @@ fun JustLiftScreen(
         }
     }
 
-    // Reset workout state if entering Just Lift with any non-Idle state
+    // Reset workout state if entering Just Lift with any non-Idle state (matches official app)
     // This ensures the AutoStartStopCard is always visible
     LaunchedEffect(workoutState) {
         if (workoutState !is WorkoutState.Idle && workoutState !is WorkoutState.Active) {

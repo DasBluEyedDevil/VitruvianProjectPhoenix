@@ -1,5 +1,8 @@
 package com.example.vitruvianredux.domain.model
 
+/**
+ * Summary of safety events during a set
+ */
 data class SafetyEventSummary(
     val safetyFlags: Int = 0,
     val deloadWarnings: Int = 0,

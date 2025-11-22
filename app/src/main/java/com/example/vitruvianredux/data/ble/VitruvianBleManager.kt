@@ -3,6 +3,10 @@ package com.example.vitruvianredux.data.ble
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
+import com.example.vitruvianredux.domain.model.DiagnosticDetails
+import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
+import com.example.vitruvianredux.domain.model.HeuristicStatistics
+import com.example.vitruvianredux.domain.model.SampleStatus
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.util.BleConstants
 import kotlinx.coroutines.CoroutineScope
@@ -52,9 +56,10 @@ class VitruvianBleManager(
     // GATT characteristics
     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
     private var monitorCharacteristic: BluetoothGattCharacteristic? = null
-    private var propertyCharacteristic: BluetoothGattCharacteristic? = null
+    private var propertyCharacteristic: BluetoothGattCharacteristic? = null // Diagnostic
     private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
     private var heuristicCharacteristic: BluetoothGattCharacteristic? = null
+    private var versionCharacteristic: BluetoothGattCharacteristic? = null
 
     // Official app workout command characteristics (for testing)
     private val workoutCmdCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
@@ -83,6 +88,12 @@ class VitruvianBleManager(
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
 
+    private val _diagnosticData = MutableStateFlow<DiagnosticDetails?>(null)
+    val diagnosticData: StateFlow<DiagnosticDetails?> = _diagnosticData.asStateFlow()
+
+    private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
+    val heuristicData: StateFlow<HeuristicStatistics?> = _heuristicData.asStateFlow()
+
     // Monitor data flow - CRITICAL: Need buffer for high-frequency emissions!
     private val _monitorData = MutableSharedFlow<WorkoutMetric>(
         replay = 0,
@@ -110,12 +121,10 @@ class VitruvianBleManager(
     )
     private val commandResponses: SharedFlow<UByte> = _commandResponses.asSharedFlow()
 
-    // Force-based handle detection parameters (matching official app exactly)
-    private val HANDLE_GRAB_FORCE_KG = 3.0           // Force > 3kg = grabbing
-    private val HANDLE_GRAB_VELOCITY_THRESHOLD = 50.0 // Velocity > 50 = moving
-    private val HANDLE_GRAB_DURATION_MS = 100        // Must sustain for 100ms
-    private val HANDLE_RELEASE_FORCE_KG = 1.0        // Force < 1kg = releasing
-    private val HANDLE_RELEASE_DURATION_MS = 150     // Must sustain for 150ms
+    // Just Lift detection parameters - Simple position-based
+    private val HANDLE_GRABBED_THRESHOLD = 8.0  // Position > 8.0 = handles grabbed
+    private val HANDLE_REST_THRESHOLD = 2.5     // Position < 2.5 = handles at rest
+    private val VELOCITY_THRESHOLD = 100.0      // Velocity > 100 units/s = significant movement
 
     // Track position range for tuning (logged at workout end)
     private var minPositionSeen = Double.MAX_VALUE
@@ -184,41 +193,34 @@ class VitruvianBleManager(
                 return false
             }
 
-            // Get required characteristics (matching official app)
+            // Get required characteristics
             nusRxCharacteristic = nusService.getCharacteristic(BleConstants.NUS_RX_CHAR_UUID)
             monitorCharacteristic = nusService.getCharacteristic(BleConstants.MONITOR_CHAR_UUID)
-            propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
+            propertyCharacteristic = nusService.getCharacteristic(BleConstants.DIAGNOSTIC_CHAR_UUID) // Also known as PROPERTY_CHAR
             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
             heuristicCharacteristic = nusService.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
+            versionCharacteristic = nusService.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
 
             // DIAGNOSTIC: Log characteristic discovery with timestamp
             val timestamp = System.currentTimeMillis()
             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Timber.i("✅ CHARACTERISTICS DISCOVERED! [$timestamp]")
-            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}, Heuristic=${heuristicCharacteristic != null}")
+            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Diagnostic=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+            Timber.i("✅ Heuristic=${heuristicCharacteristic != null}, Version=${versionCharacteristic != null}")
             if (nusRxCharacteristic != null) {
                 Timber.i("✅ nusRxCharacteristic UUID: ${nusRxCharacteristic?.uuid}, instance: ${nusRxCharacteristic?.instanceId}")
             }
             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Diagnostic=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
 
-            // If characteristics not in NUS service, search all services (matching official app fallback)
-            if (repNotifyCharacteristic == null || heuristicCharacteristic == null) {
-                Timber.w("Some characteristics not found in NUS service, searching all services...")
+            // If characteristics not in NUS service, search all services
+            if (repNotifyCharacteristic == null) {
                 gatt.services.forEach { service ->
-                    if (repNotifyCharacteristic == null) {
-                        repNotifyCharacteristic = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
-                        if (repNotifyCharacteristic != null) {
-                            Timber.d("Found rep notify characteristic in service: ${service.uuid}")
-                        }
-                    }
-                    if (heuristicCharacteristic == null) {
-                        heuristicCharacteristic = service.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
-                        if (heuristicCharacteristic != null) {
-                            Timber.d("Found heuristic characteristic in service: ${service.uuid}")
-                        }
-                    }
+                    if (repNotifyCharacteristic == null) repNotifyCharacteristic = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
+                    if (heuristicCharacteristic == null) heuristicCharacteristic = service.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
+                    if (versionCharacteristic == null) versionCharacteristic = service.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
+                    if (propertyCharacteristic == null) propertyCharacteristic = service.getCharacteristic(BleConstants.DIAGNOSTIC_CHAR_UUID)
                 }
             }
 
@@ -387,6 +389,7 @@ class VitruvianBleManager(
             propertyCharacteristic = null
             repNotifyCharacteristic = null
             heuristicCharacteristic = null
+            versionCharacteristic = null
             workoutCmdCharacteristics.clear()
             notifyCharacteristics.clear()
 
@@ -435,10 +438,10 @@ class VitruvianBleManager(
                     Timber.d("All initialization operations complete! Device ready.")
 
                     // Start property polling immediately to keep machine alive (keep-alive mechanism)
-                    // The official app/web app does this - property polling at 500ms intervals
+                    // The official app does this - property polling at 500ms intervals (matches official app)
                     // Monitor polling (100ms) only starts when workout begins
-                    Timber.d("Starting keep-alive property polling (500ms)...")
-                    startPropertyPolling()
+                    Timber.d("Starting keep-alive diagnostic polling (500ms - official app interval)...")
+                    startDiagnosticPolling()
                 }
             }
 
@@ -519,18 +522,31 @@ class VitruvianBleManager(
      * Start polling monitor characteristic every 100ms
      * This is how the official app reads position/force data
      * Called when workout starts
+     *
+     * @param forAutoStart If true, enables handle detection with WaitingForRest state (for Just Lift auto-start).
+     *                     If false, skips handle state initialization (for active workout monitoring).
      */
-    fun startMonitorPolling() {
+    fun startMonitorPolling(forAutoStart: Boolean = false) {
         // Reset position tracking for new workout
         minPositionSeen = Double.MAX_VALUE
         maxPositionSeen = Double.MIN_VALUE
 
-        // Start with handles released; wait for actual grab detection from data
-        _handleState.value = HandleState.Released
+        if (forAutoStart) {
+            // Start in WaitingForRest state - must see handles at rest before arming grab detection
+            // This prevents immediate auto-start if cables already have tension
+            _handleState.value = HandleState.WaitingForRest
+            forceAboveGrabThresholdSince = null
+            forceBelowReleaseThresholdSince = null
+            Timber.d("Starting monitor polling for AUTO-START - waiting for handles at rest")
+        } else {
+            // Active workout - set to Grabbed since workout is already running
+            _handleState.value = HandleState.Grabbed
+            Timber.d("Starting monitor polling for ACTIVE WORKOUT")
+        }
 
         monitorPollingJob?.cancel()
         monitorPollingJob = pollingScope.launch {
-            Timber.d("Starting monitor polling (16ms interval / ~60Hz - matching official app)")
+            Timber.d("Starting monitor polling (16ms interval / ~60Hz)")
             while (isActive) {
                 try {
                     monitorCharacteristic?.let { char ->
@@ -647,8 +663,9 @@ class VitruvianBleManager(
             Timber.i("========== POSITION RANGE ANALYSIS ==========")
             Timber.i("Min position seen: $minPositionSeen")
             Timber.i("Max position seen: $maxPositionSeen")
-            Timber.i("Handle grab force: ${HANDLE_GRAB_FORCE_KG}kg for ${HANDLE_GRAB_DURATION_MS}ms")
-            Timber.i("Handle release force: ${HANDLE_RELEASE_FORCE_KG}kg for ${HANDLE_RELEASE_DURATION_MS}ms")
+            Timber.i("Handle grabbed threshold: $HANDLE_GRABBED_THRESHOLD (pos > 8.0 = grabbed)")
+            Timber.i("Handle rest threshold: $HANDLE_REST_THRESHOLD (pos < 2.5 = at rest)")
+            Timber.i("Velocity threshold: $VELOCITY_THRESHOLD (vel > 100 = moving)")
             Timber.i("===========================================")
         }
 
@@ -678,14 +695,15 @@ class VitruvianBleManager(
      * (Matching official app force-based detection)
      */
     fun enableJustLiftWaitingMode() {
-        Timber.i("Enabling Just Lift waiting mode - force-based detection (>${HANDLE_GRAB_FORCE_KG}kg for ${HANDLE_GRAB_DURATION_MS}ms)")
+        Timber.i("Enabling Just Lift waiting mode - waiting for rest before arming (position < 2.5, then > 8.0 + vel > 100)")
         // Reset position tracking for new session
         minPositionSeen = Double.MAX_VALUE
         maxPositionSeen = Double.MIN_VALUE
         // Reset force tracking timers
         forceAboveGrabThresholdSince = null
         forceBelowReleaseThresholdSince = null
-        _handleState.value = HandleState.Released
+        // Start in WaitingForRest state - must see handles at rest before arming grab detection
+        _handleState.value = HandleState.WaitingForRest
     }
 
     /**
@@ -824,16 +842,17 @@ class VitruvianBleManager(
     }
 
     /**
-     * Analyze handle state using force-based detection with duration confirmation
-     * (matching official app exactly)
-     *
-     * Logic:
-     * - Grab: Force > 3kg sustained for 100ms
-     * - Release: Force < 1kg sustained for 150ms
+     * Analyze handle state using simple position-based hysteresis
+     * with velocity confirmation for Just Lift mode
      */
     private fun analyzeHandleState(metric: WorkoutMetric) {
         val totalLoad = metric.loadA + metric.loadB
         val now = System.currentTimeMillis()
+
+        val posA = metric.positionA.toDouble()
+        val posB = metric.positionB.toDouble()
+        val velocityA = metric.velocityA
+        val velocityB = metric.velocityB
 
         // Update position range for diagnostics
         val avgPosition = (metric.positionA + metric.positionB) / 2.0
@@ -842,31 +861,59 @@ class VitruvianBleManager(
 
         val currentState = _handleState.value
 
+        // Check both handles - support single-handle exercises (Issue #102)
+        val handleAGrabbed = posA > HANDLE_GRABBED_THRESHOLD
+        val handleBGrabbed = posB > HANDLE_GRABBED_THRESHOLD
+        val handleAMoving = velocityA > VELOCITY_THRESHOLD
+        val handleBMoving = velocityB > VELOCITY_THRESHOLD
+
+        // Simple hysteresis with velocity check
         when (currentState) {
-            HandleState.Released -> {
-                if (totalLoad > HANDLE_GRAB_FORCE_KG) {
-                    if (forceAboveGrabThresholdSince == null) {
-                        forceAboveGrabThresholdSince = now
-                    } else if (now - forceAboveGrabThresholdSince!! >= HANDLE_GRAB_DURATION_MS) {
-                        _handleState.value = HandleState.Grabbed
-                        forceBelowReleaseThresholdSince = null
-                        Timber.d("Handle GRABBED (force ${totalLoad}kg sustained for ${HANDLE_GRAB_DURATION_MS}ms)")
-                    }
-                } else {
+            HandleState.WaitingForRest -> {
+                // Must see handles at rest (position < 2.5) before arming grab detection
+                // This prevents immediate auto-start if cables already have tension
+                if (posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD) {
+                    _handleState.value = HandleState.Released
                     forceAboveGrabThresholdSince = null
+                    forceBelowReleaseThresholdSince = null
+                    Timber.d("Handles at REST (posA=$posA, posB=$posB < $HANDLE_REST_THRESHOLD) - auto-start now ARMED")
+                }
+                // If position is above threshold, stay in WaitingForRest - don't arm yet
+            }
+            HandleState.Released, HandleState.Moving -> {
+                // Check if EITHER handle is grabbed and moving (for single-handle exercises)
+                val aActive = handleAGrabbed && handleAMoving
+                val bActive = handleBGrabbed && handleBMoving
+
+                if (aActive || bActive) {
+                    val activeHandle = if (aActive && bActive) "both" else if (aActive) "A" else "B"
+                    if (activeHandle == "both") {
+                        Timber.d("GRAB CHECK: handle=both, posA=$posA > $HANDLE_GRABBED_THRESHOLD, velA=$velocityA > $VELOCITY_THRESHOLD, posB=$posB > $HANDLE_GRABBED_THRESHOLD, velB=$velocityB > $VELOCITY_THRESHOLD")
+                        Timber.i("GRAB CONFIRMED: handle=both, posA=$posA, velA=$velocityA, posB=$posB, velB=$velocityB")
+                    } else {
+                        val activePos = if (aActive) posA else posB
+                        val activeVel = if (aActive) velocityA else velocityB
+                        Timber.d("GRAB CHECK: handle=$activeHandle, pos=$activePos > $HANDLE_GRABBED_THRESHOLD, vel=$activeVel > $VELOCITY_THRESHOLD")
+                        Timber.i("GRAB CONFIRMED: handle=$activeHandle, pos=$activePos, vel=$activeVel")
+                    }
+                    _handleState.value = HandleState.Grabbed
+                } else if (handleAGrabbed || handleBGrabbed) {
+                    // Position extended but no significant movement yet
+                    _handleState.value = HandleState.Moving
+                } else {
+                    _handleState.value = HandleState.Released
                 }
             }
-            HandleState.Moving, HandleState.Grabbed -> {
-                if (totalLoad < HANDLE_RELEASE_FORCE_KG) {
-                    if (forceBelowReleaseThresholdSince == null) {
-                        forceBelowReleaseThresholdSince = now
-                    } else if (now - forceBelowReleaseThresholdSince!! >= HANDLE_RELEASE_DURATION_MS) {
-                        _handleState.value = HandleState.Released
-                        forceAboveGrabThresholdSince = null
-                        Timber.d("Handle RELEASED (force ${totalLoad}kg below threshold for ${HANDLE_RELEASE_DURATION_MS}ms)")
-                    }
+            HandleState.Grabbed -> {
+                // Consider released only if BOTH handles are at rest
+                val aReleased = posA < HANDLE_REST_THRESHOLD
+                val bReleased = posB < HANDLE_REST_THRESHOLD
+
+                if (aReleased && bReleased) {
+                    Timber.d("RELEASE DETECTED: posA=$posA, posB=$posB < $HANDLE_REST_THRESHOLD")
+                    _handleState.value = HandleState.Released
                 } else {
-                    forceBelowReleaseThresholdSince = null
+                    _handleState.value = HandleState.Grabbed
                 }
             }
         }
@@ -1002,29 +1049,57 @@ class VitruvianBleManager(
 
     /**
      * Handle rep notification data
-     * Based on reference web app: parses u16 array with top counter and complete counter
-     * u16[0] = top counter (reached top of range)
-     * u16[2] = complete counter (rep complete at bottom)
+     *
+     * Official App Reps Packet Structure (24 bytes, Little Endian):
+     * - Bytes 0-3:   up (Int/u32) - up counter (concentric completions)
+     * - Bytes 4-7:   down (Int/u32) - down counter (eccentric completions)
+     * - Bytes 8-11:  rangeTop (Float) - maximum ROM boundary
+     * - Bytes 12-15: rangeBottom (Float) - minimum ROM boundary
+     * - Bytes 16-17: repsRomCount (Short/u16) - Warmup reps with proper ROM - USE FOR WARMUP DISPLAY
+     * - Bytes 18-19: repsRomTotal (Short/u16) - Total reps regardless of ROM
+     * - Bytes 20-21: repsSetCount (Short/u16) - WORKING SET REP COUNT - display this!
+     * - Bytes 22-23: repsSetTotal (Short/u16) - Total reps in set
      */
     private fun handleRepNotification(data: Data) {
         try {
             val bytes = data.value ?: return
-            
-            if (bytes.size < 6) {
-                Timber.w("Rep notification too short: ${bytes.size} bytes")
+
+            if (bytes.size < 24) {
+                Timber.w("Rep notification too short: ${bytes.size} bytes (expected 24)")
                 return
             }
 
-            // Parse as u16 little-endian array
+            // Parse full 24-byte packet according to official app structure
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            val topCounter = buffer.getShort(0).toInt() and 0xFFFF
-            val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
-            
-            Timber.d("Rep notification: top=$topCounter, complete=$completeCounter, hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
+
+            // u32 counters at offsets 0 and 4
+            val upCounter = buffer.getInt(0)
+            val downCounter = buffer.getInt(4)
+
+            // Float ROM boundaries at offsets 8 and 12
+            val rangeTop = buffer.getFloat(8)
+            val rangeBottom = buffer.getFloat(12)
+
+            // u16 rep counts at offsets 16, 18, 20, 22
+            val repsRomCount = buffer.getShort(16).toInt() and 0xFFFF   // Warmup reps (proper ROM)
+            val repsRomTotal = buffer.getShort(18).toInt() and 0xFFFF  // Total reps (any ROM)
+            val repsSetCount = buffer.getShort(20).toInt() and 0xFFFF  // WORKING SET REPS - display this!
+            val repsSetTotal = buffer.getShort(22).toInt() and 0xFFFF  // Total set reps
+
+            Timber.d("Rep notification FULL PARSE:")
+            Timber.d("  up=$upCounter, down=$downCounter")
+            Timber.d("  rangeTop=$rangeTop, rangeBottom=$rangeBottom")
+            Timber.d("  repsRomCount=$repsRomCount (warmup), repsRomTotal=$repsRomTotal")
+            Timber.d("  repsSetCount=$repsSetCount (WORKING), repsSetTotal=$repsSetTotal")
+            Timber.d("  hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
 
             val repData = RepNotification(
-                topCounter = topCounter,
-                completeCounter = completeCounter,
+                topCounter = upCounter,          // Use full u32 up counter
+                completeCounter = downCounter,   // Use full u32 down counter
+                repsRomCount = repsRomCount,     // Warmup reps (proper ROM)
+                repsSetCount = repsSetCount,     // WORKING SET REPS - this is what official app displays!
+                rangeTop = rangeTop,
+                rangeBottom = rangeBottom,
                 rawData = bytes,
                 timestamp = System.currentTimeMillis()
             )
@@ -1088,19 +1163,33 @@ sealed class ConnectionStatus {
 }
 
 enum class HandleState {
-    Released,
-    Grabbed,
-    Moving
+    WaitingForRest,  // Initial state - waiting for handles to be at rest before arming grab detection
+    Released,        // Handles at rest - armed for grab detection
+    Grabbed,         // Handles grabbed - force > 3kg sustained
+    Moving           // Handles in motion
 }
 
 /**
  * Rep notification data class
- * Parsed from device notifications on characteristic 0x0036
- * Format: u16 array with [topCounter, ?, completeCounter, ...]
+ * Parsed from device notifications on characteristic 8308f2a6-0875-4a94-a86f-5c5c5e1b068a
+ *
+ * Official App 24-byte Structure:
+ * - topCounter (u32): Concentric/up phase completions
+ * - completeCounter (u32): Eccentric/down phase completions
+ * - rangeTop (float): Maximum ROM boundary
+ * - rangeBottom (float): Minimum ROM boundary
+ * - repsRomCount (u16): Warmup reps with proper ROM - USE FOR WARMUP DISPLAY
+ * - repsRomTotal (u16): Total reps regardless of ROM
+ * - repsSetCount (u16): Working set rep count - USE FOR WORKING REPS DISPLAY
+ * - repsSetTotal (u16): Total reps in set
  */
 data class RepNotification(
-    val topCounter: Int,        // Counter increments when reaching top of range
-    val completeCounter: Int,   // Counter increments when rep completes (bottom)
+    val topCounter: Int,        // u32: Concentric completions (up counter)
+    val completeCounter: Int,   // u32: Eccentric completions (down counter)
+    val repsRomCount: Int = 0,  // u16: Warmup reps (proper ROM) - DISPLAY THIS FOR WARMUP
+    val repsSetCount: Int = 0,  // u16: Working set reps - DISPLAY THIS FOR WORKING
+    val rangeTop: Float = 0f,   // ROM max boundary
+    val rangeBottom: Float = 0f, // ROM min boundary
     val rawData: ByteArray,
     val timestamp: Long
 ) {
@@ -1112,6 +1201,10 @@ data class RepNotification(
 
         if (topCounter != other.topCounter) return false
         if (completeCounter != other.completeCounter) return false
+        if (repsRomCount != other.repsRomCount) return false
+        if (repsSetCount != other.repsSetCount) return false
+        if (rangeTop != other.rangeTop) return false
+        if (rangeBottom != other.rangeBottom) return false
         if (!rawData.contentEquals(other.rawData)) return false
         if (timestamp != other.timestamp) return false
 
@@ -1121,9 +1214,12 @@ data class RepNotification(
     override fun hashCode(): Int {
         var result = topCounter
         result = 31 * result + completeCounter
+        result = 31 * result + repsRomCount
+        result = 31 * result + repsSetCount
+        result = 31 * result + rangeTop.hashCode()
+        result = 31 * result + rangeBottom.hashCode()
         result = 31 * result + rawData.contentHashCode()
         result = 31 * result + timestamp.hashCode()
         return result
     }
 }
-

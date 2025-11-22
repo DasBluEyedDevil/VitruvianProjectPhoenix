@@ -360,7 +360,7 @@ class MainViewModel @Inject constructor(
     private val autoStopTriggered = AtomicBoolean(false)
     private val autoStopStopRequested = AtomicBoolean(false)
     private var currentHandleState: com.example.vitruvianredux.data.ble.HandleState =
-        com.example.vitruvianredux.data.ble.HandleState.Released
+        com.example.vitruvianredux.data.ble.HandleState.WaitingForRest
 
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
@@ -607,12 +607,17 @@ class MainViewModel @Inject constructor(
 
     /**
      * Handle rep notifications provided by the machine.
+     *
+     * CRITICAL: Uses device-provided repsRomCount and repsSetCount directly (official app method).
+     * This ensures rep counting matches exactly what the firmware reports.
      */
     private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
         val currentPositions = _currentMetric.value
         repCounter.process(
             topCounter = notification.topCounter,
             completeCounter = notification.completeCounter,
+            deviceWarmupReps = notification.repsRomCount,   // Device-provided warmup rep count
+            deviceWorkingReps = notification.repsSetCount,  // Device-provided working rep count
             posA = currentPositions?.positionA ?: 0,
             posB = currentPositions?.positionB ?: 0
         )
@@ -628,7 +633,8 @@ class MainViewModel @Inject constructor(
 
     private fun triggerAutoStop() {
         autoStopTriggered.set(true)
-        if (_workoutParameters.value.isJustLift) {
+        // Ensure UI reflects completion state immediately
+        if (_workoutParameters.value.isJustLift || _workoutParameters.value.isAMRAP) {
             _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
         } else {
             _autoStopState.value = AutoStopUiState()
@@ -637,87 +643,27 @@ class MainViewModel @Inject constructor(
     }
 
     private fun checkAutoStop(metric: WorkoutMetric) {
-        val hasMeaningful = repCounter.hasMeaningfulRange()
         val params = _workoutParameters.value
 
         // Diagnostic: Log when checkAutoStop is called for Just Lift mode
         if (params.isJustLift && autoStopStartTime == null) {
-            Timber.d("🎯 Just Lift auto-stop check: hasMeaningful=$hasMeaningful, posA=${metric.positionA}, posB=${metric.positionB}")
+            Timber.d("🎯 Just Lift auto-stop check: posA=${metric.positionA}, posB=${metric.positionB}")
         }
 
-        if (!hasMeaningful) {
-            if (params.isAMRAP || params.isJustLift) {
-                Timber.d("⚠️ ${if (params.isJustLift) "Just Lift" else "AMRAP"} auto-stop blocked: NO meaningful range yet")
-            }
-            resetAutoStopTimer()
-            return
-        }
+        // Just Lift / AMRAP Auto-Stop Logic
+        // Stop if handles are put down (position < 2.5)
+        // This uses the same threshold as the official app for "rest" detection
+        val HANDLE_REST_THRESHOLD = 2.5 
+        val posA = metric.positionA.toDouble()
+        val posB = metric.positionB.toDouble()
 
-        val inDangerZone = repCounter.isInDangerZone(metric.positionA, metric.positionB)
+        // Check if BOTH handles are at rest
+        val handlesAtRest = posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD
 
-        val repRanges = repCounter.getRepRanges()
-        if (params.isAMRAP) {
-            Timber.v("AMRAP auto-stop check: inDangerZone=$inDangerZone, rangeA=${repRanges.maxPosA?.let { max -> repRanges.minPosA?.let { min -> max - min } }}, rangeB=${repRanges.maxPosB?.let { max -> repRanges.minPosB?.let { min -> max - min } }}")
-        }
-
-        // Diagnostic: Log danger zone status for Just Lift
-        if (params.isJustLift && autoStopStartTime == null) {
-            Timber.d("🎯 Just Lift danger zone check: inDangerZone=$inDangerZone, rangeA=${repRanges.maxPosA?.let { max -> repRanges.minPosA?.let { min -> max - min } }}, rangeB=${repRanges.maxPosB?.let { max -> repRanges.minPosB?.let { min -> max - min } }}")
-        }
-
-        // For Just Lift and AMRAP modes, check if the cable(s) in danger zone are released
-        // This supports both single-cable (left OR right) and double-cable exercises
-        val HANDLE_REST_THRESHOLD = 2.5  // Position < 2.5 = handle at rest (matches VitruvianBleManager)
-
-        var cableInDangerAndReleased = false
-
-        // Check cable A: is it in danger zone AND released?
-        if (repRanges.minPosA != null && repRanges.maxPosA != null) {
-            val rangeA = repRanges.maxPosA!! - repRanges.minPosA!!
-            if (rangeA > 50) {  // minRangeThreshold
-                val thresholdA = repRanges.minPosA!! + (rangeA * 0.05f).toInt()
-                val cableAInDanger = metric.positionA <= thresholdA
-                // Check if cable A is released: position is very low (at rest) or near minimum position
-                // Use HANDLE_REST_THRESHOLD for absolute check, or check if very close to minPosA
-                val cableAReleased = metric.positionA.toDouble() < HANDLE_REST_THRESHOLD ||
-                                     (metric.positionA - repRanges.minPosA!!) < 10
-                if (cableAInDanger && cableAReleased) {
-                    cableInDangerAndReleased = true
-                    Timber.d("Cable A in danger zone and released: posA=${metric.positionA}, thresholdA=$thresholdA, minPosA=${repRanges.minPosA}")
-                }
-            }
-        }
-
-        // Check cable B: is it in danger zone AND released?
-        if (repRanges.minPosB != null && repRanges.maxPosB != null) {
-            val rangeB = repRanges.maxPosB!! - repRanges.minPosB!!
-            if (rangeB > 50) {  // minRangeThreshold
-                val thresholdB = repRanges.minPosB!! + (rangeB * 0.05f).toInt()
-                val cableBInDanger = metric.positionB <= thresholdB
-                // Check if cable B is released: position is very low (at rest) or near minimum position
-                // Use HANDLE_REST_THRESHOLD for absolute check, or check if very close to minPosB
-                val cableBReleased = metric.positionB.toDouble() < HANDLE_REST_THRESHOLD ||
-                                    (metric.positionB - repRanges.minPosB!!) < 10
-                if (cableBInDanger && cableBReleased) {
-                    cableInDangerAndReleased = true
-                    Timber.d("Cable B in danger zone and released: posB=${metric.positionB}, thresholdB=$thresholdB, minPosB=${repRanges.minPosB}")
-                }
-            }
-        }
-
-        // Diagnostic: Log cable release detection for Just Lift
-        if (params.isJustLift && autoStopStartTime == null) {
-            Timber.d("🎯 Just Lift cable check: inDangerZone=$inDangerZone, cableInDangerAndReleased=$cableInDangerAndReleased")
-        }
-
-        // Auto-stop should only trigger when BOTH conditions are met:
-        // 1. Position is in danger zone (near bottom)
-        // 2. The cable(s) in danger zone are actually released (not during eccentric phase)
-        // This works for both single-cable (left OR right) and double-cable exercises
-        if (inDangerZone && cableInDangerAndReleased) {
+        if (handlesAtRest) {
             val startTime = autoStopStartTime ?: run {
                 autoStopStartTime = System.currentTimeMillis()
-                Timber.d("🔴 Auto-stop timer STARTED (${if (params.isJustLift) "Just Lift" else "AMRAP"}) - handles at rest")
+                Timber.d("🔴 Auto-stop timer STARTED (${if (params.isJustLift) "Just Lift" else "AMRAP"}) - handles at rest (posA=$posA, posB=$posB)")
                 System.currentTimeMillis()
             }
 
@@ -737,7 +683,7 @@ class MainViewModel @Inject constructor(
             }
         } else {
             if (autoStopStartTime != null) {
-                Timber.d("🟢 Auto-stop timer RESET (inDangerZone=$inDangerZone, cableReleased=$cableInDangerAndReleased)")
+                Timber.d("🟢 Auto-stop timer RESET (handles moved: posA=$posA, posB=$posB)")
             }
             resetAutoStopTimer()
         }
@@ -965,15 +911,19 @@ class MainViewModel @Inject constructor(
                 Timber.d("Just Lift already in Idle state, ensuring auto-start is enabled")
             }
 
-            enableHandleDetection()
+            // Set parameters first before enabling handle detection
             _workoutParameters.value = _workoutParameters.value.copy(
                 isJustLift = true,
                 useAutoStart = true,
                 selectedExerciseId = null
             )
+
+            // Enable handle detection - auto-start triggers when user grabs handles
+            // (3.0kg force sustained for 200ms as per protocol)
+            enableHandleDetection()
             val newWeight = _workoutParameters.value.weightPerCableKg
             Timber.d("⚖️ prepareForJustLift: AFTER - weight=$newWeight kg (${newWeight * 2.20462f} lbs)")
-            Timber.d("Just Lift ready: State=Idle, AutoStart=enabled")
+            Timber.d("Just Lift ready: State=Idle, AutoStart=enabled, waiting for handle grab")
         }
     }
 
@@ -1262,8 +1212,8 @@ class MainViewModel @Inject constructor(
             } else if (params.isAMRAP) {
                 // AMRAP mode: Restart monitor polling to clear danger zone alarm on machine
                 // This ensures the machine exits danger zone state just like Just Lift mode
-                // Note: We use restartMonitorPolling() instead of enableHandleDetection() to be
-                // explicit that we're NOT enabling auto-start behavior for AMRAP mode
+                // Note: We use restartMonitorPolling() which sends monitor commands to clear the alarm
+                // This is CRITICAL for the "red light fix" to prevent machine hanging in fault state
                 Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Restarting monitor polling to clear danger zone")
                 bleRepository.restartMonitorPolling()
             }

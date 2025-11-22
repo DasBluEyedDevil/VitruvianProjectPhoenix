@@ -9,14 +9,14 @@ import kotlin.math.max
 /**
  * Handles rep counting based on notifications emitted by the Vitruvian machine.
  *
- * This is a direct port of the logic used by the reference web application. Rather than trying to
- * infer reps from position data, we track the counters supplied by the hardware (u16 values) and
- * supplement them with light position tracking for range calibration and auto-stop support.
+ * CRITICAL: The official app uses device-provided rep counts directly from the 24-byte Reps packet:
+ * - repsRomCount (offset 16-17): Warmup reps with proper ROM
+ * - repsSetCount (offset 20-21): Working set rep count - THIS IS WHAT TO DISPLAY
  *
- * Rep Counting Logic (matches official app):
- * - Reps are counted when topCounter increments (at peak contraction/top of movement)
- * - This provides intuitive feedback - rep counts when you "complete" the concentric phase
- * - For the final rep, completeCounter is used to ensure full eccentric phase before release
+ * The up/down counters (topCounter/completeCounter) are used for detecting rep events (for haptics)
+ * but the DISPLAYED rep count should come from repsRomCount and repsSetCount.
+ *
+ * This matches the official app behavior exactly - firmware handles rep counting, app just displays.
  */
 class RepCounterFromMachine {
 
@@ -28,6 +28,10 @@ class RepCounterFromMachine {
     private var stopAtTop = false
     private var shouldStop = false
     private var isAMRAP = false
+
+    // Track device-provided rep counts (official app method)
+    private var lastDeviceWarmupReps = 0
+    private var lastDeviceWorkingReps = 0
 
     private var lastTopCounter: Int? = null
     private var lastCompleteCounter: Int? = null
@@ -77,6 +81,8 @@ class RepCounterFromMachine {
         shouldStop = false
         lastTopCounter = null
         lastCompleteCounter = null
+        lastDeviceWarmupReps = 0
+        lastDeviceWorkingReps = 0
         topPositionsA.clear()
         topPositionsB.clear()
         bottomPositionsA.clear()
@@ -110,97 +116,101 @@ class RepCounterFromMachine {
         }
     }
 
-    fun process(topCounter: Int, completeCounter: Int, posA: Int = 0, posB: Int = 0) {
+    /**
+     * Process rep notification with device-provided rep counts (OFFICIAL APP METHOD).
+     *
+     * The device firmware tracks reps accurately and provides:
+     * - repsRomCount: Warmup reps completed with proper ROM
+     * - repsSetCount: Working set reps completed
+     *
+     * We use topCounter/completeCounter only for detecting rep EVENTS (haptic feedback),
+     * but the actual rep COUNT should come from the device's repsRomCount/repsSetCount.
+     *
+     * @param topCounter u32 up counter from device (for event detection)
+     * @param completeCounter u32 down counter from device (for event detection)
+     * @param deviceWarmupReps repsRomCount from device (warmup rep count to display)
+     * @param deviceWorkingReps repsSetCount from device (working rep count to display)
+     * @param posA Position A for range calibration
+     * @param posB Position B for range calibration
+     */
+    fun process(
+        topCounter: Int,
+        completeCounter: Int,
+        deviceWarmupReps: Int = 0,
+        deviceWorkingReps: Int = 0,
+        posA: Int = 0,
+        posB: Int = 0
+    ) {
+        // OFFICIAL APP METHOD: Use device-provided rep counts directly
+        // This ensures rep counting matches exactly what the firmware reports
+        val warmupRepsDelta = deviceWarmupReps - lastDeviceWarmupReps
+        val workingRepsDelta = deviceWorkingReps - lastDeviceWorkingReps
 
-        if (lastTopCounter != null) {
-            val topDelta = calculateDelta(lastTopCounter!!, topCounter)
-            if (topDelta > 0) {
-                recordTopPosition(posA, posB)
-
-                // Count the rep at TOP of movement (matches official app behavior)
-                // This is when the user reaches peak contraction - the intuitive moment for counting
-                val totalReps = warmupReps + workingReps + 1
-                if (totalReps <= warmupTarget) {
-                    warmupReps++
-                    onRepEvent?.invoke(
-                        RepEvent(
-                            type = RepType.WARMUP_COMPLETED,
-                            warmupCount = warmupReps,
-                            workingCount = workingReps
-                        )
-                    )
-                    if (warmupReps == warmupTarget) {
-                        onRepEvent?.invoke(
-                            RepEvent(
-                                type = RepType.WARMUP_COMPLETE,
-                                warmupCount = warmupReps,
-                                workingCount = workingReps
-                            )
-                        )
-                    }
-                } else {
-                    workingReps++
-                    onRepEvent?.invoke(
-                        RepEvent(
-                            type = RepType.WORKING_COMPLETED,
-                            warmupCount = warmupReps,
-                            workingCount = workingReps
-                        )
-                    )
-
-                    // If "Stop At Top" is enabled and target reached, stop NOW (at peak contraction)
-                    // This is safer as it ensures user completes the full eccentric phase of final rep
-                    // UNLESS isAMRAP is enabled - then user controls when to stop
-                    if (stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
-                        Timber.d("⚠️ shouldStop set to TRUE (stopAtTop path)")
-                        Timber.d("  stopAtTop=$stopAtTop, isJustLift=$isJustLift, isAMRAP=$isAMRAP")
-                        Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
-                        shouldStop = true
-                        onRepEvent?.invoke(
-                            RepEvent(
-                                type = RepType.WORKOUT_COMPLETE,
-                                warmupCount = warmupReps,
-                                workingCount = workingReps
-                            )
-                        )
-                    }
-                }
-            }
-        }
-        lastTopCounter = topCounter
-
-        if (lastCompleteCounter == null) {
-            lastCompleteCounter = completeCounter
-            return  // Skip first signal to establish baseline
-        }
-
-        val delta = calculateDelta(lastCompleteCounter!!, completeCounter)
-        if (delta <= 0) {
-            return
-        }
-
-        lastCompleteCounter = completeCounter
-
-        // Record bottom position (used for range calibration)
-        recordBottomPosition(posA, posB)
-
-        // If "Stop At Top" is disabled, stop at BOTTOM after completing target
-        // This preserves the old behavior for users who prefer it
-        // Note: Rep was already counted when topCounter fired
-        // UNLESS isAMRAP is enabled - then user controls when to stop
-        if (!stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
-            Timber.d("⚠️ shouldStop set to TRUE (!stopAtTop path)")
-            Timber.d("  stopAtTop=$stopAtTop, isJustLift=$isJustLift, isAMRAP=$isAMRAP")
-            Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
-            shouldStop = true
+        // Detect warmup rep completion from device counter
+        if (warmupRepsDelta > 0 && deviceWarmupReps <= warmupTarget) {
+            warmupReps = deviceWarmupReps
+            Timber.d("🏋️ WARMUP REP from device: $warmupReps/$warmupTarget")
+            recordTopPosition(posA, posB)
             onRepEvent?.invoke(
                 RepEvent(
-                    type = RepType.WORKOUT_COMPLETE,
+                    type = RepType.WARMUP_COMPLETED,
                     warmupCount = warmupReps,
                     workingCount = workingReps
                 )
             )
+            if (warmupReps == warmupTarget) {
+                onRepEvent?.invoke(
+                    RepEvent(
+                        type = RepType.WARMUP_COMPLETE,
+                        warmupCount = warmupReps,
+                        workingCount = workingReps
+                    )
+                )
+            }
         }
+
+        // Detect working rep completion from device counter
+        if (workingRepsDelta > 0) {
+            workingReps = deviceWorkingReps
+            Timber.d("💪 WORKING REP from device: $workingReps/$workingTarget")
+            recordTopPosition(posA, posB)
+            onRepEvent?.invoke(
+                RepEvent(
+                    type = RepType.WORKING_COMPLETED,
+                    warmupCount = warmupReps,
+                    workingCount = workingReps
+                )
+            )
+
+            // Check for workout completion (unless AMRAP or Just Lift)
+            if (!isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+                Timber.d("⚠️ shouldStop set to TRUE (device reports target reached)")
+                Timber.d("  isJustLift=$isJustLift, isAMRAP=$isAMRAP")
+                Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
+                shouldStop = true
+                onRepEvent?.invoke(
+                    RepEvent(
+                        type = RepType.WORKOUT_COMPLETE,
+                        warmupCount = warmupReps,
+                        workingCount = workingReps
+                    )
+                )
+            }
+        }
+
+        // Update last known device rep counts
+        lastDeviceWarmupReps = deviceWarmupReps
+        lastDeviceWorkingReps = deviceWorkingReps
+
+        // Also track up/down counters for bottom position recording
+        if (lastCompleteCounter != null) {
+            val delta = calculateDelta(lastCompleteCounter!!, completeCounter)
+            if (delta > 0) {
+                recordBottomPosition(posA, posB)
+            }
+        }
+        lastTopCounter = topCounter
+        lastCompleteCounter = completeCounter
     }
 
     private fun calculateDelta(last: Int, current: Int): Int {
