@@ -244,7 +244,7 @@ fun ProgressVelocityCard(
                     )
                 }
 
-                Divider(
+                VerticalDivider(
                     modifier = Modifier
                         .height(60.dp)
                         .width(1.dp)

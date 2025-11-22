@@ -3,11 +3,8 @@ package com.example.vitruvianredux.repository
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.WorkoutMetricEntity
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
-import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
-import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.WorkoutMetric
-import com.example.vitruvianredux.domain.model.WorkoutMode
 import com.example.vitruvianredux.domain.model.WorkoutSession
 import io.mockk.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,9 +31,7 @@ class WorkoutRepositoryTest {
     fun setup() {
         workoutDao = mockk(relaxed = true)
         val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
-        val phaseStatisticsDao = mockk<PhaseStatisticsDao>(relaxed = true)
-        val diagnosticsDao = mockk<DiagnosticsDao>(relaxed = true)
-        repository = WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
+        repository = WorkoutRepository(workoutDao, personalRecordDao)
     }
 
     @After

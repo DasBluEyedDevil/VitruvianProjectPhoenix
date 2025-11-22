@@ -2,8 +2,6 @@ package com.example.vitruvianredux.integration
 
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
-import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
-import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
@@ -38,9 +36,7 @@ class WorkoutIntegrationTest {
         bleRepository = mockk(relaxed = true)
         workoutDao = mockk(relaxed = true)
         val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
-        val phaseStatisticsDao = mockk<PhaseStatisticsDao>(relaxed = true)
-        val diagnosticsDao = mockk<DiagnosticsDao>(relaxed = true)
-        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
+        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao)
         repCounter = RepCounterFromMachine()
     }
 
@@ -209,8 +205,8 @@ class WorkoutIntegrationTest {
         // Simulate 3 warmup reps (need 4 calls - first one initializes the counter)
         repeat(4) { index ->
             repCounter.process(
-                repsRomCount = index,
-                repsSetCount = 0, // Set counter stays at 0 during warmup
+                topCounter = index,
+                completeCounter = index,
                 posA = 2000,
                 posB = 2000
             )
@@ -225,8 +221,8 @@ class WorkoutIntegrationTest {
         // When: Processing 10 working reps
         repeat(10) { index ->
             repCounter.process(
-                repsRomCount = warmupCount.warmupReps, // ROM counter holds warmup total
-                repsSetCount = index + 1,              // Set counter tracks working reps
+                topCounter = 4 + index,
+                completeCounter = 4 + index,
                 posA = 2000,
                 posB = 2000
             )
@@ -546,3 +542,4 @@ class WorkoutIntegrationTest {
         // NO external API calls required for any feature
     }
 }
+

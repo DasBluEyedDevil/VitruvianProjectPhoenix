@@ -4,15 +4,12 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.vitruvianredux.data.ble.VitruvianBleManager
 import com.example.vitruvianredux.data.local.WorkoutDatabase
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.ExerciseDao
 import com.example.vitruvianredux.data.local.ExerciseImporter
 import com.example.vitruvianredux.data.local.PersonalRecordDao
 import com.example.vitruvianredux.data.local.ConnectionLogDao
-import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
-import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.logger.ConnectionLogger
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
@@ -207,68 +204,6 @@ object AppModule {
                 ALTER TABLE routine_exercises
                 ADD COLUMN exerciseDefaultCableConfig TEXT NOT NULL DEFAULT 'DOUBLE'
             """.trimIndent())
-        }
-    }
-
-    /**
-     * Migration from version 7 to 8: Fix routine_exercises schema
-     * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
-     */
-    private val MIGRATION_7_8 = object : Migration(7, 8) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
-            // 1. Create new table with correct schema (13 columns)
-            database.execSQL("""
-                CREATE TABLE `routine_exercises_new` (
-                    `id` TEXT NOT NULL,
-                    `routineId` TEXT NOT NULL,
-                    `exerciseName` TEXT NOT NULL,
-                    `exerciseMuscleGroup` TEXT NOT NULL,
-                    `exerciseEquipment` TEXT NOT NULL,
-                    `exerciseDefaultCableConfig` TEXT NOT NULL,
-                    `cableConfig` TEXT NOT NULL,
-                    `orderIndex` INTEGER NOT NULL,
-                    `setReps` TEXT NOT NULL,
-                    `weightPerCableKg` REAL NOT NULL,
-                    `progressionKg` REAL NOT NULL,
-                    `restSeconds` INTEGER NOT NULL,
-                    `notes` TEXT NOT NULL,
-                    PRIMARY KEY(`id`),
-                    FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
-                )
-            """.trimIndent())
-
-            // 2. Copy data (IFNULL handles NULL values from failed v7 migration)
-            database.execSQL("""
-                INSERT INTO `routine_exercises_new` (
-                    id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
-                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
-                )
-                SELECT
-                    id,
-                    routineId,
-                    exerciseName,
-                    IFNULL(exerciseMuscleGroup, ''),
-                    IFNULL(exerciseEquipment, ''),
-                    IFNULL(exerciseDefaultCableConfig, ''),
-                    cableConfig,
-                    orderIndex,
-                    setReps,
-                    weightPerCableKg,
-                    progressionKg,
-                    restSeconds,
-                    notes
-                FROM `routine_exercises`
-            """.trimIndent())
-
-            // 3. Drop old table
-            database.execSQL("DROP TABLE `routine_exercises`")
-
-            // 4. Rename new table
-            database.execSQL("ALTER TABLE `routine_exercises_new` RENAME TO `routine_exercises`")
-
-            // 5. Recreate index
-            database.execSQL("CREATE INDEX `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
         }
     }
 
@@ -634,79 +569,64 @@ object AppModule {
     }
 
     /**
-     * Migration from version 22 to 23: Add phase statistics, diagnostics, and safety event tracking
-     *
-     * Additions:
-     * 1. phase_statistics table - Stores concentric/eccentric phase metrics per workout session
-     * 2. diagnostics_history table - Stores device diagnostics including temps and fault masks
-     * 3. Safety event columns on workout_sessions - safetyFlags, deloadWarningCount, romViolationCount, spotterActivations
+     * Migration from version 7 to 8: Fix routine_exercises schema
+     * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
      */
-    internal val MIGRATION_22_23 = object : Migration(22, 23) {
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            // Add safety event columns to workout_sessions
-            db.execSQL("""
-                ALTER TABLE workout_sessions
-                ADD COLUMN safetyFlags INTEGER NOT NULL DEFAULT 0
-            """.trimIndent())
-
-            db.execSQL("""
-                ALTER TABLE workout_sessions
-                ADD COLUMN deloadWarningCount INTEGER NOT NULL DEFAULT 0
-            """.trimIndent())
-
-            db.execSQL("""
-                ALTER TABLE workout_sessions
-                ADD COLUMN romViolationCount INTEGER NOT NULL DEFAULT 0
-            """.trimIndent())
-
-            db.execSQL("""
-                ALTER TABLE workout_sessions
-                ADD COLUMN spotterActivations INTEGER NOT NULL DEFAULT 0
-            """.trimIndent())
-
-            // Create phase_statistics table
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS phase_statistics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                    sessionId TEXT NOT NULL,
-                    concentricKgAvg REAL NOT NULL,
-                    concentricKgMax REAL NOT NULL,
-                    concentricVelAvg REAL NOT NULL,
-                    concentricVelMax REAL NOT NULL,
-                    concentricWattAvg REAL NOT NULL,
-                    concentricWattMax REAL NOT NULL,
-                    eccentricKgAvg REAL NOT NULL,
-                    eccentricKgMax REAL NOT NULL,
-                    eccentricVelAvg REAL NOT NULL,
-                    eccentricVelMax REAL NOT NULL,
-                    eccentricWattAvg REAL NOT NULL,
-                    eccentricWattMax REAL NOT NULL,
-                    timestamp INTEGER NOT NULL,
-                    FOREIGN KEY(sessionId) REFERENCES workout_sessions(id) ON DELETE CASCADE
+            val database = db
+            // 1. Create new table with correct schema (13 columns)
+            database.execSQL("""
+                CREATE TABLE `routine_exercises_new` (
+                    `id` TEXT NOT NULL,
+                    `routineId` TEXT NOT NULL,
+                    `exerciseName` TEXT NOT NULL,
+                    `exerciseMuscleGroup` TEXT NOT NULL,
+                    `exerciseEquipment` TEXT NOT NULL,
+                    `exerciseDefaultCableConfig` TEXT NOT NULL,
+                    `cableConfig` TEXT NOT NULL,
+                    `orderIndex` INTEGER NOT NULL,
+                    `setReps` TEXT NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `progressionKg` REAL NOT NULL,
+                    `restSeconds` INTEGER NOT NULL,
+                    `notes` TEXT NOT NULL,
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
                 )
             """.trimIndent())
 
-            // Create index on sessionId for efficient queries
-            db.execSQL("CREATE INDEX IF NOT EXISTS index_phase_statistics_sessionId ON phase_statistics(sessionId)")
-
-            // Create diagnostics_history table
-            db.execSQL("""
-                CREATE TABLE IF NOT EXISTS diagnostics_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                    runtimeSeconds INTEGER NOT NULL,
-                    faultMask INTEGER NOT NULL,
-                    temp1 INTEGER NOT NULL,
-                    temp2 INTEGER NOT NULL,
-                    temp3 INTEGER NOT NULL,
-                    temp4 INTEGER NOT NULL,
-                    temp5 INTEGER NOT NULL,
-                    temp6 INTEGER NOT NULL,
-                    temp7 INTEGER NOT NULL,
-                    temp8 INTEGER NOT NULL,
-                    containsFaults INTEGER NOT NULL,
-                    timestamp INTEGER NOT NULL
+            // 2. Copy data (IFNULL handles NULL values from failed v7 migration)
+            database.execSQL("""
+                INSERT INTO `routine_exercises_new` (
+                    id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
+                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
                 )
+                SELECT
+                    id,
+                    routineId,
+                    exerciseName,
+                    IFNULL(exerciseMuscleGroup, ''),
+                    IFNULL(exerciseEquipment, ''),
+                    IFNULL(exerciseDefaultCableConfig, ''),
+                    cableConfig,
+                    orderIndex,
+                    setReps,
+                    weightPerCableKg,
+                    progressionKg,
+                    restSeconds,
+                    notes
+                FROM `routine_exercises`
             """.trimIndent())
+
+            // 3. Drop old table
+            database.execSQL("DROP TABLE `routine_exercises`")
+
+            // 4. Rename new table
+            database.execSQL("ALTER TABLE `routine_exercises_new` RENAME TO `routine_exercises`")
+
+            // 5. Recreate index
+            database.execSQL("CREATE INDEX `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
         }
     }
 
@@ -724,18 +644,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideVitruvianBleManager(
+    fun provideBleRepository(
         @ApplicationContext context: Context,
         connectionLogger: ConnectionLogger
-    ): VitruvianBleManager {
-        return VitruvianBleManager(context, connectionLogger)
+    ): BleRepository {
+        return BleRepositoryImpl(context, connectionLogger)
     }
-
-    @Provides
-    @Singleton
-    fun provideBleRepository(
-        impl: BleRepositoryImpl
-    ): BleRepository = impl
 
     @Provides
     @Singleton
@@ -747,7 +661,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_21_22, MIGRATION_22_23)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_21_22)
         // MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19 removed - use destructive migration for v16-18 users
         .fallbackToDestructiveMigration(dropAllTables = true)  // Allow destructive migration for beta (will delete and recreate DB if migration missing)
         .build()
@@ -763,11 +677,9 @@ object AppModule {
     @Singleton
     fun provideWorkoutRepository(
         workoutDao: WorkoutDao,
-        personalRecordDao: PersonalRecordDao,
-        phaseStatisticsDao: PhaseStatisticsDao,
-        diagnosticsDao: DiagnosticsDao
+        personalRecordDao: PersonalRecordDao
     ): WorkoutRepository {
-        return WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
+        return WorkoutRepository(workoutDao, personalRecordDao)
     }
 
     @Provides
@@ -782,13 +694,13 @@ object AppModule {
     ): PreferencesManager {
         return PreferencesManager(context)
     }
-
+    
     @Provides
     @Singleton
     fun provideExerciseDao(database: WorkoutDatabase): ExerciseDao {
         return database.exerciseDao()
     }
-
+    
     @Provides
     @Singleton
     fun provideExerciseImporter(
@@ -797,7 +709,7 @@ object AppModule {
     ): ExerciseImporter {
         return ExerciseImporter(context, exerciseDao)
     }
-
+    
     @Provides
     @Singleton
     fun provideExerciseRepository(
@@ -811,18 +723,6 @@ object AppModule {
     @Singleton
     fun providePersonalRecordDao(database: WorkoutDatabase): PersonalRecordDao {
         return database.personalRecordDao()
-    }
-
-    @Provides
-    @Singleton
-    fun providePhaseStatisticsDao(database: WorkoutDatabase): PhaseStatisticsDao {
-        return database.phaseStatisticsDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideDiagnosticsDao(database: WorkoutDatabase): DiagnosticsDao {
-        return database.diagnosticsDao()
     }
 
     @Provides

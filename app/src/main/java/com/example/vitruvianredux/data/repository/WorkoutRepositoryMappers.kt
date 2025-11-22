@@ -1,10 +1,10 @@
 package com.example.vitruvianredux.data.repository
 
-import com.example.vitruvianredux.data.local.entity.RoutineEntity
-import com.example.vitruvianredux.data.local.entity.RoutineExerciseEntity
-import com.example.vitruvianredux.data.local.entity.WorkoutMetricEntity
-import com.example.vitruvianredux.data.local.entity.WorkoutSessionEntity
-import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
+import com.example.vitruvianredux.data.local.RoutineEntity
+import com.example.vitruvianredux.data.local.RoutineExerciseEntity
+import com.example.vitruvianredux.data.local.WorkoutMetricEntity
+import com.example.vitruvianredux.data.local.WorkoutSessionEntity
+import com.example.vitruvianredux.data.local.PhaseStatisticsEntity
 import com.example.vitruvianredux.domain.model.CableConfiguration
 import com.example.vitruvianredux.domain.model.EccentricLoad
 import com.example.vitruvianredux.domain.model.EchoLevel

@@ -1,7 +1,7 @@
 package com.example.vitruvianredux.data.repository
 
 import com.example.vitruvianredux.data.local.PersonalRecordDao
-import com.example.vitruvianredux.data.local.entity.PersonalRecordEntity
+import com.example.vitruvianredux.data.local.PersonalRecordEntity
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

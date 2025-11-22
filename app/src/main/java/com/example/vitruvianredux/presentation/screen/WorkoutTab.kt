@@ -11,14 +11,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -30,11 +28,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import android.view.ViewGroup
 import androidx.core.net.toUri
 import android.widget.VideoView
-import com.example.vitruvianredux.data.local.entity.ExerciseEntity
-import com.example.vitruvianredux.data.local.entity.ExerciseVideoEntity
+import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
-import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
 import com.example.vitruvianredux.ui.theme.*
@@ -73,9 +69,7 @@ fun WorkoutTab(
     onHideWorkoutSetupDialog: () -> Unit = {},
     modifier: Modifier = Modifier,
     showConnectionCard: Boolean = true,
-    showWorkoutSetupCard: Boolean = true,
-    heuristicStatistics: HeuristicStatistics? = null,
-    safetyEventSummary: SafetyEventSummary? = null
+    showWorkoutSetupCard: Boolean = true
 ) {
     // Haptic feedback effect
     hapticEvents?.let {
@@ -164,13 +158,6 @@ fun WorkoutTab(
         }
 
         if (connectionState is ConnectionState.Connected) {
-            // Show safety warnings if present
-            currentMetric?.let { metric ->
-                if (metric.statusFlags.isNotEmpty()) {
-                    SafetyStatusCard(metric.statusFlags)
-                }
-            }
-
             // Show setup button when in Idle state, otherwise show workout controls
             when (workoutState) {
                 is WorkoutState.Idle -> {
@@ -422,114 +409,33 @@ fun WorkoutTab(
             // Display state-specific cards (only non-overlay cards)
             when (workoutState) {
                 is WorkoutState.Active -> {
-                    // Show rep counter first (docked at top) so it's always visible
+                    // Show rep counter first (above video) so it's always visible
                     RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
 
-                    // Safety HUD - prominently displayed above tabs when warnings present
-                    currentMetric?.let { metric ->
-                        if (metric.statusFlags.isNotEmpty()) {
-                            SafetyHUD(statusFlags = metric.statusFlags)
-                        }
-                    }
-
-                    // Tab state for Video/Data switching
-                    var selectedTabIndex by remember { mutableIntStateOf(0) }
-                    val hapticFeedback = LocalHapticFeedback.current
-                    val tabs = listOf("Video", "Data")
-
-                    // TabRow for Video/Data switching
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-                        shape = RoundedCornerShape(20.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            // Exercise header (always visible above tabs)
-                            val currentExercise = loadedRoutine?.exercises?.getOrNull(currentExerciseIndex)
-                            var exerciseEntity by remember { mutableStateOf<ExerciseEntity?>(null) }
-
-                            LaunchedEffect(currentExercise?.exercise?.id, workoutParameters.selectedExerciseId) {
-                                val exerciseId = currentExercise?.exercise?.id ?: workoutParameters.selectedExerciseId
-                                if (exerciseId != null) {
-                                    exerciseEntity = exerciseRepository.getExerciseById(exerciseId)
-                                }
-                            }
-
-                            Text(
-                                text = currentExercise?.exercise?.name ?: exerciseEntity?.name ?: "Exercise",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(Spacing.medium)
-                            )
-
-                            // Tab Row
-                            TabRow(
-                                selectedTabIndex = selectedTabIndex,
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.onSurface,
-                                indicator = { tabPositions ->
-                                    if (selectedTabIndex < tabPositions.size) {
-                                        TabRowDefaults.SecondaryIndicator(
-                                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            ) {
-                                tabs.forEachIndexed { index, title ->
-                                    Tab(
-                                        selected = selectedTabIndex == index,
-                                        onClick = {
-                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            selectedTabIndex = index
-                                        },
-                                        text = {
-                                            Text(
-                                                text = title,
-                                                fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        },
-                                        icon = {
-                                            Icon(
-                                                imageVector = if (index == 0) Icons.Default.PlayArrow else Icons.Default.Analytics,
-                                                contentDescription = title
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-
-                            // Tab content
-                            when (selectedTabIndex) {
-                                0 -> {
-                                    // Video Tab - Show video player
-                                    VideoTabContent(
-                                        loadedRoutine = loadedRoutine,
-                                        currentExerciseIndex = currentExerciseIndex,
-                                        workoutParameters = workoutParameters,
-                                        exerciseRepository = exerciseRepository,
-                                        enableVideoPlayback = enableVideoPlayback,
-                                        formatWeight = { weight -> formatWeight(weight, weightUnit) },
-                                        kgToDisplay = { weight -> kgToDisplay(weight, weightUnit) },
-                                        weightUnit = weightUnit
-                                    )
-                                }
-                                1 -> {
-                                    // Data Tab - Show live metrics
-                                    DataTabContent(
-                                        currentMetric = currentMetric,
-                                        repCount = repCount,
-                                        weightUnit = weightUnit,
-                                        formatWeight = formatWeight
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Show current exercise details
+                    CurrentExerciseCard(
+                        loadedRoutine = loadedRoutine,
+                        currentExerciseIndex = currentExerciseIndex,
+                        workoutParameters = workoutParameters,
+                        exerciseRepository = exerciseRepository,
+                        enableVideoPlayback = enableVideoPlayback,
+                        formatWeight = { weight -> formatWeight(weight, weightUnit) },
+                        kgToDisplay = { weight -> kgToDisplay(weight, weightUnit) },
+                        weightUnit = weightUnit
+                    )
                 }
                 else -> {}
+            }
+
+            // Only show live metrics after warmup is complete (matches official app behavior)
+            if (workoutState is WorkoutState.Active
+                && currentMetric != null
+                && repCount.isWarmupComplete) {
+                LiveMetricsCard(
+                    metric = currentMetric,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight
+                )
             }
         }
 
@@ -551,9 +457,7 @@ fun WorkoutTab(
                     formatWeight = formatWeight,
                     onContinue = onProceedFromSummary,
                     autoplayEnabled = autoplayEnabled,
-                    configuredPerCableKg = workoutParameters.weightPerCableKg,
-                    heuristics = heuristicStatistics,
-                    safetyEvents = safetyEventSummary
+                    configuredPerCableKg = workoutParameters.weightPerCableKg
                 )
             }
             is WorkoutState.Resting -> {
@@ -1367,19 +1271,6 @@ fun ConnectionCard(
                         Text("Connecting...")
                     }
                 }
-                is ConnectionState.Disconnecting -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.small))
-                        Text("Disconnecting...")
-                    }
-                }
                 is ConnectionState.Connected -> {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
@@ -1585,7 +1476,7 @@ fun CurrentExerciseCard(
 
     // Get exercise entity for video
     var exerciseEntity by remember { mutableStateOf<ExerciseEntity?>(null) }
-    var videoEntity by remember { mutableStateOf<ExerciseVideoEntity?>(null) }
+    var videoEntity by remember { mutableStateOf<com.example.vitruvianredux.data.local.ExerciseVideoEntity?>(null) }
 
     // Load exercise and video data
     LaunchedEffect(currentExercise?.exercise?.id, workoutParameters.selectedExerciseId) {
@@ -1980,434 +1871,5 @@ fun VerticalCablePositionBar(
             color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp)
         )
-    }
-}
-
-@Composable
-fun SafetyStatusCard(statusFlags: Set<SampleStatus>) {
-    val hasCritical = statusFlags.any { 
-        it == SampleStatus.DELOAD_OCCURRED 
-    }
-    
-    val cardColor = if (hasCritical) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.tertiaryContainer
-    }
-    
-    val contentColor = if (hasCritical) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onTertiaryContainer
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (hasCritical) Icons.Default.Warning else Icons.Default.Info,
-                    contentDescription = "Safety Alert",
-                    tint = contentColor
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (hasCritical) "Safety Intervention" else "Safety Warning",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            statusFlags.forEach { flag ->
-                val message = when(flag) {
-                    SampleStatus.DELOAD_WARN -> "Force cap approaching - Ease off!"
-                    SampleStatus.DELOAD_OCCURRED -> "Force released due to overload/safety."
-                    SampleStatus.ROM_OUTSIDE_HIGH -> "Extension limit reached (Top)."
-                    SampleStatus.ROM_OUTSIDE_LOW -> "Retraction limit reached (Bottom)."
-                    SampleStatus.SPOTTER_ACTIVE -> "Spotter active."
-                    SampleStatus.ROM_UNLOAD_ACTIVE -> "Unload active."
-                    else -> null
-                }
-                
-                if (message != null) {
-                    Text(
-                        text = "• $message",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Safety HUD - Prominently displays safety warnings during active workout.
- * Shows above the Video/Data tabs for maximum visibility.
- */
-@Composable
-fun SafetyHUD(statusFlags: Set<SampleStatus>) {
-    val hasCritical = statusFlags.any {
-        it == SampleStatus.DELOAD_OCCURRED
-    }
-
-    val backgroundColor = if (hasCritical) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.tertiaryContainer
-    }
-
-    val contentColor = if (hasCritical) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onTertiaryContainer
-    }
-
-    val borderColor = if (hasCritical) {
-        MaterialTheme.colorScheme.error
-    } else {
-        MaterialTheme.colorScheme.tertiary
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(2.dp, borderColor.copy(alpha = 0.5f))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Warning icon with animation potential
-            Icon(
-                imageVector = if (hasCritical) Icons.Default.Warning else Icons.Default.Info,
-                contentDescription = "Safety Alert",
-                tint = contentColor,
-                modifier = Modifier.size(32.dp)
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (hasCritical) "SAFETY ALERT" else "NOTICE",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = contentColor
-                )
-
-                // Show only the most important message for HUD brevity
-                val primaryMessage = statusFlags.firstNotNullOfOrNull { flag ->
-                    when (flag) {
-                        SampleStatus.DELOAD_OCCURRED -> "Force released - overload protection"
-                        SampleStatus.DELOAD_WARN -> "Ease off - approaching force limit"
-                        SampleStatus.ROM_OUTSIDE_HIGH -> "Extension limit reached"
-                        SampleStatus.ROM_OUTSIDE_LOW -> "Retraction limit reached"
-                        SampleStatus.SPOTTER_ACTIVE -> "Spotter active"
-                        SampleStatus.ROM_UNLOAD_ACTIVE -> "Unload active"
-                        else -> null
-                    }
-                }
-
-                primaryMessage?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor
-                    )
-                }
-
-                // Show count if multiple warnings
-                if (statusFlags.size > 1) {
-                    Text(
-                        text = "+${statusFlags.size - 1} more",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = contentColor.copy(alpha = 0.7f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Video tab content - shows exercise details and instructional video
- */
-@Composable
-fun VideoTabContent(
-    loadedRoutine: Routine?,
-    currentExerciseIndex: Int,
-    workoutParameters: WorkoutParameters,
-    exerciseRepository: ExerciseRepository,
-    enableVideoPlayback: Boolean,
-    formatWeight: (Float) -> String,
-    kgToDisplay: (Float) -> Float,
-    weightUnit: WeightUnit
-) {
-    val currentExercise = loadedRoutine?.exercises?.getOrNull(currentExerciseIndex)
-    var videoEntity by remember { mutableStateOf<ExerciseVideoEntity?>(null) }
-
-    LaunchedEffect(currentExercise?.exercise?.id, workoutParameters.selectedExerciseId) {
-        val exerciseId = currentExercise?.exercise?.id ?: workoutParameters.selectedExerciseId
-        if (exerciseId != null) {
-            val videos = exerciseRepository.getVideos(exerciseId)
-            videoEntity = videos.firstOrNull()
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(Spacing.medium)
-    ) {
-        // Exercise details (reps, weight, mode)
-        if (currentExercise != null) {
-            val repsText = if (currentExercise.setReps.isEmpty()) {
-                "No sets configured"
-            } else if (currentExercise.setReps.all { it == currentExercise.setReps.first() }) {
-                "${currentExercise.setReps.size}x${currentExercise.setReps.first()}"
-            } else {
-                currentExercise.setReps.joinToString(", ")
-            }
-
-            val descriptionText = if (currentExercise.workoutType is WorkoutType.Echo) {
-                val cableText = when (currentExercise.cableConfig) {
-                    CableConfiguration.SINGLE -> " (Single)"
-                    CableConfiguration.DOUBLE -> " (Double)"
-                    else -> ""
-                }
-                "$repsText reps$cableText - ${currentExercise.workoutType.displayName} - Adaptive"
-            } else {
-                val baseWeightText = if (currentExercise.setWeightsPerCableKg.isNotEmpty()) {
-                    val displayWeights = currentExercise.setWeightsPerCableKg.map { kgToDisplay(it) }
-                    val minWeight = displayWeights.minOrNull() ?: 0f
-                    val maxWeight = displayWeights.maxOrNull() ?: 0f
-                    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-                    if (minWeight == maxWeight) {
-                        "%.1f %s".format(minWeight, weightSuffix)
-                    } else {
-                        "%.1f-%.1f %s".format(minWeight, maxWeight, weightSuffix)
-                    }
-                } else {
-                    formatWeight(currentExercise.weightPerCableKg)
-                }
-                val weightText = when (currentExercise.cableConfig) {
-                    CableConfiguration.SINGLE -> "$baseWeightText (Single)"
-                    CableConfiguration.DOUBLE -> "$baseWeightText/cable (Double)"
-                    else -> baseWeightText
-                }
-                "$repsText @ $weightText - ${currentExercise.workoutType.displayName}"
-            }
-
-            Text(
-                text = descriptionText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        } else {
-            val descriptionText = if (workoutParameters.workoutType is WorkoutType.Echo) {
-                "${workoutParameters.reps} reps - ${workoutParameters.workoutType.displayName} - Adaptive"
-            } else {
-                "${workoutParameters.reps} reps @ ${formatWeight(workoutParameters.weightPerCableKg)}/cable - ${workoutParameters.workoutType.displayName}"
-            }
-            Text(
-                text = descriptionText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-
-        // Video player
-        if (enableVideoPlayback) {
-            videoEntity?.let { video ->
-                Spacer(modifier = Modifier.height(Spacing.medium))
-                VideoPlayer(
-                    videoUrl = video.videoUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                )
-            } ?: run {
-                // No video available placeholder
-                Spacer(modifier = Modifier.height(Spacing.medium))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "No video",
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "No video available",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Data tab content - shows live metrics during workout
- */
-@Composable
-fun DataTabContent(
-    currentMetric: WorkoutMetric?,
-    repCount: RepCount,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(Spacing.medium)
-    ) {
-        if (currentMetric != null && repCount.isWarmupComplete) {
-            // Live metrics display
-            Text(
-                "Live Metrics",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(Spacing.small))
-
-            // Per-cable load (large display)
-            Text(
-                formatWeight(currentMetric.totalLoad / 2f, weightUnit),
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "Per Cable",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Cable positions
-            Text(
-                "Cable Positions",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(Spacing.extraSmall))
-
-            // Cable A
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("A", style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(20.dp))
-                LinearProgressIndicator(
-                    progress = { (currentMetric.positionA / 1000f).coerceIn(0f, 1f) },
-                    modifier = Modifier.weight(1f).height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                )
-                Text(
-                    "${currentMetric.positionA}",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.width(50.dp).padding(start = 4.dp),
-                    textAlign = TextAlign.End
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Cable B
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("B", style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(20.dp))
-                LinearProgressIndicator(
-                    progress = { (currentMetric.positionB / 1000f).coerceIn(0f, 1f) },
-                    modifier = Modifier.weight(1f).height(8.dp),
-                    color = MaterialTheme.colorScheme.secondary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                )
-                Text(
-                    "${currentMetric.positionB}",
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.width(50.dp).padding(start = 4.dp),
-                    textAlign = TextAlign.End
-                )
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Velocity (both cables)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text("Velocity A", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "%.2f m/s".format(currentMetric.velocityA),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Velocity B", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "%.2f m/s".format(currentMetric.velocityB),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        } else {
-            // Waiting for warmup to complete
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.medium))
-                    Text(
-                        text = if (currentMetric == null) "Waiting for data..." else "Complete warmup reps to see live metrics",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
     }
 }

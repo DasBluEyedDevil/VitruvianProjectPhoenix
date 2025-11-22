@@ -17,9 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -32,14 +30,7 @@ import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
-import com.example.vitruvianredux.presentation.components.WeightProgressionChart
-import com.example.vitruvianredux.presentation.components.MuscleGroupDistributionChart
-import com.example.vitruvianredux.presentation.components.charts.MuscleGroupCircleChart
-import com.example.vitruvianredux.presentation.components.WorkoutModeDistributionChart
-import com.example.vitruvianredux.presentation.components.TotalVolumeChart
-import com.example.vitruvianredux.presentation.components.ExercisePRTracker
 import com.example.vitruvianredux.presentation.components.*
-import com.example.vitruvianredux.presentation.screen.InsightsTab
 import com.example.vitruvianredux.util.CsvExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -2,7 +2,6 @@ package com.example.vitruvianredux.presentation.components
 
 import android.os.Build
 import android.widget.NumberPicker
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add

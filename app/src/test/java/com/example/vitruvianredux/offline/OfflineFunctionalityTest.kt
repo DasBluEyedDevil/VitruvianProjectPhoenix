@@ -3,8 +3,6 @@ package com.example.vitruvianredux.offline
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
 import com.example.vitruvianredux.data.local.WorkoutMetricEntity
-import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
-import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
@@ -44,9 +42,7 @@ class OfflineFunctionalityTest {
         bleRepository = mockk(relaxed = true)
         workoutDao = mockk(relaxed = true)
         val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
-        val phaseStatisticsDao = mockk<PhaseStatisticsDao>(relaxed = true)
-        val diagnosticsDao = mockk<DiagnosticsDao>(relaxed = true)
-        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
+        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao)
     }
 
     @After
@@ -524,3 +520,4 @@ class OfflineFunctionalityTest {
         coVerify(exactly = 1) { workoutDao.getSession(sessionId) }
     }
 }
+
