@@ -27,6 +27,8 @@ import com.example.vitruvianredux.domain.model.RoutineExercise
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutMode
 import com.example.vitruvianredux.presentation.components.VideoPlayer
+import com.example.vitruvianredux.presentation.components.ProgressionSlider
+import com.example.vitruvianredux.presentation.components.ExpressiveSlider
 import com.example.vitruvianredux.presentation.viewmodel.ExerciseConfigViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ExerciseType
 import com.example.vitruvianredux.presentation.viewmodel.SetConfiguration
@@ -341,12 +343,10 @@ fun ExerciseEditBottomSheet(
                         shadowElevation = 2.dp
                     ) {
                         Column(modifier = Modifier.padding(Spacing.small)) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = weightChange,
-                                onValueChange = viewModel::onWeightChange,
-                                range = -maxWeightChange..maxWeightChange,
-                                label = "Weight Change Per Rep",
-                                suffix = weightSuffix,
+                            ProgressionSlider(
+                                value = weightChange.toFloat(),
+                                onValueChange = { viewModel.onWeightChange(it.toInt()) },
+                                valueRange = -maxWeightChange.toFloat()..maxWeightChange.toFloat(),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
@@ -419,12 +419,19 @@ fun ExerciseEditBottomSheet(
                         shadowElevation = 2.dp
                     ) {
                         Column(modifier = Modifier.padding(Spacing.small)) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = rest,
-                                onValueChange = viewModel::onRestChange,
-                                range = 0..300,
-                                label = "Rest Time",
-                                suffix = "sec",
+                            Text(
+                                "Rest Time: ${rest}s",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                            )
+                            ExpressiveSlider(
+                                value = rest.toFloat(),
+                                onValueChange = { viewModel.onRestChange(it.toInt()) },
+                                valueRange = 0f..300f,
+                                steps = 59, // 5s increments roughly? No, 0-300 is large. Let's use 0 steps for continuous or calculate steps.
+                                // 300 steps is too many ticks. Let's use 0 steps (continuous) or 5s increments (60 steps).
+                                // Using 5s increments: 300/5 = 60 intervals -> 59 steps.
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -790,12 +797,17 @@ fun SetRow(
 
             // Rest Time picker (per-set) - only shown when perSetRestTime toggle is enabled
             if (perSetRestTime) {
-                com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                    value = setConfig.restSeconds,
-                    onValueChange = onRestChange,
-                    range = 10..300,
-                    label = if (setConfig.setNumber == 1) "Rest Time" else "",
-                    suffix = "sec",
+                Text(
+                    "Rest Time: ${setConfig.restSeconds}s",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                )
+                ExpressiveSlider(
+                    value = setConfig.restSeconds.toFloat(),
+                    onValueChange = { onRestChange(it.toInt()) },
+                    valueRange = 0f..300f,
+                    steps = 59,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

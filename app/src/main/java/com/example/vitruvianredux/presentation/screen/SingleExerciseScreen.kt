@@ -37,63 +37,109 @@ fun SingleExerciseScreen(
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    var showExercisePicker by remember { mutableStateOf(true) } // Start with picker shown
     var exerciseToConfig by remember { mutableStateOf<RoutineExercise?>(null) }
 
+    // Local state for picker
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedMuscleFilter by remember { mutableStateOf("All") }
+    var selectedEquipmentFilter by remember { mutableStateOf("All") }
+    var showFavoritesOnly by remember { mutableStateOf(false) }
+
+    // Get exercises from repository
+    val allExercises by remember(searchQuery, selectedMuscleFilter, showFavoritesOnly) {
+        when {
+            showFavoritesOnly -> exerciseRepository.getFavorites()
+            searchQuery.isNotBlank() -> exerciseRepository.searchExercises(searchQuery)
+            selectedMuscleFilter != "All" -> exerciseRepository.filterByMuscleGroup(selectedMuscleFilter)
+            else -> exerciseRepository.getAllExercises()
+        }
+    }.collectAsState(initial = emptyList())
+
+    // Apply equipment filter
+    val exercises = remember(allExercises, selectedEquipmentFilter) {
+        if (selectedEquipmentFilter != "All") {
+            allExercises.filter { exercise ->
+                val databaseValues = when (selectedEquipmentFilter) {
+                    "Long Bar" -> listOf("BAR", "LONG_BAR", "BARBELL")
+                    "Short Bar" -> listOf("SHORT_BAR")
+                    "Ankle Strap" -> listOf("ANKLE_STRAP", "STRAPS")
+                    "Handles" -> listOf("HANDLES", "SINGLE_HANDLE", "BOTH_HANDLES")
+                    "Bench" -> listOf("BENCH")
+                    "Rope" -> listOf("ROPE")
+                    "Belt" -> listOf("BELT")
+                    "Bodyweight" -> listOf("BODYWEIGHT")
+                    else -> emptyList()
+                }
+                val equipmentList = exercise.equipment.uppercase().split(",").map { it.trim() }
+                databaseValues.any { dbValue -> equipmentList.contains(dbValue.uppercase()) }
+            }
+        } else {
+            allExercises
+        }
+    }
+
+    // Trigger import
+    LaunchedEffect(Unit) {
+        exerciseRepository.importExercises()
+    }
+
+    // Set global title
+    LaunchedEffect(Unit) {
+        viewModel.updateTopBarTitle("Single Exercise")
+    }
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Single Exercise") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        // No local topBar needed
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            // Always show the picker content as the background
+            com.example.vitruvianredux.presentation.components.ExercisePickerContent(
+                exercises = exercises,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                showFavoritesOnly = showFavoritesOnly,
+                onShowFavoritesOnlyChange = { 
+                    showFavoritesOnly = it
+                    if (it) {
+                        searchQuery = ""
+                        selectedMuscleFilter = "All"
+                        selectedEquipmentFilter = "All"
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                selectedMuscleFilter = selectedMuscleFilter,
+                onMuscleFilterChange = { selectedMuscleFilter = it },
+                selectedEquipmentFilter = selectedEquipmentFilter,
+                onEquipmentFilterChange = { selectedEquipmentFilter = it },
+                onExerciseSelected = { selectedExercise ->
+                    val exercise = Exercise(
+                        name = selectedExercise.name,
+                        muscleGroup = selectedExercise.muscleGroups.split(",").firstOrNull()?.trim() ?: "Full Body",
+                        equipment = selectedExercise.equipment.split(",").firstOrNull()?.trim() ?: "",
+                        defaultCableConfig = CableConfiguration.DOUBLE,
+                        id = selectedExercise.id
+                    )
+
+                    val newRoutineExercise = RoutineExercise(
+                        id = UUID.randomUUID().toString(),
+                        exercise = exercise,
+                        cableConfig = exercise.resolveDefaultCableConfig(),
+                        orderIndex = 0,
+                        setReps = listOf(10, 10, 10),
+                        weightPerCableKg = 20f,
+                        progressionKg = 0f,
+                        setRestSeconds = listOf(60, 60, 60),
+                        workoutType = WorkoutType.Program(ProgramMode.OldSchool),
+                        eccentricLoad = EccentricLoad.LOAD_100,
+                        echoLevel = EchoLevel.HARDER
+                    )
+                    exerciseToConfig = newRoutineExercise
+                },
+                exerciseRepository = exerciseRepository,
+                enableVideoPlayback = enableVideoPlayback,
+                fullScreen = true // Use full screen layout (no local header)
             )
-        }
-    ) { padding ->
-        // The content of the screen is now primarily the dialog flow
-        Box(modifier = Modifier.padding(padding)) {
-            if (showExercisePicker) {
-                ExercisePickerDialog(
-                    showDialog = true,
-                    fullScreen = true,
-                    onDismiss = { showExercisePicker = false },
-                    onExerciseSelected = { selectedExercise ->
-                        val exercise = Exercise(
-                            name = selectedExercise.name,
-                            muscleGroup = selectedExercise.muscleGroups.split(",").firstOrNull()?.trim() ?: "Full Body",
-                            equipment = selectedExercise.equipment.split(",").firstOrNull()?.trim() ?: "",
-                            defaultCableConfig = CableConfiguration.DOUBLE,
-                            id = selectedExercise.id
-                        )
 
-                        val newRoutineExercise = RoutineExercise(
-                            id = UUID.randomUUID().toString(),
-                            exercise = exercise,
-                            cableConfig = exercise.resolveDefaultCableConfig(),
-                            orderIndex = 0,
-                            setReps = listOf(10, 10, 10),
-                            weightPerCableKg = 20f,
-                            progressionKg = 0f,
-                            setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
-                            workoutType = WorkoutType.Program(ProgramMode.OldSchool),
-                            eccentricLoad = EccentricLoad.LOAD_100,
-                            echoLevel = EchoLevel.HARDER
-                        )
-                        exerciseToConfig = newRoutineExercise
-                        showExercisePicker = false
-                    },
-                    exerciseRepository = exerciseRepository,
-                    enableVideoPlayback = enableVideoPlayback
-                )
-            }
-
+            // Show bottom sheet as overlay when an exercise is selected
             exerciseToConfig?.let {
                 ExerciseEditBottomSheet(
                     exercise = it,
@@ -106,8 +152,6 @@ fun SingleExerciseScreen(
                     formatWeight = viewModel::formatWeight,
                     buttonText = "Start Workout",
                     onSave = { configuredExercise ->
-                        // Create a temporary single-exercise routine for proper multi-set support
-                        // This ensures rest timers work and sets progress correctly
                         val tempRoutine = Routine(
                             id = "temp_single_exercise_${UUID.randomUUID()}",
                             name = "Single Exercise: ${configuredExercise.exercise.name}",
@@ -115,68 +159,24 @@ fun SingleExerciseScreen(
                             exercises = listOf(configuredExercise)
                         )
 
-                        // Load the routine (this sets up all the multi-set tracking)
                         viewModel.loadRoutine(tempRoutine)
 
                         viewModel.ensureConnection(
                             onConnected = {
                                 viewModel.startWorkout()
                                 navController.navigate(NavigationRoutes.ActiveWorkout.route) {
-                                    popUpTo(NavigationRoutes.Home.route) // Clear back stack to home
+                                    popUpTo(NavigationRoutes.Home.route)
                                 }
                             },
-                            onFailed = { /* Error is shown by the dialog */ }
+                            onFailed = { }
                         )
 
                         exerciseToConfig = null
                     },
                     onDismiss = {
                         exerciseToConfig = null
-                        showExercisePicker = true // Go back to picker
                     }
                 )
-            }
-
-            // If both are false, it means the user dismissed the picker without selecting
-            if (!showExercisePicker && exerciseToConfig == null) {
-                 Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FitnessCenter,
-                        contentDescription = "Exercise icon",
-                        modifier = Modifier.size(80.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(Spacing.large))
-                    Text(
-                        "Choose an exercise to begin",
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(Spacing.medium))
-                    Button(
-                        onClick = { showExercisePicker = true },
-                        modifier = Modifier
-                            .fillMaxWidth(0.8f)
-                            .height(56.dp), // Material 3 Expressive: Taller button
-                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
-                        elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 4.dp, // Material 3 Expressive: Higher elevation
-                            pressedElevation = 2.dp
-                        )
-                    ) {
-                        Icon(Icons.Default.Search, contentDescription = "Search exercises", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
-                        Spacer(Modifier.width(Spacing.small))
-                        Text(
-                            "Select Exercise",
-                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
             }
         }
 

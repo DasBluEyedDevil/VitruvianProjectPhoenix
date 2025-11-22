@@ -32,6 +32,11 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = CardBackground,
     onSurfaceVariant = TextSecondary,
 
+    // Material 3 Expressive Surface Container Roles (Dark)
+    surfaceContainer = SurfaceDarkGrey,        // Base surface
+    surfaceContainerHigh = CardBackground,     // Cards
+    surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF353535), // Modals/High emphasis
+
     error = ErrorRed,
     onError = TextPrimary,
 
@@ -62,6 +67,11 @@ private val LightColorScheme = lightColorScheme(
     onSurface = ColorOnLightSurface,
     surfaceVariant = ColorLightSurfaceVariant,
     onSurfaceVariant = ColorOnLightSurfaceVariant,
+
+    // Material 3 Expressive Surface Container Roles (Light)
+    surfaceContainer = ColorLightSurface,         // Base surface
+    surfaceContainerHigh = ColorLightSurfaceVariant, // Cards
+    surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFFE2E8F0), // Slate-200 for modals
 
     error = ErrorRed,
     onError = ColorLightSurface,            // White text on red error

@@ -195,7 +195,8 @@ fun NavGraph(
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
                 onClearConnectionError = { viewModel.clearConnectionError() },
-                onCancelAutoConnecting = { viewModel.cancelAutoConnecting() }
+                onCancelAutoConnecting = { viewModel.cancelAutoConnecting() },
+                onSetTitle = { viewModel.updateTopBarTitle(it) }
             )
         }
 

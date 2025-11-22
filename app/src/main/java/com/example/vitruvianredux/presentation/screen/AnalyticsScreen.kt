@@ -54,6 +54,11 @@ fun AnalyticsScreen(
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
+    // Set global title
+    LaunchedEffect(Unit) {
+        viewModel.updateTopBarTitle("Analytics")
+    }
+
     // Pager state for swipe gestures
     val pagerState = rememberPagerState(pageCount = { 3 })
     var showExportMenu by remember { mutableStateOf(false) }
