@@ -33,7 +33,7 @@ fun ConnectionErrorDialog(
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
                     text = "Troubleshooting tips:",
