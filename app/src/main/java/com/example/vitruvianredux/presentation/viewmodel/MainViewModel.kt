@@ -952,23 +952,29 @@ class MainViewModel @Inject constructor(
             val beforeWeight = _workoutParameters.value.weightPerCableKg
             Timber.d("⚖️ startWorkout: BEFORE copy - weight=$beforeWeight kg (${beforeWeight * 2.20462f} lbs)")
 
+            // Check if current exercise is bodyweight BEFORE creating params
+            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+            val isBodyweight = isBodyweightExercise(currentExercise)
+            val isBodyweightDuration = isBodyweight && currentExercise?.duration != null
+
+            // Set warmupReps = 0 for bodyweight exercises (Issue #125)
+            val effectiveWarmupReps = if (isBodyweight) 0 else _workoutParameters.value.warmupReps
+
             val params = _workoutParameters.value.copy(
                 isJustLift = isJustLiftMode,
-                useAutoStart = if (isJustLiftMode) true else _workoutParameters.value.useAutoStart
+                useAutoStart = if (isJustLiftMode) true else _workoutParameters.value.useAutoStart,
+                warmupReps = effectiveWarmupReps // Skip warmup for bodyweight exercises
             )
             Timber.d("⚖️ startWorkout: AFTER copy - weight=${params.weightPerCableKg} kg (${params.weightPerCableKg * 2.20462f} lbs)")
+            Timber.d("⚖️ startWorkout: isBodyweight=$isBodyweight, warmupReps=${params.warmupReps}")
 
             // Update the state flow so the rest of the app is consistent
             _workoutParameters.value = params
 
-            // Check if current exercise is bodyweight with duration mode
-            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
-            val isBodyweightDuration = isBodyweightExercise(currentExercise)
-
             val workingTarget = if (params.isJustLift) 0 else params.reps
             repCounter.reset()
             repCounter.configure(
-                warmupTarget = if (isBodyweightDuration) 0 else params.warmupReps, // Skip warmup for bodyweight
+                warmupTarget = params.warmupReps, // Already 0 for bodyweight
                 workingTarget = workingTarget,
                 isJustLift = params.isJustLift,
                 stopAtTop = params.stopAtTop,
@@ -1240,15 +1246,17 @@ class MainViewModel @Inject constructor(
     }
 
     /**
-     * Check if the given exercise is a bodyweight exercise with duration mode.
-     * Bodyweight exercises are identified by empty equipment field and must have duration set.
+     * Check if the given exercise is a bodyweight exercise.
+     * Bodyweight exercises don't use cables and should skip BLE commands and warmup sets.
+     * Identified by empty equipment field OR equipment = "bodyweight".
      *
      * @param exercise The routine exercise to check, or null
-     * @return true if this is a bodyweight exercise with duration, false otherwise
+     * @return true if this is a bodyweight exercise, false otherwise
      */
     private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
         return exercise?.let {
-            it.exercise.equipment.isEmpty() && it.duration != null
+            val equipment = it.exercise.equipment
+            equipment.isEmpty() || equipment.equals("bodyweight", ignoreCase = true)
         } ?: false
     }
 
@@ -1519,17 +1527,22 @@ class MainViewModel @Inject constructor(
             Timber.d("  ? Moving to next set")
             _currentSetIndex.value++
             val targetReps = currentExercise.setReps[_currentSetIndex.value]
+            // Get per-set weight, falling back to exercise default (Issue #147)
+            val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                ?: currentExercise.weightPerCableKg
             Timber.d("  New set index: ${_currentSetIndex.value}")
             Timber.d("  Target reps: $targetReps")
+            Timber.d("  Set weight: $setWeight kg")
             _workoutParameters.value = workoutParameters.value.copy(
                 reps = targetReps ?: 0, // AMRAP sets have null reps
-                // Preserve all other parameters from current exercise
+                weightPerCableKg = setWeight, // Use per-set weight (Issue #147)
                 progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
-                weightPerCableKg = workoutParameters.value.weightPerCableKg,
                 workoutType = workoutParameters.value.workoutType,
                 selectedExerciseId = workoutParameters.value.selectedExerciseId,
                 isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
             )
+            Timber.d("  AFTER UPDATE - isAMRAP set to: ${_workoutParameters.value.isAMRAP} (targetReps was: $targetReps)")
+            Timber.d("  AFTER UPDATE - reps set to: ${_workoutParameters.value.reps}")
             Timber.d("???????????????????????????????????????????????????")
             startWorkout(skipCountdown = true)
         } else {
@@ -1541,11 +1554,15 @@ class MainViewModel @Inject constructor(
                 _currentSetIndex.value = 0
                 // Update workout parameters for new exercise
                 val nextExercise = routine.exercises[_currentExerciseIndex.value]
-                val nextSetReps = nextExercise.setReps[0]
+                val nextSetReps = nextExercise.setReps.getOrNull(0)
+                // Get per-set weight for first set, falling back to exercise default (Issue #147)
+                val nextSetWeight = nextExercise.setWeightsPerCableKg.getOrNull(0)
+                    ?: nextExercise.weightPerCableKg
                 Timber.d("  New exercise index: ${_currentExerciseIndex.value}")
                 Timber.d("  Next exercise: ${nextExercise.exercise.displayName}")
+                Timber.d("  First set weight: $nextSetWeight kg")
                 _workoutParameters.value = workoutParameters.value.copy(
-                    weightPerCableKg = nextExercise.weightPerCableKg,
+                    weightPerCableKg = nextSetWeight, // Use per-set weight (Issue #147)
                     reps = nextSetReps ?: 0, // AMRAP sets have null reps
                     workoutType = nextExercise.workoutType,
                     progressionRegressionKg = nextExercise.progressionKg,
@@ -1615,9 +1632,12 @@ class MainViewModel @Inject constructor(
 
             // Update workout parameters for new exercise
             val nextExercise = routine.exercises[_currentExerciseIndex.value]
-            val nextSetReps = nextExercise.setReps[0]
+            val nextSetReps = nextExercise.setReps.getOrNull(0)
+            // Get per-set weight for first set, falling back to exercise default (Issue #147)
+            val nextSetWeight = nextExercise.setWeightsPerCableKg.getOrNull(0)
+                ?: nextExercise.weightPerCableKg
             _workoutParameters.value = workoutParameters.value.copy(
-                weightPerCableKg = nextExercise.weightPerCableKg,
+                weightPerCableKg = nextSetWeight, // Use per-set weight (Issue #147)
                 reps = nextSetReps ?: 0, // AMRAP sets have null reps
                 workoutType = nextExercise.workoutType,
                 progressionRegressionKg = nextExercise.progressionKg,
@@ -1915,6 +1935,9 @@ class MainViewModel @Inject constructor(
         // Load parameters from first exercise
         val firstExercise = routine.exercises[0]
         val firstSetReps = firstExercise.setReps.firstOrNull() // Can be null for AMRAP sets
+        // Get per-set weight for first set, falling back to exercise default (Issue #147)
+        val firstSetWeight = firstExercise.setWeightsPerCableKg.getOrNull(0)
+            ?: firstExercise.weightPerCableKg
 
         Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         Timber.d("LOADING ROUTINE: ${routine.name}")
@@ -1922,7 +1945,8 @@ class MainViewModel @Inject constructor(
         Timber.d("  Total exercises: ${routine.exercises.size}")
         Timber.d("  First exercise: ${firstExercise.exercise.displayName}")
         Timber.d("  Sets: ${firstExercise.setReps.size} (${firstExercise.setReps})")
-        Timber.d("  Weight: ${firstExercise.weightPerCableKg}kg")
+        Timber.d("  Weight (exercise default): ${firstExercise.weightPerCableKg}kg")
+        Timber.d("  First set weight: ${firstSetWeight}kg")
         Timber.d("  First set reps: $firstSetReps")
         Timber.d("  Setting isJustLift = false")
         Timber.d("")
@@ -1945,7 +1969,7 @@ class MainViewModel @Inject constructor(
         val params = WorkoutParameters(
             workoutType = firstExercise.workoutType, // Use workout type from the exercise
             reps = firstSetReps ?: 0, // AMRAP sets have null reps, use 0 as placeholder
-            weightPerCableKg = firstExercise.weightPerCableKg,
+            weightPerCableKg = firstSetWeight, // Use per-set weight (Issue #147)
             progressionRegressionKg = firstExercise.progressionKg,
             isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
             stopAtTop = stopAtTop.value,   // Use user preference from settings
