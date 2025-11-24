@@ -42,10 +42,10 @@ fun EmptyState(
             verticalArrangement = Arrangement.spacedBy(Spacing.medium),
             modifier = Modifier.padding(Spacing.large)
         ) {
-            // Icon
+            // Icon (decorative - title provides context)
             Icon(
                 imageVector = icon,
-                contentDescription = "Empty state",
+                contentDescription = null, // Icon is decorative; title provides description
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )

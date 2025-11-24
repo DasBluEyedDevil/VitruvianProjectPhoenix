@@ -292,7 +292,8 @@ fun JustLiftScreen(
                                 value = weightChangePerRep.toFloat(),
                                 onValueChange = { weightChangePerRep = it.toInt() },
                                 valueRange = -maxWeightChange..maxWeightChange,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                unitSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                             )
                             Text(
                                 "Negative = Regression, Positive = Progression",

@@ -360,7 +360,8 @@ fun ExerciseEditBottomSheet(
                                 value = weightChange.toFloat(),
                                 onValueChange = { viewModel.onWeightChange(it.toInt()) },
                                 valueRange = -maxWeightChange.toFloat()..maxWeightChange.toFloat(),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                unitSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                             )
                             Text(
                                 "Negative = Regression, Positive = Progression",

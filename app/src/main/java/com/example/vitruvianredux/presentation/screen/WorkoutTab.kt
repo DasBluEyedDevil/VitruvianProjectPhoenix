@@ -787,7 +787,8 @@ fun WorkoutSetupDialog(
                                     onUpdateParameters(workoutParameters.copy(progressionRegressionKg = kg))
                                 },
                                 valueRange = -maxProgression..maxProgression,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                unitSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
                             )
                             
                             Spacer(modifier = Modifier.height(4.dp))

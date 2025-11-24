@@ -77,7 +77,7 @@ fun RoutinesTab(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(20.dp)
+                .padding(Spacing.mediumLarge)
         ) {
             if (routines.isEmpty()) {
                 EmptyState(
@@ -228,11 +228,11 @@ fun RoutineCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(Spacing.mediumLarge)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Icon Box

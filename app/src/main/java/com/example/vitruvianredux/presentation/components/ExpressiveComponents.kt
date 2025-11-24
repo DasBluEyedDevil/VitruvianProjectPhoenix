@@ -95,48 +95,61 @@ fun ExpressiveSlider(
 }
 
 /**
- * A specialized slider for Progression/Regression (-10 to +10).
- * Changes color based on value (Red for negative, Green/Blue for positive).
+ * A specialized slider for Progression/Regression.
+ * Changes color based on value (Red for negative/regression, Primary for positive/progression).
+ * Supports optional unit suffix display (e.g., "kg", "lbs").
  */
 @Composable
 fun ProgressionSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float> = -10f..10f,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    unitSuffix: String = "" // Optional unit suffix (e.g., "kg", "lbs")
 ) {
     val isNegative = value < 0
     val isPositive = value > 0
-    
+
     val activeColor = when {
         isNegative -> MaterialTheme.colorScheme.error
-        isPositive -> MaterialTheme.colorScheme.onSurface
+        isPositive -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    // Format value with optional unit and sign
+    val formattedValue = buildString {
+        if (value > 0) append("+")
+        append(value.toInt())
+        if (unitSuffix.isNotEmpty()) {
+            append(" ")
+            append(unitSuffix)
+        }
     }
 
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${valueRange.start.toInt()}",
+                text = "${valueRange.start.toInt()}${if (unitSuffix.isNotEmpty()) " $unitSuffix" else ""}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = if (value > 0) "+${value.toInt()}" else "${value.toInt()}",
+                text = formattedValue,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = activeColor
             )
             Text(
-                text = "+${valueRange.endInclusive.toInt()}",
+                text = "+${valueRange.endInclusive.toInt()}${if (unitSuffix.isNotEmpty()) " $unitSuffix" else ""}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        
+
         ExpressiveSlider(
             value = value,
             onValueChange = onValueChange,

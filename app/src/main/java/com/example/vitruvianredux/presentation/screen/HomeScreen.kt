@@ -237,12 +237,12 @@ fun WorkoutCard(
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isPressed) 4.dp else 8.dp // Material 3 Expressive: Higher elevation (was 2/4dp)
         ),
-        border = BorderStroke(2.dp, Color(0xFFF5F3FF)) // Material 3 Expressive: Thicker border (was 1dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant) // Theme-aware border
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp), // Material 3 Expressive: More padding (was 16dp)
+                .padding(Spacing.mediumLarge), // Material 3 Expressive: Enhanced padding
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -324,7 +324,7 @@ fun HomeActiveProgramCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(2.dp, Color(0xFFF5F3FF))
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier

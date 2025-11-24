@@ -190,13 +190,21 @@ fun EnhancedMainScreen(
                         }
                     }
 
-                    // Connection status icon (Bluetooth) with text label
+                    // Connection status indicator - enhanced for better visibility
+                    val statusColor = when (connectionState) {
+                        is ConnectionState.Connected -> SuccessGreen
+                        is ConnectionState.Connecting -> WarningOrange
+                        is ConnectionState.Disconnected -> ErrorRed
+                        is ConnectionState.Scanning -> InfoBlue
+                        is ConnectionState.Error -> ErrorRed
+                    }
+
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
-                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp) // Ensure 48dp touch target
+                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp) // Material Design touch target
                             .clickable(
                                 onClick = {
                                     if (connectionState is ConnectionState.Connected) {
@@ -226,31 +234,19 @@ fun EnhancedMainScreen(
                                 is ConnectionState.Scanning -> "Scanning for machine"
                                 is ConnectionState.Error -> "Connection error. Tap to retry"
                             },
-                            tint = when (connectionState) {
-                                is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
-                                is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
-                                is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
-                                is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
-                                is ConnectionState.Error -> Color(0xFFEF4444) // red-500
-                            },
-                            modifier = Modifier.size(20.dp)
+                            tint = statusColor,
+                            modifier = Modifier.size(24.dp) // Larger icon for better visibility
                         )
                         Text(
                             text = when (connectionState) {
                                 is ConnectionState.Connected -> "Connected"
                                 is ConnectionState.Connecting -> "Connecting"
-                                is ConnectionState.Disconnected -> "Disconnected"
+                                is ConnectionState.Disconnected -> "Tap to connect"
                                 is ConnectionState.Scanning -> "Scanning"
                                 is ConnectionState.Error -> "Error"
                             },
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                            color = when (connectionState) {
-                                is ConnectionState.Connected -> Color(0xFF22C55E)
-                                is ConnectionState.Connecting -> Color(0xFFFBBF24)
-                                is ConnectionState.Disconnected -> Color(0xFFEF4444)
-                                is ConnectionState.Scanning -> Color(0xFF3B82F6)
-                                is ConnectionState.Error -> Color(0xFFEF4444)
-                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = statusColor,
                             maxLines = 1
                         )
                     }

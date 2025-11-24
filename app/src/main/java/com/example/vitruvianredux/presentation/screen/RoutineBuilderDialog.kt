@@ -136,7 +136,7 @@ fun RoutineBuilderDialog(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
                                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                             ) {
                                 Box(modifier = Modifier.fillMaxWidth().padding(Spacing.large), contentAlignment = Alignment.Center) {
                                     Text("No exercises added yet", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
@@ -309,7 +309,7 @@ fun ExerciseListItem(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Spacing.medium),
