@@ -1,142 +1,738 @@
-# Non-UI Differences: Beta 5.1 vs Current Build
+# Non-UI Differences: Beta 5.1 vs Current Build (Detailed)
 
-This document outlines all non-UI changes between the v0.5.1-beta release and the current build, including data layer, domain logic, BLE communication, and utility changes.
+This document provides granular code-level differences for all non-UI changes between v0.5.1-beta and the current build.
 
 ---
 
 ## Table of Contents
-1. [New Files](#new-files)
-2. [Database Changes](#database-changes)
-3. [BLE Communication Changes](#ble-communication-changes)
-4. [Domain Model Changes](#domain-model-changes)
-5. [Repository Changes](#repository-changes)
-6. [ViewModel Changes](#viewmodel-changes)
-7. [Code Organization/Refactoring](#code-organizationrefactoring)
-8. [Bug Fixes and Improvements](#bug-fixes-and-improvements)
+1. [BLE Communication - VitruvianBleManager.kt](#1-ble-communication---vitruvianblemagerkt)
+2. [Rep Counter Complete Rewrite](#2-rep-counter-complete-rewrite)
+3. [MainViewModel Changes](#3-mainviewmodel-changes)
+4. [New Domain Models](#4-new-domain-models)
+5. [Database Changes](#5-database-changes)
+6. [Repository Changes](#6-repository-changes)
+7. [Code Organization - Extracted Files](#7-code-organization---extracted-files)
 
 ---
 
-## 1. New Files
+## 1. BLE Communication - VitruvianBleManager.kt
 
-### Data Layer - BLE
+### 1.1 New Characteristics and State Flows
 
-#### BleExceptions.kt (NEW)
-**Location:** `data/ble/BleExceptions.kt`
-
-New typed exception classes for granular BLE error handling:
-
-| Exception Class | Purpose |
-|-----------------|---------|
-| `BluetoothDisabledException` | Bluetooth is disabled on device |
-| `BluetoothException` | General BLE errors |
-| `ConnectionLostException` | Connection unexpectedly lost |
-| `ConnectionRejectedException` | Connection attempt rejected |
-| `GattRequestRejectedException` | GATT operation rejected |
-| `GattStatusException` | GATT operation failed with status code |
-| `NotReadyException` | Device not ready for operation |
-| `ScanFailedException` | BLE scanning failed |
-
-### Data Layer - Database
-
-#### dao/DiagnosticsDao.kt (NEW)
-**Location:** `data/local/dao/DiagnosticsDao.kt`
-
-Room DAO for diagnostics history:
-- `insert()` - Insert diagnostics record
-- `getRecent(limit)` - Get recent records (default 50)
-- `getFaultsOnly()` - Get records with faults
-- `deleteOlderThan(cutoffTime)` - Cleanup old records
-- `getFaultCount()` - Count total faults
-
-#### dao/PhaseStatisticsDao.kt (NEW)
-**Location:** `data/local/dao/PhaseStatisticsDao.kt`
-
-Room DAO for phase statistics:
-- `insert()` - Insert phase statistics
-- `getBySessionId()` - Get stats for specific session
-- `getBySessionIds()` - Get stats for multiple sessions
-- `deleteBySessionId()` - Delete stats by session
-- `getAll()` - Flow of all statistics
-
-#### entity/DiagnosticsEntity.kt (NEW)
-**Location:** `data/local/entity/DiagnosticsEntity.kt`
-
-Entity for storing diagnostic data:
+**BEFORE:**
 ```kotlin
-@Entity(tableName = "diagnostics_history")
-data class DiagnosticsEntity(
-    val id: Long,
-    val runtimeSeconds: Int,
-    val faultMask: Long,       // Compressed faults bitmask
-    val temp1-8: Byte,         // Temperature sensors
-    val containsFaults: Boolean,
-    val timestamp: Long
-)
+// GATT characteristics (Beta 5.1)
+private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
+private var monitorCharacteristic: BluetoothGattCharacteristic? = null
+private var propertyCharacteristic: BluetoothGattCharacteristic? = null
+private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
+
+// State flows
+private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
+private val _monitorData = MutableSharedFlow<WorkoutMetric>(...)
 ```
 
-#### entity/PhaseStatisticsEntity.kt (NEW)
-**Location:** `data/local/entity/PhaseStatisticsEntity.kt`
-
-Entity for concentric/eccentric phase metrics:
+**AFTER:**
 ```kotlin
-@Entity(tableName = "phase_statistics")
-data class PhaseStatisticsEntity(
-    // Concentric metrics
-    val concentricKgAvg: Float,
-    val concentricKgMax: Float,
-    val concentricVelAvg: Float,
-    val concentricVelMax: Float,
-    val concentricWattAvg: Float,
-    val concentricWattMax: Float,
-    // Eccentric metrics (same fields)
+// GATT characteristics (Current) - 2 new characteristics added
+private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
+private var monitorCharacteristic: BluetoothGattCharacteristic? = null
+private var propertyCharacteristic: BluetoothGattCharacteristic? = null // Diagnostic
+private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
+private var heuristicCharacteristic: BluetoothGattCharacteristic? = null  // NEW
+private var versionCharacteristic: BluetoothGattCharacteristic? = null    // NEW
+
+// NEW: Polling job for heuristic data
+private var heuristicPollingJob: Job? = null
+
+// NEW: Force-based handle detection (matching trainer)
+@Volatile private var forceAboveGrabThresholdSince: Long? = null
+@Volatile private var forceBelowReleaseThresholdSince: Long? = null
+
+// NEW: Strict validation mode
+@Volatile private var strictValidationEnabled = false
+
+// NEW: State flows for diagnostic and heuristic data
+private val _diagnosticData = MutableStateFlow<DiagnosticDetails?>(null)
+val diagnosticData: StateFlow<DiagnosticDetails?> = _diagnosticData.asStateFlow()
+
+private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
+val heuristicData: StateFlow<HeuristicStatistics?> = _heuristicData.asStateFlow()
+```
+
+**Why:** Added support for reading device diagnostics (faults, temps) and heuristic data (phase statistics). Force-based handle detection matches trainer behavior.
+
+---
+
+### 1.2 Strict Validation Mode
+
+**NEW FUNCTION:**
+```kotlin
+/**
+ * Enable or disable strict validation mode (matching trainer).
+ * When enabled, large position jumps (>200) are filtered as invalid.
+ */
+fun setStrictValidationEnabled(enabled: Boolean) {
+    strictValidationEnabled = enabled
+    Timber.d("Strict validation enabled: $enabled")
+}
+
+/**
+ * Validate a monitor sample (matching trainer).
+ * Filters out invalid position values and optionally large position jumps.
+ */
+private fun validateSample(posA: Int, loadA: Float, posB: Int, loadB: Float): Boolean {
+    // Basic range validation (positions should be 0-3000)
+    if (posA < 0 || posA > 3000 || posB < 0 || posB > 3000) {
+        Timber.w("Position out of range: posA=$posA, posB=$posB")
+        return false
+    }
+
+    // Strict validation checks position jumps (when enabled)
+    if (strictValidationEnabled) {
+        val deltaA = kotlin.math.abs(posA - lastPositionA)
+        val deltaB = kotlin.math.abs(posB - lastPositionB)
+        if (deltaA > 200 || deltaB > 200) {
+            Timber.w("Position jump detected: deltaA=$deltaA, deltaB=$deltaB")
+            return false
+        }
+    }
+    return true
+}
+```
+
+**Why:** Filters out spurious position spikes that could cause erratic UI behavior or false rep counts.
+
+---
+
+### 1.3 Monitor Polling Changes
+
+**BEFORE:**
+```kotlin
+fun startMonitorPolling() {
+    // Reset position tracking for new workout
+    minPositionSeen = Double.MAX_VALUE
+    maxPositionSeen = Double.MIN_VALUE
+
+    // Start with handles released; wait for actual grab detection from data
+    _handleState.value = HandleState.Released
+
+    monitorPollingJob?.cancel()
+    monitorPollingJob = pollingScope.launch {
+        Timber.d("Starting monitor polling (100ms interval)")
+        while (isActive) {
+            try {
+                monitorCharacteristic?.let { char ->
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            Timber.d("Monitor read callback fired!")
+                            handleMonitorData(data)
+                        }
+                        .enqueue()
+                }
+                delay(100) // Poll every 100ms  <-- OLD INTERVAL
+            } catch (e: Exception) {
+                Timber.e(e, "Error in monitor polling")
+            }
+        }
+    }
+}
+```
+
+**AFTER:**
+```kotlin
+/**
+ * Start polling monitor characteristic every 16ms (~60Hz)
+ *
+ * @param forAutoStart If true, enables handle detection with WaitingForRest state.
+ *                     If false, skips handle state initialization (for active workout).
+ */
+fun startMonitorPolling(forAutoStart: Boolean = false) {
+    // Reset position tracking for new workout
+    minPositionSeen = Double.MAX_VALUE
+    maxPositionSeen = Double.MIN_VALUE
+
+    if (forAutoStart) {
+        // Start in WaitingForRest state - must see handles at rest before arming grab detection
+        // This prevents immediate auto-start if cables already have tension
+        _handleState.value = HandleState.WaitingForRest
+        forceAboveGrabThresholdSince = null
+        forceBelowReleaseThresholdSince = null
+        Timber.d("Starting monitor polling for AUTO-START - waiting for handles at rest")
+    } else {
+        // Active workout - set to Grabbed since workout is already running
+        _handleState.value = HandleState.Grabbed
+        Timber.d("Starting monitor polling for ACTIVE WORKOUT")
+    }
+
+    monitorPollingJob?.cancel()
+    monitorPollingJob = pollingScope.launch {
+        Timber.d("Starting monitor polling (16ms interval / ~60Hz)")  // <-- NEW INTERVAL
+        while (isActive) {
+            try {
+                monitorCharacteristic?.let { char ->
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            Timber.v("Monitor read callback fired!")  // Changed to verbose
+                            handleMonitorData(data)
+                        }
+                        .enqueue()
+                }
+                delay(16) // Poll every 16ms (~60Hz) - matching trainer  <-- NEW
+            } catch (e: Exception) {
+                Timber.e(e, "Error in monitor polling")
+            }
+        }
+    }
+}
+```
+
+**Key Changes:**
+| Aspect | Beta 5.1 | Current |
+|--------|----------|---------|
+| Polling interval | 100ms (10Hz) | 16ms (~60Hz) |
+| Initial handle state | `Released` | `WaitingForRest` or `Grabbed` based on parameter |
+| Auto-start parameter | N/A | `forAutoStart: Boolean` |
+
+**Why:**
+- 60Hz polling provides smoother real-time data visualization
+- `WaitingForRest` initial state prevents premature auto-start if cables have pre-existing tension
+- Parameter allows different behavior for auto-start vs active workout scenarios
+
+---
+
+### 1.4 Property Polling → Diagnostic Polling Rename
+
+**BEFORE:**
+```kotlin
+fun startPropertyPolling() {
+    propertyPollingJob?.cancel()
+    propertyPollingJob = pollingScope.launch {
+        Timber.d("🔄 Starting keep-alive property polling (500ms interval)")
+        // ... reads property characteristic
+        delay(500) // Poll every 500ms (matches web app)
+    }
+}
+```
+
+**AFTER:**
+```kotlin
+/**
+ * Start polling diagnostic characteristic every 500ms (keep-alive + health monitoring)
+ * Matches trainer interval - Renamed from startPropertyPolling
+ */
+fun startDiagnosticPolling() {
+    propertyPollingJob?.cancel()
+    propertyPollingJob = pollingScope.launch {
+        Timber.d("🔄 Starting diagnostic polling (500ms interval - matches trainer)")
+        while (isActive) {
+            try {
+                val char = propertyCharacteristic
+                if (char == null) {
+                    Timber.w("⚠️ Diagnostic characteristic is null - cannot maintain keep-alive!")
+                    delay(500)
+                    continue
+                }
+
+                readCharacteristic(char)
+                    .with { _, data ->
+                        successfulReads++
+                        val bytes = data.value
+                        if (bytes != null) {
+                            parseDiagnosticData(bytes)  // NEW: Actually parse the data
+                        }
+                    }
+                    .enqueue()
+
+                delay(500) // Poll every 500ms (Official app interval - verified)
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Exception in diagnostic polling")
+                delay(500)
+            }
+        }
+    }
+}
+
+// NEW: Parse diagnostic data from device
+private fun parseDiagnosticData(bytes: ByteArray) {
+    try {
+        if (bytes.size < 20) return
+
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        val seconds = buffer.getInt()
+
+        val faults = mutableListOf<Short>()
+        repeat(4) { faults.add(buffer.getShort()) }
+
+        val temps = mutableListOf<Byte>()
+        repeat(8) { temps.add(buffer.get()) }
+
+        val containsFaults = faults.any { it != 0.toShort() }
+
+        _diagnosticData.value = DiagnosticDetails(
+            seconds = seconds,
+            faults = faults,
+            temps = temps,
+            containsFaults = containsFaults
+        )
+    } catch (e: Exception) {
+        Timber.e(e, "Failed to parse diagnostic data")
+    }
+}
+```
+
+**Why:** Previously, property polling was only used as keep-alive. Now it also parses and exposes diagnostic data (runtime, faults, temperatures).
+
+---
+
+### 1.5 Handle State Analysis Changes
+
+**BEFORE:**
+```kotlin
+private fun analyzeHandleState(metric: WorkoutMetric): HandleState {
+    // ... analysis logic
+    return when (currentState) {
+        HandleState.Released, HandleState.Moving -> { /* ... */ HandleState.Grabbed }
+        HandleState.Grabbed -> { /* ... */ HandleState.Released }
+    }
+}
+
+// Called from handleMonitorData:
+val newHandleState = analyzeHandleState(metric)
+if (newHandleState != _handleState.value) {
+    _handleState.value = newHandleState
+    Timber.d("Handle state changed: $newHandleState")
+}
+```
+
+**AFTER:**
+```kotlin
+private fun analyzeHandleState(metric: WorkoutMetric) {  // Now returns Unit
+    val totalLoad = metric.loadA + metric.loadB
+    val now = System.currentTimeMillis()
+    val currentState = _handleState.value
+
+    when (currentState) {
+        HandleState.WaitingForRest -> {  // NEW STATE
+            // Must see handles at rest (position < 2.5) before arming grab detection
+            // This prevents immediate auto-start if cables already have tension
+            if (posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD) {
+                _handleState.value = HandleState.Released
+                forceAboveGrabThresholdSince = null
+                forceBelowReleaseThresholdSince = null
+                Timber.d("Handles at REST - auto-start now ARMED")
+            }
+            // If position is above threshold, stay in WaitingForRest - don't arm yet
+        }
+        HandleState.Released, HandleState.Moving -> {
+            // ... grab detection logic
+            if (aActive || bActive) {
+                _handleState.value = HandleState.Grabbed  // Direct assignment
+            } else if (handleAGrabbed || handleBGrabbed) {
+                _handleState.value = HandleState.Moving
+            } else {
+                _handleState.value = HandleState.Released
+            }
+        }
+        HandleState.Grabbed -> {
+            if (aReleased && bReleased) {
+                _handleState.value = HandleState.Released
+            }
+            // else stay Grabbed
+        }
+    }
+}
+
+// Called from handleMonitorData - no return value check needed:
+analyzeHandleState(metric)
+```
+
+**Key Change:** Added `HandleState.WaitingForRest` as initial state. Device must see handles at rest position before arming grab detection. This fixes false auto-starts when cables already have tension.
+
+---
+
+### 1.6 Rep Notification Parsing - 24-byte Packet
+
+**BEFORE:**
+```kotlin
+private fun handleRepNotification(data: Data) {
+    try {
+        val bytes = data.value ?: return
+
+        if (bytes.size < 6) {
+            Timber.w("Rep notification too short: ${bytes.size} bytes")
+            return
+        }
+
+        // Parse as u16 little-endian array
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        val topCounter = buffer.getShort(0).toInt() and 0xFFFF
+        val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
+
+        // Emit notification
+        _repNotification.tryEmit(RepNotification(topCounter, completeCounter))
+    }
+}
+```
+
+**AFTER:**
+```kotlin
+/**
+ * Handle rep notification data
+ *
+ * Official App Reps Packet Structure (24 bytes, Little Endian):
+ * - Bytes 0-3:   up (Int/u32) - up counter (concentric completions)
+ * - Bytes 4-7:   down (Int/u32) - down counter (eccentric completions)
+ * - Bytes 8-11:  rangeTop (Float) - maximum ROM boundary
+ * - Bytes 12-15: rangeBottom (Float) - minimum ROM boundary
+ * - Bytes 16-17: repsRomCount (Short/u16) - Warmup reps with proper ROM
+ * - Bytes 18-19: repsRomTotal (Short/u16) - Total reps regardless of ROM
+ * - Bytes 20-21: repsSetCount (Short/u16) - WORKING SET REP COUNT - display this!
+ * - Bytes 22-23: repsSetTotal (Short/u16) - Total reps in set
+ */
+private fun handleRepNotification(data: Data) {
+    try {
+        val bytes = data.value ?: return
+
+        if (bytes.size < 24) {
+            Timber.w("Rep notification too short: ${bytes.size} bytes (expected 24)")
+            return
+        }
+
+        // Parse full 24-byte packet according to trainer structure
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+        val topCounter = buffer.getInt()      // Bytes 0-3 (u32, not u16!)
+        val completeCounter = buffer.getInt() // Bytes 4-7 (u32, not u16!)
+        val rangeTop = buffer.getFloat()      // Bytes 8-11
+        val rangeBottom = buffer.getFloat()   // Bytes 12-15
+        val repsRomCount = buffer.getShort().toInt() and 0xFFFF   // Bytes 16-17
+        val repsRomTotal = buffer.getShort().toInt() and 0xFFFF   // Bytes 18-19
+        val repsSetCount = buffer.getShort().toInt() and 0xFFFF   // Bytes 20-21 - DISPLAY THIS
+        val repsSetTotal = buffer.getShort().toInt() and 0xFFFF   // Bytes 22-23
+
+        // Emit notification with all parsed fields
+        _repNotification.tryEmit(RepNotification(
+            topCounter = topCounter,
+            completeCounter = completeCounter,
+            rangeTop = rangeTop,
+            rangeBottom = rangeBottom,
+            repsRomCount = repsRomCount,
+            repsRomTotal = repsRomTotal,
+            repsSetCount = repsSetCount,
+            repsSetTotal = repsSetTotal
+        ))
+    }
+}
+```
+
+**Why:** The trainer uses a 24-byte packet with device-provided rep counts. Previously, the app only parsed 6 bytes and inferred rep counts from counter deltas. Now it uses the device's actual rep count (`repsSetCount`).
+
+---
+
+## 2. Rep Counter Complete Rewrite
+
+### 2.1 RepCounterFromMachine.kt - Philosophy Change
+
+**BEFORE (Beta 5.1) - App-side rep counting:**
+```kotlin
+/**
+ * Handles rep counting based on notifications emitted by the Vitruvian machine.
+ *
+ * This is a direct port of the logic used by the reference web application. Rather than trying to
+ * infer reps from position data, we track the counters supplied by the hardware (u16 values) and
+ * supplement them with light position tracking for range calibration and auto-stop support.
+ *
+ * Rep Counting Logic (matches trainer):
+ * - Reps are counted when topCounter increments (at peak contraction/top of movement)
+ * - This provides intuitive feedback - rep counts when you "complete" the concentric phase
+ * - For the final rep, completeCounter is used to ensure full eccentric phase before release
+ */
+
+fun process(topCounter: Int, completeCounter: Int, posA: Int = 0, posB: Int = 0) {
+    if (lastTopCounter != null) {
+        val topDelta = calculateDelta(lastTopCounter!!, topCounter)
+        if (topDelta > 0) {
+            recordTopPosition(posA, posB)
+
+            // Count the rep at TOP of movement (matches trainer behavior)
+            val totalReps = warmupReps + workingReps + 1
+            if (totalReps <= warmupTarget) {
+                warmupReps++
+                onRepEvent?.invoke(RepEvent(type = RepType.WARMUP_COMPLETED, ...))
+                if (warmupReps == warmupTarget) {
+                    onRepEvent?.invoke(RepEvent(type = RepType.WARMUP_COMPLETE, ...))
+                }
+            } else {
+                workingReps++
+                onRepEvent?.invoke(RepEvent(type = RepType.WORKING_COMPLETED, ...))
+
+                // If "Stop At Top" is enabled and target reached, stop NOW
+                if (stopAtTop && !isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+                    shouldStop = true
+                    onRepEvent?.invoke(RepEvent(type = RepType.WORKOUT_COMPLETE, ...))
+                }
+            }
+        }
+    }
+    lastTopCounter = topCounter
+    // ... similar logic for completeCounter
+}
+```
+
+**AFTER (Current) - Device-provided rep counts:**
+```kotlin
+/**
+ * Handles rep counting based on notifications emitted by the Vitruvian machine.
+ *
+ * CRITICAL: The trainer uses device-provided rep counts directly from the 24-byte Reps packet:
+ * - repsRomCount (offset 16-17): Warmup reps with proper ROM
+ * - repsSetCount (offset 20-21): Working set rep count - THIS IS WHAT TO DISPLAY
+ *
+ * The up/down counters (topCounter/completeCounter) are used for detecting rep events (for haptics)
+ * but the DISPLAYED rep count should come from repsRomCount and repsSetCount.
+ *
+ * This matches the trainer behavior exactly - firmware handles rep counting, app just displays.
+ */
+
+// NEW: Track device-provided rep counts
+private var lastDeviceWarmupReps = 0
+private var lastDeviceWorkingReps = 0
+
+fun process(
+    topCounter: Int,
+    completeCounter: Int,
+    deviceWarmupReps: Int = 0,    // NEW: repsRomCount from device
+    deviceWorkingReps: Int = 0,   // NEW: repsSetCount from device
+    posA: Int = 0,
+    posB: Int = 0
+) {
+    // OFFICIAL APP METHOD: Use device-provided rep counts directly
+    // This ensures rep counting matches exactly what the firmware reports
+    val warmupRepsDelta = deviceWarmupReps - lastDeviceWarmupReps
+    val workingRepsDelta = deviceWorkingReps - lastDeviceWorkingReps
+
+    // Detect warmup rep completion from device counter
+    if (warmupRepsDelta > 0 && deviceWarmupReps <= warmupTarget) {
+        warmupReps = deviceWarmupReps  // Direct assignment from device
+        Timber.d("🏋️ WARMUP REP from device: $warmupReps/$warmupTarget")
+        recordTopPosition(posA, posB)
+        onRepEvent?.invoke(RepEvent(type = RepType.WARMUP_COMPLETED, ...))
+        if (warmupReps == warmupTarget) {
+            onRepEvent?.invoke(RepEvent(type = RepType.WARMUP_COMPLETE, ...))
+        }
+    }
+
+    // Detect working rep completion from device counter
+    if (workingRepsDelta > 0) {
+        workingReps = deviceWorkingReps  // Direct assignment from device
+        Timber.d("💪 WORKING REP from device: $workingReps/$workingTarget")
+        recordTopPosition(posA, posB)
+        onRepEvent?.invoke(RepEvent(type = RepType.WORKING_COMPLETED, ...))
+
+        // Check for workout completion (unless AMRAP or Just Lift)
+        if (!isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+            shouldStop = true
+            onRepEvent?.invoke(RepEvent(type = RepType.WORKOUT_COMPLETE, ...))
+        }
+    }
+
+    // Update last known device rep counts
+    lastDeviceWarmupReps = deviceWarmupReps
+    lastDeviceWorkingReps = deviceWorkingReps
+
+    // Also track up/down counters for bottom position recording (for range calibration)
+    if (lastCompleteCounter != null) {
+        val delta = calculateDelta(lastCompleteCounter!!, completeCounter)
+        if (delta > 0) {
+            recordBottomPosition(posA, posB)
+        }
+    }
+    lastTopCounter = topCounter
+    lastCompleteCounter = completeCounter
+}
+```
+
+**Key Differences:**
+
+| Aspect | Beta 5.1 | Current |
+|--------|----------|---------|
+| **Source of truth** | App-side counter deltas | Device-provided `repsSetCount` |
+| **Rep assignment** | `workingReps++` (increment) | `workingReps = deviceWorkingReps` (direct) |
+| **`stopAtTop` handling** | Complex conditional | Removed (simplified to just target check) |
+| **Counter purpose** | Rep counting | Haptic event detection only |
+
+**Why:** The firmware has better visibility into actual rep completion (ROM validation, timing). App-side counting could drift from device state. Direct assignment ensures perfect sync.
+
+---
+
+## 3. MainViewModel Changes
+
+### 3.1 Auto-Stop Logic Simplification
+
+**BEFORE (Complex danger zone calculation):**
+```kotlin
+private fun checkAutoStop(metric: WorkoutMetric) {
+    val hasMeaningful = repCounter.hasMeaningfulRange()
+    val params = _workoutParameters.value
+
+    if (!hasMeaningful) {
+        if (params.isAMRAP || params.isJustLift) {
+            Timber.d("⚠️ auto-stop blocked: NO meaningful range yet")
+        }
+        resetAutoStopTimer()
+        return
+    }
+
+    val inDangerZone = repCounter.isInDangerZone(metric.positionA, metric.positionB)
+    val repRanges = repCounter.getRepRanges()
+
+    // Check cable A: is it in danger zone AND released?
+    if (repRanges.minPosA != null && repRanges.maxPosA != null) {
+        val rangeA = repRanges.maxPosA!! - repRanges.minPosA!!
+        if (rangeA > 50) {
+            val thresholdA = repRanges.minPosA!! + (rangeA * 0.05f).toInt()
+            val cableAInDanger = metric.positionA <= thresholdA
+            val cableAReleased = metric.positionA.toDouble() < HANDLE_REST_THRESHOLD ||
+                                 (metric.positionA - repRanges.minPosA!!) < 10
+            if (cableAInDanger && cableAReleased) {
+                cableInDangerAndReleased = true
+            }
+        }
+    }
+    // ... similar logic for cable B
+
+    // Auto-stop triggers when BOTH conditions met
+    if (inDangerZone && cableInDangerAndReleased) {
+        // Start timer...
+    }
+}
+```
+
+**AFTER (Simple handle rest detection):**
+```kotlin
+private fun checkAutoStop(metric: WorkoutMetric) {
+    val params = _workoutParameters.value
+
+    // Just Lift / AMRAP Auto-Stop Logic
+    // Stop if handles are put down (position < 2.5)
+    // This uses the same threshold as the trainer for "rest" detection
+    val HANDLE_REST_THRESHOLD = 2.5
+    val posA = metric.positionA.toDouble()
+    val posB = metric.positionB.toDouble()
+
+    // Check if BOTH handles are at rest
+    val handlesAtRest = posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD
+
+    if (handlesAtRest) {
+        val startTime = autoStopStartTime ?: run {
+            autoStopStartTime = System.currentTimeMillis()
+            Timber.d("🔴 Auto-stop timer STARTED - handles at rest (posA=$posA, posB=$posB)")
+            System.currentTimeMillis()
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        val progress = (elapsed.toFloat() / AUTO_STOP_DELAY_MS).coerceIn(0f, 1f)
+        _autoStopState.value = AutoStopUiState(
+            isActive = true,
+            progress = progress,
+            secondsRemaining = ceil((AUTO_STOP_DELAY_MS - elapsed) / 1000f).toInt().coerceAtLeast(0)
+        )
+
+        if (elapsed >= AUTO_STOP_DELAY_MS) {
+            triggerAutoStop()
+        }
+    } else {
+        if (autoStopStartTime != null) {
+            Timber.d("🟢 Auto-stop timer RESET (handles moved: posA=$posA, posB=$posB)")
+        }
+        resetAutoStopTimer()
+    }
+}
+```
+
+**Why:** The danger zone calculation was complex and error-prone. Simple handle rest detection (position < 2.5 for BOTH handles) is more reliable and matches the trainer.
+
+---
+
+### 3.2 Bodyweight Exercise Detection
+
+**BEFORE:**
+```kotlin
+/**
+ * Check if the given exercise is a bodyweight exercise with duration mode.
+ * Bodyweight exercises are identified by empty equipment field and must have duration set.
+ */
+private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
+    return exercise?.let {
+        it.exercise.equipment.isEmpty() && it.duration != null  // Required duration
+    } ?: false
+}
+```
+
+**AFTER:**
+```kotlin
+/**
+ * Check if the given exercise is a bodyweight exercise.
+ * Bodyweight exercises don't use cables and should skip BLE commands and warmup sets.
+ * Identified by empty equipment field OR equipment = "bodyweight".
+ */
+private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
+    return exercise?.let {
+        val equipment = it.exercise.equipment
+        equipment.isEmpty() || equipment.equals("bodyweight", ignoreCase = true)  // No duration required
+    } ?: false
+}
+```
+
+**Why:** Previously, bodyweight exercises required a duration to be detected. Now they're detected purely by equipment field, allowing non-timed bodyweight exercises.
+
+---
+
+### 3.3 Per-Set Weight Support (Issue #147)
+
+**BEFORE:**
+```kotlin
+// When moving to next set
+_currentSetIndex.value++
+val targetReps = currentExercise.setReps[_currentSetIndex.value]
+_workoutParameters.value = workoutParameters.value.copy(
+    reps = targetReps ?: 0,
+    // Weight stays the same as previous set
+    weightPerCableKg = workoutParameters.value.weightPerCableKg,
     ...
 )
 ```
 
-#### PhaseStatisticsEntity.kt (data/local/)
-Duplicate/alternate location for the entity (possibly legacy support)
-
-### Domain Model - New Files
-
-#### DiagnosticDetails.kt (NEW)
-Domain model for diagnostic data from device:
-- `seconds: Int`
-- `faults: List<Short>`
-- `temps: List<Byte>`
-- `containsFaults: Boolean`
-
-#### HeuristicPhaseStatistics.kt (NEW)
-Per-phase statistics model:
-- `kgAvg`, `kgMax` - Force metrics
-- `velAvg`, `velMax` - Velocity metrics
-- `wattAvg`, `wattMax` - Power metrics
-
-#### HeuristicStatistics.kt (NEW)
-Combined statistics for both phases:
+**AFTER:**
 ```kotlin
-data class HeuristicStatistics(
-    val concentric: HeuristicPhaseStatistics,
-    val eccentric: HeuristicPhaseStatistics,
-    val timestamp: Long
+// When moving to next set
+_currentSetIndex.value++
+val targetReps = currentExercise.setReps[_currentSetIndex.value]
+// NEW: Get per-set weight, falling back to exercise default (Issue #147)
+val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+    ?: currentExercise.weightPerCableKg
+Timber.d("  Set weight: $setWeight kg")
+_workoutParameters.value = workoutParameters.value.copy(
+    reps = targetReps ?: 0,
+    weightPerCableKg = setWeight,  // Use per-set weight
+    ...
 )
 ```
 
-#### SafetyEventSummary.kt (NEW)
-Safety event tracking:
-```kotlin
-data class SafetyEventSummary(
-    val safetyFlags: Int = 0,
-    val deloadWarnings: Int = 0,
-    val romViolations: Int = 0,
-    val spotterActivations: Int = 0
-) {
-    val hasSafetyEvents: Boolean
-}
-```
+**Why:** Supports pyramid sets and drop sets where each set has a different weight.
 
-#### SampleStatus.kt (NEW)
-Enum for device status flags (bit-masked):
+---
+
+## 4. New Domain Models
+
+### 4.1 SampleStatus.kt (Status Bit Flags)
+
 ```kotlin
+/**
+ * Status flags from the Vitruvian monitor characteristic.
+ * These flags indicate various states and safety events during exercise.
+ */
 enum class SampleStatus(val mask: Int) {
     REP_TOP_READY(0x0001),     // Reached top position
     REP_BOTTOM_READY(0x0002),  // Reached bottom position
@@ -146,193 +742,131 @@ enum class SampleStatus(val mask: Int) {
     SPOTTER_ACTIVE(0x0020),    // Spotter engaged
     DELOAD_WARN(0x0040),       // Force cap approaching
     DELOAD_OCCURRED(0x8000);   // Force capped/unloaded
+
+    fun isSet(flags: Int): Boolean = (flags and mask) != 0
 }
 ```
 
-### Utility - New Files
+### 4.2 SafetyEventSummary.kt
 
-#### BleConstants.kt (NEW - extracted from Constants.kt)
-**Location:** `util/BleConstants.kt`
-
-All BLE-related constants moved to dedicated file:
-- Service UUIDs (GATT, NUS)
-- Characteristic UUIDs (RX, Monitor, Property/Diagnostic, RepNotify, Heuristic, Version)
-- `NOTIFY_CHAR_UUIDS` list
-- `WORKOUT_CMD_CHAR_UUIDS` list
-- Device name prefix ("Vee")
-- Timeouts (Connection: 15s, GATT: 5s, Scan: 30s)
-- `BLE_QUEUE_DRAIN_DELAY_MS` (250ms)
-
-#### ColorScheme.kt (NEW - extracted from ProtocolBuilder.kt)
-Color scheme data class and predefined schemes:
-- `ColorScheme(name, brightness, colors)`
-- Predefined: BLUE, GREEN, TEAL, YELLOW, PINK, RED, PURPLE
-
-#### RGBColor.kt (NEW - extracted from ProtocolBuilder.kt)
-RGB color data class with validation (0-255 range)
-
-#### EchoParams.kt (NEW - extracted from ProtocolBuilder.kt)
-Echo mode parameters data class:
-- `eccentricPct`, `concentricPct`
-- `smoothing`, `floor`, `negLimit`, `gain`, `cap`
-
-### Repository - New Files
-
-#### WorkoutRepositoryMappers.kt (NEW)
-**Location:** `data/repository/WorkoutRepositoryMappers.kt`
-
-Extracted mapper functions from WorkoutRepository:
-- `WorkoutSessionEntity.toWorkoutSession()`
-- `WorkoutSession.toEntity()`
-- `WorkoutMetricEntity.toWorkoutMetric()`
-- `WorkoutMetric.toEntity()`
-- `Routine.toEntity()`
-- `RoutineEntity.toRoutine()`
-- `RoutineExercise.toEntity()`
-- `RoutineExerciseEntity.toRoutineExercise()`
-- `HeuristicStatistics.toPhaseStatisticsEntity()`
-- Helper functions: `toJsonArray()`, `parseIntListFromJson()`
-
----
-
-## 2. Database Changes
-
-### WorkoutDatabase.kt
-**Version:** 22 → 23
-
-**Changes:**
-- Added `PhaseStatisticsEntity` to entities list
-- Added `DiagnosticsEntity` to entities list
-- New DAOs:
-  - `phaseStatisticsDao(): PhaseStatisticsDao`
-  - `diagnosticsDao(): DiagnosticsDao`
-
-### WorkoutEntities.kt (WorkoutSessionEntity)
-**New fields added:**
 ```kotlin
-// Safety Tracking (added in v23)
-val safetyFlags: Int = 0,
-val deloadWarningCount: Int = 0,
-val romViolationCount: Int = 0,
-val spotterActivations: Int = 0
+/**
+ * Summary of safety events that occurred during a workout.
+ */
+data class SafetyEventSummary(
+    val safetyFlags: Int = 0,
+    val deloadWarnings: Int = 0,
+    val romViolations: Int = 0,
+    val spotterActivations: Int = 0
+) {
+    val hasSafetyEvents: Boolean
+        get() = deloadWarnings > 0 || romViolations > 0 || spotterActivations > 0
+}
 ```
 
-### Migration Required
-Database version bump from 22 to 23 requires migration for:
-- `phase_statistics` table
-- `diagnostics_history` table
-- Safety tracking columns in `workout_sessions`
+### 4.3 HeuristicStatistics.kt (Phase Metrics)
 
----
-
-## 3. BLE Communication Changes
-
-### VitruvianBleManager.kt
-
-#### New Characteristics
 ```kotlin
-private var heuristicCharacteristic: BluetoothGattCharacteristic? = null
-private var versionCharacteristic: BluetoothGattCharacteristic? = null
-```
+data class HeuristicPhaseStatistics(
+    val kgAvg: Float,   // Average force in kg
+    val kgMax: Float,   // Max force in kg
+    val velAvg: Float,  // Average velocity
+    val velMax: Float,  // Max velocity
+    val wattAvg: Float, // Average power in watts
+    val wattMax: Float  // Max power in watts
+)
 
-#### New State Flows
-```kotlin
-private val _diagnosticData = MutableStateFlow<DiagnosticDetails?>(null)
-val diagnosticData: StateFlow<DiagnosticDetails?>
-
-private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
-val heuristicData: StateFlow<HeuristicStatistics?>
-```
-
-#### New Features
-
-**Strict Validation Mode:**
-```kotlin
-fun setStrictValidationEnabled(enabled: Boolean)
-// When enabled, large position jumps (>200) are filtered as invalid
-```
-
-**Force-Based Handle Detection:**
-```kotlin
-@Volatile private var forceAboveGrabThresholdSince: Long? = null
-@Volatile private var forceBelowReleaseThresholdSince: Long? = null
-```
-
-**Heuristic Polling:**
-```kotlin
-private var heuristicPollingJob: Job? = null
-```
-
-#### Changes to startMonitorPolling()
-```kotlin
-// Old
-fun startMonitorPolling()
-
-// New - Added forAutoStart parameter
-fun startMonitorPolling(forAutoStart: Boolean = false)
-// If true: HandleState.WaitingForRest (for Just Lift auto-start)
-// If false: HandleState.Grabbed (for active workout monitoring)
-```
-
-#### Polling Interval Change
-- Monitor polling: 100ms → 16ms (~60Hz) for smoother data
-
-#### Connection Priority
-- Changed to use `ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH` (proper constant)
-
-#### Property → Diagnostic Rename
-- `propertyCharacteristic` now referred to as "Diagnostic" in comments
-- Uses `BleConstants.DIAGNOSTIC_CHAR_UUID`
-
----
-
-## 4. Domain Model Changes
-
-### RepCounterFromMachine.kt
-
-**Major Rewrite - Official App Method:**
-
-The rep counting logic was completely rewritten to match the trainer:
-
-**Old Method:**
-- Counted reps when `topCounter` incremented (at peak contraction)
-- Inferred rep counts from counter deltas
-
-**New Method:**
-```kotlin
-fun process(
-    topCounter: Int,
-    completeCounter: Int,
-    deviceWarmupReps: Int = 0,    // NEW: repsRomCount from device
-    deviceWorkingReps: Int = 0,   // NEW: repsSetCount from device
-    posA: Int = 0,
-    posB: Int = 0
+data class HeuristicStatistics(
+    val concentric: HeuristicPhaseStatistics,
+    val eccentric: HeuristicPhaseStatistics,
+    val timestamp: Long = System.currentTimeMillis()
 )
 ```
 
-- Uses device-provided rep counts directly from the 24-byte Reps packet
-- `repsRomCount` (offset 16-17): Warmup reps with proper ROM
-- `repsSetCount` (offset 20-21): Working set rep count - displayed to user
-- `topCounter/completeCounter` used only for haptic feedback events
+---
 
-**Key Change:** Firmware handles rep counting; app just displays device values.
+## 5. Database Changes
+
+### 5.1 Version 22 → 23
+
+**WorkoutDatabase.kt Changes:**
+```kotlin
+@Database(
+    entities = [
+        WorkoutSessionEntity::class,
+        WorkoutMetricEntity::class,
+        RoutineEntity::class,
+        RoutineExerciseEntity::class,
+        WeeklyProgramEntity::class,
+        ProgramDayEntity::class,
+        PersonalRecordEntity::class,
+        PhaseStatisticsEntity::class,   // NEW
+        DiagnosticsEntity::class         // NEW
+    ],
+    version = 23,  // Changed from 22
+    ...
+)
+abstract class WorkoutDatabase : RoomDatabase() {
+    abstract fun workoutDao(): WorkoutDao
+    abstract fun personalRecordDao(): PersonalRecordDao
+    abstract fun phaseStatisticsDao(): PhaseStatisticsDao  // NEW
+    abstract fun diagnosticsDao(): DiagnosticsDao          // NEW
+}
+```
+
+### 5.2 WorkoutSessionEntity - Safety Tracking Fields
+
+**BEFORE:**
+```kotlin
+@Entity(tableName = "workout_sessions")
+data class WorkoutSessionEntity(
+    @PrimaryKey val id: String,
+    val timestamp: Long,
+    val mode: String,
+    val reps: Int,
+    val weightPerCableKg: Float,
+    // ... other fields
+)
+```
+
+**AFTER:**
+```kotlin
+@Entity(tableName = "workout_sessions")
+data class WorkoutSessionEntity(
+    @PrimaryKey val id: String,
+    val timestamp: Long,
+    val mode: String,
+    val reps: Int,
+    val weightPerCableKg: Float,
+    // ... other fields
+
+    // Safety Tracking (added in v23)
+    val safetyFlags: Int = 0,
+    val deloadWarningCount: Int = 0,
+    val romViolationCount: Int = 0,
+    val spotterActivations: Int = 0
+)
+```
 
 ---
 
-## 5. Repository Changes
+## 6. Repository Changes
 
-### WorkoutRepository.kt
+### 6.1 WorkoutRepository Constructor
 
-#### Constructor Changes
+**BEFORE:**
 ```kotlin
-// Old
-@Inject constructor(
+@Singleton
+class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
     private val personalRecordDao: PersonalRecordDao
 )
+```
 
-// New
-@Inject constructor(
+**AFTER:**
+```kotlin
+@Singleton
+class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
     private val personalRecordDao: PersonalRecordDao,
     private val phaseStatisticsDao: PhaseStatisticsDao,  // NEW
@@ -340,158 +874,114 @@ fun process(
 )
 ```
 
-#### New Methods
+### 6.2 saveMetrics() Simplified
+
+**BEFORE:**
 ```kotlin
-suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics): Result<Unit>
-fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>>
-```
-
-#### Mapper Extraction
-All mapper extension functions moved to `WorkoutRepositoryMappers.kt` (~170 lines removed)
-
-### AppModule.kt (DI)
-Updated to provide:
-- `PhaseStatisticsDao`
-- `DiagnosticsDao`
-
----
-
-## 6. ViewModel Changes
-
-### MainViewModel.kt
-
-#### New State Flows for TopBar
-```kotlin
-private val _topBarTitle = MutableStateFlow("Vitruvian Project Phoenix")
-val topBarTitle: StateFlow<String>
-
-private val _topBarActions = MutableStateFlow<List<TopBarAction>>(emptyList())
-val topBarActions: StateFlow<List<TopBarAction>>
-
-private val _topBarBackAction = MutableStateFlow<(() -> Unit)?>(null)
-val topBarBackAction: StateFlow<(() -> Unit)?>
-```
-
-#### New Methods
-```kotlin
-fun updateTopBarTitle(title: String)
-fun setTopBarActions(actions: List<TopBarAction>)
-fun clearTopBarActions()
-fun setTopBarBackAction(action: () -> Unit)
-fun clearTopBarBackAction()
-```
-
-#### Handle State Change
-```kotlin
-// Old initial state
-private var currentHandleState = HandleState.Released
-
-// New initial state
-private var currentHandleState = HandleState.WaitingForRest
-```
-
-#### Rep Notification Handling Update
-```kotlin
-// Now passes device-provided rep counts
-repCounter.process(
-    topCounter = notification.topCounter,
-    completeCounter = notification.completeCounter,
-    deviceWarmupReps = notification.repsRomCount,   // NEW
-    deviceWorkingReps = notification.repsSetCount,  // NEW
-    posA = currentPositions?.positionA ?: 0,
-    posB = currentPositions?.positionB ?: 0
-)
-```
-
-#### Auto-Stop Logic Simplified
-**Old:** Complex danger zone calculation with cable-specific release detection
-**New:** Simple handle rest detection
-```kotlin
-val HANDLE_REST_THRESHOLD = 2.5
-val handlesAtRest = posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD
-if (handlesAtRest) { /* Start auto-stop timer */ }
-```
-
-#### Bodyweight Exercise Detection Improved
-```kotlin
-// Old - Required duration
-private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
-    return exercise?.let {
-        it.exercise.equipment.isEmpty() && it.duration != null
-    } ?: false
-}
-
-// New - Equipment-based detection
-private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
-    return exercise?.let {
-        val equipment = it.exercise.equipment
-        equipment.isEmpty() || equipment.equals("bodyweight", ignoreCase = true)
-    } ?: false
+suspend fun saveMetrics(sessionId: String, metrics: List<WorkoutMetric>): Result<Unit> {
+    return try {
+        val entities = metrics.map { metric ->
+            WorkoutMetricEntity(
+                sessionId = sessionId,
+                timestamp = metric.timestamp,
+                loadA = metric.loadA,
+                loadB = metric.loadB,
+                positionA = metric.positionA,
+                positionB = metric.positionB,
+                ticks = metric.ticks
+            )
+        }
+        workoutDao.insertMetrics(entities)
+        Timber.d("Saved ${entities.size} metrics for session $sessionId")
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Timber.e(e, "Failed to save workout metrics")
+        Result.failure(e)
+    }
 }
 ```
 
-#### Warmup Reps for Bodyweight
-Bodyweight exercises now automatically get `warmupReps = 0`
-
----
-
-## 7. Code Organization/Refactoring
-
-### Constants.kt
-**Major Cleanup:**
-- BLE constants extracted to `BleConstants.kt` (~52 lines removed)
-- Only workout-related constants remain
-
-### ProtocolBuilder.kt
-**Cleanup:**
-- `EchoParams` data class → `EchoParams.kt`
-- `RGBColor` data class → `RGBColor.kt`
-- `ColorScheme` and `ColorSchemes` → `ColorScheme.kt`
-- ~115 lines removed
-
----
-
-## 8. Bug Fixes and Improvements
-
-### Handle Detection Fix
-- Changed from `HandleState.Released` to `HandleState.WaitingForRest` initial state
-- Prevents immediate auto-start if cables already have tension
-- Must see handles at rest before arming grab detection
-
-### AMRAP Auto-Stop
+**AFTER:**
 ```kotlin
-// Now includes AMRAP in immediate UI reflection
-if (_workoutParameters.value.isJustLift || _workoutParameters.value.isAMRAP) {
-    _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
+suspend fun saveMetrics(sessionId: String, metrics: List<WorkoutMetric>): Result<Unit> {
+    return try {
+        // Uses mapper extension function
+        workoutDao.insertMetrics(metrics.mapIndexed { index, metric ->
+            metric.toEntity(sessionId, index)
+        })
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Timber.e(e, "Failed to save workout metrics")
+        Result.failure(e)
+    }
 }
 ```
 
-### Monitor Polling for AMRAP
-Added comment clarifying the "red light fix":
+---
+
+## 7. Code Organization - Extracted Files
+
+### 7.1 BleConstants.kt (from Constants.kt)
+
 ```kotlin
-// This is CRITICAL for the "red light fix" to prevent machine hanging in fault state
-bleRepository.restartMonitorPolling()
+// NEW FILE: util/BleConstants.kt
+
+object BleConstants {
+    // UUIDs
+    val GATT_SERVICE_UUID = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
+    val NUS_RX_CHAR_UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
+    val MONITOR_CHAR_UUID = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
+    val DIAGNOSTIC_CHAR_UUID = UUID.fromString("6e400004-b5a3-f393-e0a9-e50e24dcca9e")
+    val REP_NOTIFY_CHAR_UUID = UUID.fromString("6e400005-b5a3-f393-e0a9-e50e24dcca9e")
+    val HEURISTIC_CHAR_UUID = UUID.fromString("6e400006-b5a3-f393-e0a9-e50e24dcca9e")  // NEW
+    val VERSION_CHAR_UUID = UUID.fromString("6e400007-b5a3-f393-e0a9-e50e24dcca9e")    // NEW
+
+    val NOTIFY_CHAR_UUIDS = listOf(MONITOR_CHAR_UUID, REP_NOTIFY_CHAR_UUID)
+
+    // Device identification
+    const val DEVICE_NAME_PREFIX = "Vee"
+
+    // Timeouts
+    const val CONNECTION_TIMEOUT_MS = 15000L
+    const val GATT_OPERATION_TIMEOUT_MS = 5000L
+    const val SCAN_TIMEOUT_MS = 30000L
+    const val BLE_QUEUE_DRAIN_DELAY_MS = 250L
+}
 ```
 
-### BLE Connection Stability
-- Connection priority request uses proper constant
-- Improved characteristic discovery across all services
-- Better logging for heuristic and version characteristics
+### 7.2 WorkoutRepositoryMappers.kt (from WorkoutRepository.kt)
+
+~170 lines of mapper functions extracted to separate file for better organization:
+
+```kotlin
+// NEW FILE: data/repository/WorkoutRepositoryMappers.kt
+
+fun WorkoutSessionEntity.toWorkoutSession() = WorkoutSession(...)
+fun WorkoutSession.toEntity() = WorkoutSessionEntity(...)
+fun WorkoutMetricEntity.toWorkoutMetric() = WorkoutMetric(...)
+fun WorkoutMetric.toEntity(sessionId: String, index: Int) = WorkoutMetricEntity(...)
+fun Routine.toEntity() = RoutineEntity(...)
+fun RoutineEntity.toRoutine(exercises: List<RoutineExercise>) = Routine(...)
+fun RoutineExercise.toEntity(routineId: String) = RoutineExerciseEntity(...)
+fun RoutineExerciseEntity.toRoutineExercise() = RoutineExercise(...)
+fun HeuristicStatistics.toPhaseStatisticsEntity(sessionId: String) = PhaseStatisticsEntity(...)
+
+// Helper functions
+fun List<Int?>.toJsonArray(): String = ...
+fun parseIntListFromJson(json: String): List<Int?> = ...
+```
 
 ---
 
 ## Summary of Architecture Changes
 
-1. **Safety Tracking:** Full pipeline from BLE to UI for safety events (deload warnings, ROM violations, spotter activations)
-
-2. **Phase Statistics:** New data model for concentric/eccentric metrics (kg, velocity, watts)
-
-3. **Diagnostics:** Device diagnostic data capture and storage (faults, temperatures, runtime)
-
-4. **Rep Counting:** Complete rewrite to use device-provided counts (trainer method)
-
-5. **Code Organization:** Better separation of concerns with extracted mappers, constants, and data classes
-
-6. **Handle Detection:** Improved state machine with WaitingForRest initial state
-
-7. **Database:** Version 23 with new tables and safety tracking columns
+| Change | Impact |
+|--------|--------|
+| **Rep counting via device** | Perfect sync with firmware, no drift |
+| **60Hz monitor polling** | Smoother real-time data visualization |
+| **WaitingForRest state** | Prevents false auto-starts |
+| **Diagnostic parsing** | Exposes device health data (faults, temps) |
+| **Phase statistics** | Concentric/eccentric power metrics |
+| **Safety tracking** | Visibility into protective interventions |
+| **Per-set weights** | Support for pyramid/drop sets |
+| **Code extraction** | Better separation of concerns |
