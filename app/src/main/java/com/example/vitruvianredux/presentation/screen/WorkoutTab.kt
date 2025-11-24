@@ -1,5 +1,8 @@
 package com.example.vitruvianredux.presentation.screen
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -12,9 +15,11 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -1572,8 +1577,45 @@ fun CurrentExerciseCard(
     }
 }
 
+/**
+ * Rep Counter Card with animated pop effect when rep count changes.
+ *
+ * Features a spring-based scale animation that gives satisfying visual
+ * feedback each time a rep is counted.
+ */
 @Composable
 fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
+    // Track the current rep count to detect changes
+    val currentRepValue = if (repCount.isWarmupComplete) repCount.workingReps else repCount.warmupReps
+    var previousRepValue by remember { mutableIntStateOf(currentRepValue) }
+    var triggerPop by remember { mutableStateOf(false) }
+
+    // Detect when rep count changes
+    LaunchedEffect(currentRepValue) {
+        if (currentRepValue != previousRepValue) {
+            triggerPop = true
+            previousRepValue = currentRepValue
+        }
+    }
+
+    // Reset pop state after animation
+    LaunchedEffect(triggerPop) {
+        if (triggerPop) {
+            kotlinx.coroutines.delay(150)
+            triggerPop = false
+        }
+    }
+
+    // Animate scale with a bouncy spring when rep count changes
+    val scale by animateFloatAsState(
+        targetValue = if (triggerPop) 1.15f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "repCountScale"
+    )
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Material 3 Expressive: Use primary container for emphasis
@@ -1623,16 +1665,24 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
+            // Rep count with pop animation
             Text(
                 text = countText,
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.scale(scale)
             )
         }
     }
 }
 
+/**
+ * Live Metrics Card showing current workout load.
+ *
+ * Note: Cable position bars were removed as they are redundant with
+ * the VerticalCablePositionBar (ROM bars) displayed on screen edges.
+ */
 @Composable
 fun LiveMetricsCard(
     metric: WorkoutMetric,
@@ -1667,78 +1717,6 @@ fun LiveMetricsCard(
                 color = MaterialTheme.colorScheme.primary
             )
             Text("Per Cable", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            Spacer(modifier = Modifier.height(Spacing.medium))
-
-            // Cable Position Bars - showing individual cable positions
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "Cable Positions",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = Spacing.extraSmall)
-                )
-
-                // Cable A Position Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "A",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(20.dp)
-                    )
-                    LinearProgressIndicator(
-                        progress = { (metric.positionA / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
-                    Text(
-                        "${metric.positionA}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(50.dp).padding(start = Spacing.extraSmall),
-                        textAlign = TextAlign.End
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.extraSmall))
-
-                // Cable B Position Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "B",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(20.dp)
-                    )
-                    LinearProgressIndicator(
-                        progress = { (metric.positionB / 1000f).coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(8.dp),
-                        color = MaterialTheme.colorScheme.secondary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
-                    Text(
-                        "${metric.positionB}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(50.dp).padding(start = Spacing.extraSmall),
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
         }
     }
 }
@@ -1746,6 +1724,9 @@ fun LiveMetricsCard(
 /**
  * Vertical cable position bar for left/right side display
  * Shows current position filling from bottom up, with range markers
+ *
+ * Features smooth spring animations for position changes to provide
+ * fluid visual feedback during workouts.
  */
 @Composable
 fun VerticalCablePositionBar(
@@ -1756,6 +1737,20 @@ fun VerticalCablePositionBar(
     isActive: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Calculate raw progress value
+    val maxPos = 1000 // Typical max position value
+    val targetProgress = (currentPosition / maxPos.toFloat()).coerceIn(0f, 1f)
+
+    // Animate the position fill with a responsive spring animation
+    val animatedProgress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "positionProgress"
+    )
+
     Column(
         modifier = modifier.fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1779,10 +1774,8 @@ fun VerticalCablePositionBar(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             val barHeight = maxHeight
-            
-            // Calculate positions as fractions (0.0 to 1.0) from bottom
-            val maxPos = 1000 // Typical max position value
-            val currentProgress = (currentPosition / maxPos.toFloat()).coerceIn(0f, 1f)
+
+            // Calculate range positions (these don't need animation - they're stable)
             val minProgress = minPosition?.let { (it / maxPos.toFloat()).coerceIn(0f, 1f) }
             val maxProgress = maxPosition?.let { (it / maxPos.toFloat()).coerceIn(0f, 1f) }
 
@@ -1802,11 +1795,11 @@ fun VerticalCablePositionBar(
                 )
             }
 
-            // Current position fill (from bottom up)
+            // Current position fill (from bottom up) - uses animated progress
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(barHeight * currentProgress)
+                    .height(barHeight * animatedProgress)
                     .align(Alignment.BottomCenter)
                     .background(
                         if (isActive) {
@@ -1828,7 +1821,7 @@ fun VerticalCablePositionBar(
                         .offset(y = -barHeight * minProgress)
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                 )
-                
+
                 // Max position marker
                 Box(
                     modifier = Modifier
