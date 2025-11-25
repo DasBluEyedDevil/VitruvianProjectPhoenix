@@ -1924,6 +1924,14 @@ class MainViewModel @Inject constructor(
             workoutRepository.saveMetrics(sessionId, collectedMetrics)
         }
 
+        // Save exercise defaults for next time (only for Just Lift and Single Exercise modes)
+        // Routines have their own saved configuration and should not interfere with these defaults
+        if (params.isJustLift) {
+            saveJustLiftDefaultsFromWorkout()
+        } else if (isSingleExerciseMode()) {
+            saveSingleExerciseDefaultsFromWorkout()
+        }
+
         // Track personal record if exercise is selected
         params.selectedExerciseId?.let { exerciseId ->
             // Only track PRs for completed working sets (not warmups, not just lift, not echo mode)
@@ -2002,6 +2010,89 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesManager.setEnableVideoPlayback(enabled)
         }
+    }
+
+    // ========== Just Lift & Single Exercise Defaults ==========
+
+    /**
+     * Get Just Lift defaults from preferences
+     * Returns null if no defaults have been saved yet
+     */
+    suspend fun getJustLiftDefaults(): com.example.vitruvianredux.data.preferences.JustLiftDefaults? {
+        return preferencesManager.getJustLiftDefaults()
+    }
+
+    /**
+     * Get Single Exercise defaults for a specific exercise+cableConfig combination
+     * Returns null if no defaults have been saved for this combination
+     */
+    suspend fun getSingleExerciseDefaults(
+        exerciseId: String,
+        cableConfig: String
+    ): com.example.vitruvianredux.data.preferences.SingleExerciseDefaults? {
+        return preferencesManager.getSingleExerciseDefaults(exerciseId, cableConfig)
+    }
+
+    /**
+     * Save Just Lift defaults after completing a Just Lift workout
+     * Called from saveWorkoutSession when isJustLift is true
+     */
+    private suspend fun saveJustLiftDefaultsFromWorkout() {
+        val params = _workoutParameters.value
+        if (!params.isJustLift) return
+
+        val (eccentricLoad, echoLevel) = when (val wt = params.workoutType) {
+            is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
+            is WorkoutType.Program -> 100 to 1
+        }
+
+        val defaults = com.example.vitruvianredux.data.preferences.JustLiftDefaults(
+            workoutMode = params.workoutType.displayName,
+            weightPerCableKg = params.weightPerCableKg,
+            weightChangePerRep = params.progressionRegressionKg.toInt(),
+            eccentricLoadPercentage = eccentricLoad,
+            echoLevelValue = echoLevel
+        )
+
+        preferencesManager.saveJustLiftDefaults(defaults)
+    }
+
+    /**
+     * Save Single Exercise defaults after completing a single exercise workout
+     * Called from saveWorkoutSession when in Single Exercise mode (temp routine)
+     */
+    private suspend fun saveSingleExerciseDefaultsFromWorkout() {
+        val routine = _loadedRoutine.value ?: return
+
+        // Only save for temp single exercise routines, not for regular routines
+        if (!routine.id.startsWith("temp_single_exercise_")) return
+
+        val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return
+        val exerciseId = currentExercise.exercise.id ?: return
+
+        val (eccentricLoad, echoLevel) = when (val wt = currentExercise.workoutType) {
+            is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
+            is WorkoutType.Program -> 100 to 1
+        }
+
+        val defaults = com.example.vitruvianredux.data.preferences.SingleExerciseDefaults(
+            exerciseId = exerciseId,
+            cableConfig = currentExercise.cableConfig.name,
+            workoutMode = currentExercise.workoutType.displayName,
+            setReps = currentExercise.setReps,
+            weightPerCableKg = currentExercise.weightPerCableKg,
+            setWeightsPerCableKg = currentExercise.setWeightsPerCableKg,
+            progressionKg = currentExercise.progressionKg,
+            setRestSeconds = currentExercise.setRestSeconds,
+            perSetRestTime = currentExercise.perSetRestTime,
+            eccentricLoadPercentage = eccentricLoad,
+            echoLevelValue = echoLevel,
+            duration = currentExercise.duration,
+            isAMRAP = currentExercise.isAMRAP
+        )
+
+        preferencesManager.saveSingleExerciseDefaults(defaults)
+        Timber.d("Saved Single Exercise defaults for ${currentExercise.exercise.name} (${currentExercise.cableConfig})")
     }
 
     /**
