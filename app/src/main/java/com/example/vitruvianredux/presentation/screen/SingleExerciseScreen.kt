@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.example.vitruvianredux.data.preferences.SingleExerciseDefaults
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.components.ConnectingOverlay
@@ -23,6 +24,7 @@ import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +40,7 @@ fun SingleExerciseScreen(
     val connectionError by viewModel.connectionError.collectAsState()
 
     var exerciseToConfig by remember { mutableStateOf<RoutineExercise?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     // Local state for picker
     var searchQuery by remember { mutableStateOf("") }
@@ -119,20 +122,72 @@ fun SingleExerciseScreen(
                         id = selectedExercise.id
                     )
 
-                    val newRoutineExercise = RoutineExercise(
-                        id = UUID.randomUUID().toString(),
-                        exercise = exercise,
-                        cableConfig = exercise.resolveDefaultCableConfig(),
-                        orderIndex = 0,
-                        setReps = listOf(10, 10, 10),
-                        weightPerCableKg = 20f,
-                        progressionKg = 0f,
-                        setRestSeconds = listOf(60, 60, 60),
-                        workoutType = WorkoutType.Program(ProgramMode.OldSchool),
-                        eccentricLoad = EccentricLoad.LOAD_100,
-                        echoLevel = EchoLevel.HARDER
-                    )
-                    exerciseToConfig = newRoutineExercise
+                    val defaultCableConfig = exercise.resolveDefaultCableConfig()
+
+                    // Load saved defaults for this exercise+cable config asynchronously
+                    coroutineScope.launch {
+                        val savedDefaults = selectedExercise.id?.let { exerciseId ->
+                            viewModel.getSingleExerciseDefaults(exerciseId, defaultCableConfig.name)
+                        }
+
+                        val newRoutineExercise = if (savedDefaults != null) {
+                            // Apply saved defaults
+                            timber.log.Timber.d("Loaded saved defaults for ${selectedExercise.name} (${defaultCableConfig.name})")
+
+                            // Convert saved workout mode string back to WorkoutType
+                            val workoutType = when (savedDefaults.workoutMode) {
+                                "Old School" -> WorkoutType.Program(ProgramMode.OldSchool)
+                                "Pump" -> WorkoutType.Program(ProgramMode.Pump)
+                                "TUT" -> WorkoutType.Program(ProgramMode.TUT)
+                                "TUT Beast" -> WorkoutType.Program(ProgramMode.TUTBeast)
+                                "Eccentric Only" -> WorkoutType.Program(ProgramMode.EccentricOnly)
+                                "Echo" -> {
+                                    val echoLevel = EchoLevel.entries.find { it.levelValue == savedDefaults.echoLevelValue }
+                                        ?: EchoLevel.HARDER
+                                    val eccentricLoad = EccentricLoad.entries.find { it.percentage == savedDefaults.eccentricLoadPercentage }
+                                        ?: EccentricLoad.LOAD_100
+                                    WorkoutType.Echo(echoLevel, eccentricLoad)
+                                }
+                                else -> WorkoutType.Program(ProgramMode.OldSchool)
+                            }
+
+                            RoutineExercise(
+                                id = UUID.randomUUID().toString(),
+                                exercise = exercise,
+                                cableConfig = CableConfiguration.valueOf(savedDefaults.cableConfig),
+                                orderIndex = 0,
+                                setReps = savedDefaults.setReps,
+                                weightPerCableKg = savedDefaults.weightPerCableKg,
+                                setWeightsPerCableKg = savedDefaults.setWeightsPerCableKg,
+                                progressionKg = savedDefaults.progressionKg,
+                                setRestSeconds = savedDefaults.setRestSeconds,
+                                workoutType = workoutType,
+                                eccentricLoad = EccentricLoad.entries.find { it.percentage == savedDefaults.eccentricLoadPercentage }
+                                    ?: EccentricLoad.LOAD_100,
+                                echoLevel = EchoLevel.entries.find { it.levelValue == savedDefaults.echoLevelValue }
+                                    ?: EchoLevel.HARDER,
+                                duration = savedDefaults.duration,
+                                isAMRAP = savedDefaults.isAMRAP,
+                                perSetRestTime = savedDefaults.perSetRestTime
+                            )
+                        } else {
+                            // No saved defaults - use system defaults
+                            RoutineExercise(
+                                id = UUID.randomUUID().toString(),
+                                exercise = exercise,
+                                cableConfig = defaultCableConfig,
+                                orderIndex = 0,
+                                setReps = listOf(10, 10, 10),
+                                weightPerCableKg = 20f,
+                                progressionKg = 0f,
+                                setRestSeconds = listOf(60, 60, 60),
+                                workoutType = WorkoutType.Program(ProgramMode.OldSchool),
+                                eccentricLoad = EccentricLoad.LOAD_100,
+                                echoLevel = EchoLevel.HARDER
+                            )
+                        }
+                        exerciseToConfig = newRoutineExercise
+                    }
                 },
                 exerciseRepository = exerciseRepository,
                 enableVideoPlayback = enableVideoPlayback,
