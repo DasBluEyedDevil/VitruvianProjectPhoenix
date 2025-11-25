@@ -252,7 +252,7 @@ class PreferencesManager @Inject constructor(
         context.dataStore.edit { preferences ->
             preferences[JUST_LIFT_DEFAULTS_KEY] = Json.encodeToString(defaults)
         }
-        Timber.d("Just Lift defaults saved: mode=${defaults.workoutMode}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
+        Timber.d("Just Lift defaults saved: mode=${defaults.workoutModeId}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
     }
 
     /**
@@ -309,7 +309,7 @@ class PreferencesManager @Inject constructor(
             // Save back
             preferences[SINGLE_EXERCISE_DEFAULTS_KEY] = Json.encodeToString(existingMap)
         }
-        Timber.d("Single Exercise defaults saved: exerciseId=${defaults.exerciseId}, cableConfig=${defaults.cableConfig}, mode=${defaults.workoutMode}")
+        Timber.d("Single Exercise defaults saved: exerciseId=${defaults.exerciseId}, cableConfig=${defaults.cableConfig}, mode=${defaults.workoutModeId}")
     }
 
     /**
