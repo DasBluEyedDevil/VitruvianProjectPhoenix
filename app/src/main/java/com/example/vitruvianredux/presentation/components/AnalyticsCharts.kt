@@ -78,8 +78,8 @@ fun WeightProgressionChart(
 
     // Axis Formatter for Dates
     val dateFormatter = remember {
-        CartesianValueFormatter { x, _, _ ->
-            val date = Date((x as Number).toLong())
+        CartesianValueFormatter { _, x, _ ->
+            val date = Date(x.toLong())
             SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
         }
     }
@@ -162,8 +162,8 @@ fun VolumeTrendChart(
     }
 
     val dateFormatter = remember {
-        CartesianValueFormatter { x, _, _ ->
-            val date = Date((x as Number).toLong())
+        CartesianValueFormatter { _, x, _ ->
+            val date = Date(x.toLong())
             SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
         }
     }
