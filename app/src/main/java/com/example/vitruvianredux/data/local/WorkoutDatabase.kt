@@ -42,7 +42,7 @@ import androidx.room.TypeConverters
         com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity::class,
         com.example.vitruvianredux.data.local.entity.DiagnosticsEntity::class
     ],
-    version = 23,  // Added safety tracking, phase statistics, diagnostics
+    version = 24,  // Added status to workout_metrics
     exportSchema = false
 )
 @TypeConverters(Converters::class)

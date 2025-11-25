@@ -4,7 +4,7 @@ import com.example.vitruvianredux.data.local.RoutineEntity
 import com.example.vitruvianredux.data.local.RoutineExerciseEntity
 import com.example.vitruvianredux.data.local.WorkoutMetricEntity
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
-import com.example.vitruvianredux.data.local.PhaseStatisticsEntity
+import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
 import com.example.vitruvianredux.domain.model.CableConfiguration
 import com.example.vitruvianredux.domain.model.EccentricLoad
 import com.example.vitruvianredux.domain.model.EchoLevel
@@ -84,14 +84,15 @@ internal fun WorkoutMetricEntity.toWorkoutMetric(): WorkoutMetric {
         loadB = loadB,
         positionA = positionA,
         positionB = positionB,
-        ticks = ticks
+        ticks = ticks,
+        status = status
     )
 }
 
 /**
  * Convert WorkoutMetric to WorkoutMetricEntity.
  */
-internal fun WorkoutMetric.toEntity(sessionId: String, index: Int): WorkoutMetricEntity {
+internal fun WorkoutMetric.toEntity(sessionId: String, @Suppress("UNUSED_PARAMETER") index: Int): WorkoutMetricEntity {
     return WorkoutMetricEntity(
         sessionId = sessionId,
         timestamp = timestamp,
@@ -99,7 +100,8 @@ internal fun WorkoutMetric.toEntity(sessionId: String, index: Int): WorkoutMetri
         loadB = loadB,
         positionA = positionA,
         positionB = positionB,
-        ticks = ticks
+        ticks = ticks,
+        status = status
     )
 }
 
@@ -236,8 +238,8 @@ internal fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         "TUTBeast" -> WorkoutType.Program(ProgramMode.TUTBeast)
         "EccentricOnly" -> WorkoutType.Program(ProgramMode.EccentricOnly)
         "Echo" -> {
-            val level = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER
-            val load = EccentricLoad.values().find { it.percentage == this.eccentricLoad } ?: EccentricLoad.LOAD_100
+            val level = EchoLevel.entries.find { it.levelValue == echoLevel } ?: EchoLevel.HARDER
+            val load = EccentricLoad.entries.find { it.percentage == this.eccentricLoad } ?: EccentricLoad.LOAD_100
 
             if (this.mode == "Echo") {
                 Timber.d("Mapped Values: echoLevel: ${this.echoLevel} -> ${level.displayName} (levelValue=${level.levelValue})")
@@ -249,10 +251,10 @@ internal fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
         else -> WorkoutType.Program(ProgramMode.OldSchool)
     }
 
-    val parsedEccentricLoad = EccentricLoad.values()
+    val parsedEccentricLoad = EccentricLoad.entries
         .find { it.percentage == this.eccentricLoad } ?: EccentricLoad.LOAD_100
 
-    val parsedEchoLevel = EchoLevel.values()
+    val parsedEchoLevel = EchoLevel.entries
         .find { it.levelValue == this.echoLevel } ?: EchoLevel.HARDER
 
     val routineExercise = RoutineExercise(

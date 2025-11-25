@@ -195,7 +195,8 @@ data class WorkoutMetric(
     val positionB: Int,
     val ticks: Int = 0,
     val velocityA: Double = 0.0,  // Velocity for handle detection (official app protocol)
-    val velocityB: Double = 0.0   // Velocity for right handle detection (for single-handle exercises)
+    val velocityB: Double = 0.0,   // Velocity for right handle detection (for single-handle exercises)
+    val status: Int = 0 // Machine status flags (0x8000=Deload Occurred, 0x0040=Deload Warn)
 ) {
     val totalLoad: Float get() = loadA + loadB
 }
@@ -207,17 +208,20 @@ data class RepCount(
     val warmupReps: Int = 0,
     val workingReps: Int = 0,
     val totalReps: Int = workingReps,  // Exclude warm-up reps from total count
-    val isWarmupComplete: Boolean = false
+    val isWarmupComplete: Boolean = false,
+    val hasPendingRep: Boolean = false,  // True when at TOP (concentric peak), waiting for eccentric
+    val pendingRepProgress: Float = 0f   // 0.0 at TOP, 1.0 at BOTTOM (fill progress)
 )
 
 /**
  * Rep event types
  */
 enum class RepType {
-    WARMUP_COMPLETED,
-    WORKING_COMPLETED,
-    WARMUP_COMPLETE,
-    WORKOUT_COMPLETE
+    WARMUP_COMPLETED,  // Warmup rep done (no pending animation for warmup)
+    WORKING_PENDING,   // At TOP during working - show grey number, waiting for eccentric
+    WORKING_COMPLETED, // At BOTTOM during working - rep confirmed (colored)
+    WARMUP_COMPLETE,   // All warmup reps done
+    WORKOUT_COMPLETE   // All working reps done
 }
 
 /**

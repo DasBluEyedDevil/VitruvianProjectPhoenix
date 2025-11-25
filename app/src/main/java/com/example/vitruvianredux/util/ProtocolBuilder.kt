@@ -50,10 +50,10 @@ object ProtocolBuilder {
         frame[3] = 0x00
 
         // Reps field at offset 0x04
-        // For Just Lift and AMRAP, use 0xFF (unlimited); for others, use reps+warmup+1
-        // The +1 compensates for completeCounter incrementing at START of concentric (not end)
-        // Without it, machine releases tension as you BEGIN the final rep
-        frame[0x04] = if (params.isJustLift || params.isAMRAP) 0xFF.toByte() else (params.reps + params.warmupReps + 1).toByte()
+        // For Just Lift and AMRAP, use 0xFF (unlimited); for others, use reps+warmup
+        // Machine releases tension when completeCounter reaches target (at BOTTOM of final rep)
+        // Since display increments at TOP (topCounter), the rep is visually complete before release
+        frame[0x04] = if (params.isJustLift || params.isAMRAP) 0xFF.toByte() else (params.reps + params.warmupReps).toByte()
 
         // Some constant values from the working capture
         frame[5] = 0x03
@@ -161,6 +161,7 @@ object ProtocolBuilder {
         warmupReps: Int = 3,
         targetReps: Int = 2,
         isJustLift: Boolean = false,
+        isAMRAP: Boolean = false,
         eccentricPct: Int = 75
     ): ByteArray {
         val frame = ByteArray(32)
@@ -172,10 +173,10 @@ object ProtocolBuilder {
         // Warmup (0x04) and working reps (0x05)
         frame[0x04] = warmupReps.toByte()
 
-        // For Just Lift Echo mode, use 0xFF; otherwise use targetReps+1
-        // The +1 compensates for completeCounter incrementing at START of concentric (not end)
-        // Without it, machine releases tension as you BEGIN the final rep
-        frame[0x05] = if (isJustLift) 0xFF.toByte() else (targetReps + 1).toByte()
+        // For Just Lift or AMRAP Echo mode, use 0xFF (unlimited); otherwise use targetReps
+        // Machine releases tension when completeCounter reaches target (at BOTTOM of final rep)
+        // Since display increments at TOP (topCounter), the rep is visually complete before release
+        frame[0x05] = if (isJustLift || isAMRAP) 0xFF.toByte() else targetReps.toByte()
 
         // Reserved at 0x06-0x07 (u16 = 0)
         buffer.putShort(0x06, 0)
@@ -252,7 +253,7 @@ object ProtocolBuilder {
 
         // Colors: 6 RGB triplets (3 colors repeated twice for left/right mirroring)
         var offset = 16
-        for (@Suppress("UNUSED_VARIABLE") i in 0 until 2) {
+        repeat(2) {
             // Repeat twice
             for (color in colors) {
                 frame[offset++] = color.r.toByte()
@@ -377,9 +378,33 @@ object ProtocolBuilder {
 
     /**
      * Build the STOP command (4 bytes)
+     * NOTE: v0.5.0-beta used 0x05 and it WORKED for Just Lift autostop
+     * Phoenix Backend uses 0x50, but our firmware responds to 0x05
      */
     fun buildStopCommand(): ByteArray {
         return byteArrayOf(0x05, 0x00, 0x00, 0x00)
+    }
+
+    /**
+     * Build the Official App STOP_PACKET command (2 bytes)
+     * Per official app analysis (ANALYSIS_JUSTLIFT.md):
+     * - The official app uses StopPacket (0x50 0x00) to end sessions and CLEAR FAULTS
+     * - This is a "soft stop" that releases tension and clears the blinking red light fault state
+     * - Use this to clear DELOAD_OCCURRED and other machine fault states
+     */
+    fun buildOfficialStopPacket(): ByteArray {
+        return byteArrayOf(0x50, 0x00)
+    }
+
+    /**
+     * Build the RESET command (4 bytes)
+     * This is what web apps use for stop (0x0A) - same as init command.
+     * Use for recovery if device gets stuck and 0x50 doesn't work.
+     * Per BLE_DIFFERENCES_FLAGGED.md: "0x0A is likely a Reset/Initialize command
+     * that has the side effect of stopping the machine"
+     */
+    fun buildResetCommand(): ByteArray {
+        return byteArrayOf(0x0A, 0x00, 0x00, 0x00)
     }
 
     /**

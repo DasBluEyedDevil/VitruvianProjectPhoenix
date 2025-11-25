@@ -37,8 +37,7 @@ object AppModule {
      * Migration from version 1 to 2: Add routine tables
      */
     private val MIGRATION_1_2 = object : Migration(1, 2) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Create routines table
             database.execSQL("""
                 CREATE TABLE IF NOT EXISTS routines (
@@ -80,8 +79,7 @@ object AppModule {
      * Migration from version 2 to 3: Add cable configuration to exercises
      */
     private val MIGRATION_2_3 = object : Migration(2, 3) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add cableConfig column with default value "DOUBLE" for existing rows
             database.execSQL("""
                 ALTER TABLE routine_exercises
@@ -94,8 +92,7 @@ object AppModule {
      * Migration from version 3 to 4: Replace sets/reps with setReps array
      */
     private val MIGRATION_3_4 = object : Migration(3, 4) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add setReps column with default value "10,10,10"
             database.execSQL("""
                 ALTER TABLE routine_exercises
@@ -126,8 +123,7 @@ object AppModule {
      * Migration from version 4 to 5: Add equipment type
      */
     private val MIGRATION_4_5 = object : Migration(4, 5) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add equipment column with default value 'LONG_BAR'
             database.execSQL("""
                 ALTER TABLE routine_exercises
@@ -140,8 +136,7 @@ object AppModule {
      * Migration from version 5 to 6: Add exercise library tables
      */
     private val MIGRATION_5_6 = object : Migration(5, 6) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Create exercises table
             database.execSQL("""
                 CREATE TABLE IF NOT EXISTS exercises (
@@ -190,8 +185,7 @@ object AppModule {
      * Supports Exercise data class (previously enum)
      */
     private val MIGRATION_6_7 = object : Migration(6, 7) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add exercise detail columns with default values
             database.execSQL("""
                 ALTER TABLE routine_exercises
@@ -215,8 +209,7 @@ object AppModule {
      * and add personal_records table
      */
     private val MIGRATION_8_9 = object : Migration(8, 9) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // 1. Fix workout_sessions table: rename progressionKg ? progressionRegressionKg
             // Create new table with correct schema
             database.execSQL("""
@@ -280,8 +273,7 @@ object AppModule {
      * Stores exercise library ID for loading videos/thumbnails
      */
     private val MIGRATION_9_10 = object : Migration(9, 10) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add exerciseId column with NULL default (for existing rows)
             database.execSQL("""
                 ALTER TABLE routine_exercises
@@ -295,8 +287,7 @@ object AppModule {
      * Supports weekly program scheduling with routines assigned to specific days
      */
     private val MIGRATION_10_11 = object : Migration(10, 11) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Create weekly_programs table
             database.execSQL("""
                 CREATE TABLE IF NOT EXISTS weekly_programs (
@@ -332,8 +323,7 @@ object AppModule {
      * to routine_exercises
      */
     private val MIGRATION_11_12 = object : Migration(11, 12) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add setWeights column to store comma-separated per-set weights
             database.execSQL(
                 """
@@ -379,8 +369,7 @@ object AppModule {
      * Adds eccentricLoad and echoLevel to persist Echo mode configuration in workout history
      */
     private val MIGRATION_12_13 = object : Migration(12, 13) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add eccentricLoad column (percentage: 0, 50, 75, 100, 125, 150)
             database.execSQL(
                 """
@@ -403,8 +392,7 @@ object AppModule {
      * Migration from version 13 to 14: Add connection_logs table for Bluetooth debugging
      */
     private val MIGRATION_13_14 = object : Migration(13, 14) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             database.execSQL("""
                 CREATE TABLE IF NOT EXISTS connection_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -429,8 +417,7 @@ object AppModule {
      * This enables tracking which exercise was performed in each workout session
      */
     private val MIGRATION_14_15 = object : Migration(14, 15) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add exerciseId column to workout_sessions
             database.execSQL("""
                 ALTER TABLE workout_sessions
@@ -444,8 +431,7 @@ object AppModule {
      * Adds routineSessionId and routineName for grouping routine sets in history
      */
     private val MIGRATION_15_16 = object : Migration(15, 16) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // Add routineSessionId column
             database.execSQL("""
                 ALTER TABLE workout_sessions
@@ -528,6 +514,20 @@ object AppModule {
     }
 
     /**
+     * Migration from version 20 to 21: Add exerciseName to workout_sessions
+     * Allows displaying exercise name in history list without joining tables
+     */
+    internal val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add exerciseName column (defaults to NULL or empty string)
+            db.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN exerciseName TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
      * Migration from version 21 to 22: Add aliases, defaultCableConfig, and tutorial video support
      *
      * Enhancements:
@@ -576,8 +576,7 @@ object AppModule {
      * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
      */
     private val MIGRATION_7_8 = object : Migration(7, 8) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
+        override fun migrate(database: SupportSQLiteDatabase) {
             // 1. Create new table with correct schema (13 columns)
             database.execSQL("""
                 CREATE TABLE `routine_exercises_new` (
@@ -690,6 +689,16 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 23 to 24: Add status column to workout_metrics
+     * Stores machine status flags (e.g. deload, spotter active)
+     */
+    internal val MIGRATION_23_24 = object : Migration(23, 24) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE workout_metrics ADD COLUMN status INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideConnectionLogDao(database: WorkoutDatabase): ConnectionLogDao {
@@ -727,7 +736,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_21_22, MIGRATION_22_23)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
         // MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19 removed - use destructive migration for v16-18 users
         .fallbackToDestructiveMigration(dropAllTables = true)  // Allow destructive migration for beta (will delete and recreate DB if migration missing)
         .build()
