@@ -1,3 +1,5 @@
+@file:Suppress("unused")  // Chart components - exported for reuse
+
 package com.example.vitruvianredux.presentation.components.charts
 
 import android.graphics.Paint
@@ -139,7 +141,6 @@ fun GaugeChart(
                 color = onSurfaceColor.toArgb()
                 textSize = 48.sp.toPx()
                 textAlign = Paint.Align.CENTER
-                isFakeBoldText = true
                 typeface = Typeface.create(
                     Typeface.DEFAULT,
                     Typeface.BOLD

@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
@@ -24,7 +25,7 @@ import com.example.vitruvianredux.presentation.components.*
 fun InsightsTab(
     prs: List<PersonalRecord>,
     workoutSessions: List<WorkoutSession>,
-    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
+    exerciseRepository: ExerciseRepository,
     modifier: Modifier = Modifier,
     weightUnit: WeightUnit = WeightUnit.KG,
     formatWeight: (Float, WeightUnit) -> String = { w, u -> "${w.toInt()} ${u.name.lowercase()}" }
@@ -80,8 +81,20 @@ fun InsightsTab(
                 )
             }
         }
+
+        // 4. Total Volume Trend (User Request)
+        if (workoutSessions.isNotEmpty()) {
+            item {
+                TotalVolumeCard(
+                    workoutSessions = workoutSessions,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
         
-        // 4. Mode Distribution Donut Chart (New Metric)
+        // 5. Mode Distribution Donut Chart (New Metric)
         if (prs.isNotEmpty()) {
             item {
                 WorkoutModeDistributionCard(

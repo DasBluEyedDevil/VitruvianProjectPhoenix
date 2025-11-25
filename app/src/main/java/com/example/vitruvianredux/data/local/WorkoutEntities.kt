@@ -54,7 +54,8 @@ data class WorkoutMetricEntity(
     val loadB: Float,
     val positionA: Int,
     val positionB: Int,
-    val ticks: Int
+    val ticks: Int,
+    val status: Int = 0 // Machine status flags
 )
 
 /**

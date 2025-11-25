@@ -1,8 +1,11 @@
+@file:Suppress("unused")  // Chart components - exported for reuse
+
 package com.example.vitruvianredux.presentation.components
 
-import android.graphics.Color
 import android.graphics.Typeface
-import androidx.compose.foundation.layout.*
+import androidx.core.graphics.toColorInt
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,34 +18,38 @@ import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
 import com.github.mikephil.charting.charts.PieChart
-import com.github.mikephil.charting.data.*
+import com.github.mikephil.charting.data.PieData
+import com.github.mikephil.charting.data.PieDataSet
+import com.github.mikephil.charting.data.PieEntry
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
+import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
+import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
 import com.patrykandpatrick.vico.compose.common.fill
-import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberAxisLabelComponent
 import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
 import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
 import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberStart
-import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import androidx.core.graphics.toColorInt
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import androidx.compose.ui.graphics.Color as ComposeColor
+import com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer
+import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Line chart showing weight progression over time for a specific exercise
- * Enhanced with Material 3 Expressive theming and better interactions
+ * Tonal-Style Weight Progression Chart
+ * - Uses Cubic Bezier curves for smooth "Strength Score" look
+ * - Date formatted X-axis
  */
+@Suppress("UNUSED_PARAMETER")  // formatWeight kept for future tooltip implementation
 @Composable
 fun WeightProgressionChart(
     prs: List<PersonalRecord>,
@@ -50,48 +57,150 @@ fun WeightProgressionChart(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
     val modelProducer = remember { CartesianChartModelProducer() }
-
-    LaunchedEffect(prs) {
-        if (prs.isNotEmpty()) {
-            val sortedPRs = prs.sortedBy { it.timestamp }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    
+    // Process Data
+    val sortedPRs = remember(prs) { prs.sortedBy { it.timestamp } }
+    
+    LaunchedEffect(sortedPRs) {
+        if (sortedPRs.isNotEmpty()) {
             modelProducer.runTransaction {
                 lineSeries {
-                    series(sortedPRs.map { it.weightPerCableKg.toDouble() })
+                    series(
+                        x = sortedPRs.map { it.timestamp.toFloat() },
+                        y = sortedPRs.map { it.weightPerCableKg.toDouble() }
+                    )
                 }
             }
         }
     }
 
-    ProvideVicoTheme(vicoTheme) {
+    // Axis Formatter for Dates
+    val dateFormatter = remember {
+        CartesianValueFormatter { x, _, _ ->
+            val date = Date((x as Number).toLong())
+            SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
+        }
+    }
+
+    ProvideVicoTheme(rememberM3VicoTheme()) {
         CartesianChartHost(
             chart = rememberCartesianChart(
-                rememberLineCartesianLayer(),
+                rememberLineCartesianLayer(
+                    lineProvider = LineCartesianLayer.LineProvider.series(
+                        LineCartesianLayer.Line(
+                            fill = LineCartesianLayer.LineFill.single(fill(primaryColor)),
+                            areaFill = LineCartesianLayer.AreaFill.single(
+                                fill(primaryColor.copy(alpha = 0.2f))
+                            ),
+                            pointConnector = LineCartesianLayer.PointConnector.cubic(curvature = 0.2f)
+                        )
+                    )
+                ),
                 startAxis = VerticalAxis.rememberStart(
-                    label = rememberAxisLabelComponent()
+                    itemPlacer = VerticalAxis.ItemPlacer.step(step = { 5.0 })
                 ),
                 bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent()
+                    valueFormatter = dateFormatter,
+                    labelRotationDegrees = 0f
                 )
             ),
             modelProducer = modelProducer,
-            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+            scrollState = rememberVicoScrollState(scrollEnabled = true),
+            modifier = modifier.height(280.dp)
         )
     }
 }
 
 /**
- * Pie chart showing muscle group distribution
- * Note: Vico doesn't have pie charts, so we keep MPAndroidChart for this
+ * Tonal-Style Volume Trend Chart
+ * - Uses Columns (Bars) to show work capacity per session/day
+ */
+@Suppress("UNUSED_PARAMETER")  // formatWeight kept for future tooltip implementation
+@Composable
+fun VolumeTrendChart(
+    workoutSessions: List<WorkoutSession>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    modifier: Modifier = Modifier
+) {
+    val modelProducer = remember { CartesianChartModelProducer() }
+    val primaryColor = MaterialTheme.colorScheme.tertiary
+
+    // Group by Date
+    LaunchedEffect(workoutSessions) {
+        if (workoutSessions.isNotEmpty()) {
+            val volumeByDate = workoutSessions
+                .sortedBy { it.timestamp }
+                .groupBy { session ->
+                    // Group by day
+                    val calendar = Calendar.getInstance()
+                    calendar.timeInMillis = session.timestamp
+                    calendar.set(Calendar.HOUR_OF_DAY, 0)
+                    calendar.set(Calendar.MINUTE, 0)
+                    calendar.set(Calendar.SECOND, 0)
+                    calendar.set(Calendar.MILLISECOND, 0)
+                    calendar.timeInMillis
+                }
+                .map { (date, sessions) ->
+                    // Sum volume for the day
+                    val totalVolume = sessions.sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() }
+                    date.toFloat() to totalVolume
+                }
+                .sortedBy { it.first }
+
+            modelProducer.runTransaction {
+                columnSeries {
+                    series(
+                        x = volumeByDate.map { it.first },
+                        y = volumeByDate.map { it.second }
+                    )
+                }
+            }
+        }
+    }
+
+    val dateFormatter = remember {
+        CartesianValueFormatter { x, _, _ ->
+            val date = Date((x as Number).toLong())
+            SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
+        }
+    }
+
+    ProvideVicoTheme(rememberM3VicoTheme()) {
+        CartesianChartHost(
+            chart = rememberCartesianChart(
+                rememberColumnCartesianLayer(
+                    columnProvider = ColumnCartesianLayer.ColumnProvider.series(
+                        rememberLineComponent(
+                            fill(primaryColor),
+                            12.dp
+                        )
+                    )
+                ),
+                startAxis = VerticalAxis.rememberStart(),
+                bottomAxis = HorizontalAxis.rememberBottom(
+                    valueFormatter = dateFormatter
+                )
+            ),
+            modelProducer = modelProducer,
+            scrollState = rememberVicoScrollState(scrollEnabled = true),
+            modifier = modifier.height(280.dp)
+        )
+    }
+}
+
+/**
+ * Pie chart showing muscle group distribution (MPAndroidChart)
  */
 @Composable
 fun MuscleGroupDistributionChart(
     muscleGroupCounts: Map<String, Int>,
     modifier: Modifier = Modifier
 ) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    val isDark = isSystemInDarkTheme()
+    val textColor = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
 
     AndroidView(
         factory = { context ->
@@ -104,7 +213,7 @@ fun MuscleGroupDistributionChart(
 
                 // Hole in the middle
                 isDrawHoleEnabled = true
-                setHoleColor(Color.TRANSPARENT)
+                setHoleColor(android.graphics.Color.TRANSPARENT)
                 holeRadius = 40f
                 transparentCircleRadius = 45f
 
@@ -126,21 +235,19 @@ fun MuscleGroupDistributionChart(
             }
         },
         update = { chart ->
-            // If no data, show placeholder
             val counts = if (muscleGroupCounts.isEmpty()) {
                 mapOf("No Data" to 1)
             } else {
                 muscleGroupCounts
             }
 
-            // Calculate total and percentages
             val total = counts.values.sum().toFloat()
             val entries = counts.map { (group, count) ->
                 val percentage = (count.toFloat() / total) * 100f
                 PieEntry(percentage, group)
             }
 
-            // Define colors for muscle groups
+            // Vibrant colors for distribution
             val colors = listOf(
                 "#9333EA".toColorInt(), // Purple
                 "#3B82F6".toColorInt(), // Blue
@@ -157,10 +264,10 @@ fun MuscleGroupDistributionChart(
                 sliceSpace = 2f
                 selectionShift = 8f
                 valueTextSize = 14f
-                valueTextColor = Color.WHITE
+                valueTextColor = android.graphics.Color.WHITE
                 valueFormatter = object : ValueFormatter() {
                     override fun getFormattedValue(value: Float): String {
-                        return if (value >= 5f) "${value.toInt()}%" else "" // Hide small values
+                        return if (value >= 5f) "${value.toInt()}%" else ""
                     }
                 }
             }
@@ -173,109 +280,47 @@ fun MuscleGroupDistributionChart(
 }
 
 /**
- * Column chart showing PR count by workout mode using Vico
- * Enhanced with Material 3 Expressive theming and better styling
+ * Workout Mode Distribution Chart
+ * Shows simple count of workout types
  */
 @Composable
 fun WorkoutModeDistributionChart(
     personalRecords: List<PersonalRecord>,
     modifier: Modifier = Modifier
 ) {
-    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
     val modelProducer = remember { CartesianChartModelProducer() }
-
+    
     LaunchedEffect(personalRecords) {
         if (personalRecords.isNotEmpty()) {
             val modeCounts = personalRecords.groupingBy { it.workoutMode }.eachCount()
+            val values = modeCounts.values.map { it.toDouble() }
+            
             modelProducer.runTransaction {
                 columnSeries {
-                    series(modeCounts.values.map { it.toDouble() })
+                    series(values)
                 }
             }
         }
     }
 
-    ProvideVicoTheme(vicoTheme) {
+    ProvideVicoTheme(rememberM3VicoTheme()) {
         CartesianChartHost(
             chart = rememberCartesianChart(
                 rememberColumnCartesianLayer(
-                    columnProvider = com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer.ColumnProvider.series(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary,
-                            MaterialTheme.colorScheme.tertiary,
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer
-                        ).map { color ->
-                            rememberLineComponent(
-                                fill(color),
-                                0.6f.dp // Material 3 Expressive: Wider columns
-                            )
-                        }
-                    ),
-                    columnCollectionSpacing = 8.dp // Material 3 Expressive: More spacing
+                    columnProvider = ColumnCartesianLayer.ColumnProvider.series(
+                        rememberLineComponent(
+                            fill(MaterialTheme.colorScheme.secondary),
+                            20.dp
+                        )
+                    )
                 ),
                 startAxis = VerticalAxis.rememberStart(
-                    label = rememberAxisLabelComponent()
+                    itemPlacer = VerticalAxis.ItemPlacer.step(step = { 1.0 })
                 ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent()
-                )
+                bottomAxis = HorizontalAxis.rememberBottom(),
             ),
             modelProducer = modelProducer,
-            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
-        )
-    }
-}
-
-/**
- * Line chart showing total volume (weight * reps) over time using Vico
- * Enhanced with Material 3 Expressive theming and gradient area fill
- */
-@Composable
-fun TotalVolumeChart(
-    workoutSessions: List<WorkoutSession>,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String,
-    modifier: Modifier = Modifier
-) {
-    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    LaunchedEffect(workoutSessions) {
-        if (workoutSessions.isNotEmpty()) {
-            // Group by day and sum total volume
-            val volumeByDate = workoutSessions
-                .sortedBy { it.timestamp }
-                .groupBy { session ->
-                    val instant = java.time.Instant.ofEpochMilli(session.timestamp)
-                    instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                }
-                .mapValues { (_, sessions) ->
-                    sessions.sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() }
-                }
-
-            modelProducer.runTransaction {
-                lineSeries {
-                    series(volumeByDate.values.toList())
-                }
-            }
-        }
-    }
-
-    ProvideVicoTheme(vicoTheme) {
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberLineCartesianLayer(),
-                startAxis = VerticalAxis.rememberStart(
-                    label = rememberAxisLabelComponent()
-                ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent()
-                )
-            ),
-            modelProducer = modelProducer,
-            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+            modifier = modifier.height(280.dp)
         )
     }
 }

@@ -16,7 +16,9 @@ import com.example.vitruvianredux.util.ProtocolBuilder
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -48,6 +50,14 @@ interface BleRepository {
     suspend fun sendInitSequence(): Result<Unit>
     suspend fun startWorkout(params: WorkoutParameters): Result<Unit>
     suspend fun stopWorkout(): Result<Unit>
+
+    /**
+     * Send stop command to machine WITHOUT stopping polling.
+     * Use this for Just Lift mode where we need continuous polling for auto-start detection.
+     * The machine needs active polling to process commands quickly.
+     */
+    suspend fun sendStopCommand(): Result<Unit>
+
     suspend fun setColorScheme(schemeIndex: Int): Result<Unit>
     suspend fun testOfficialAppProtocol(): Result<Unit>
     fun enableHandleDetection() // Start monitor polling for auto-start detection
@@ -104,6 +114,10 @@ class BleRepositoryImpl @Inject constructor(
     override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
 
     private var isScanning = false
+    
+    // Cache the last workout parameters to allow re-arming the machine after stop
+    // This is critical for "Just Lift" seamless recovery
+    private var cachedWorkoutParams: WorkoutParameters? = null
 
     @SuppressLint("MissingPermission")
     override suspend fun startScanning(): Result<Unit> = withContext(Dispatchers.Main) {
@@ -304,6 +318,18 @@ class BleRepositoryImpl @Inject constructor(
                         _handleState.value = state
                     }
                 }
+
+                // NOTE: DELOAD_OCCURRED is a SAFETY HOLDING STATE, not an error to clear
+                // - Deload means the machine reduced load to protect the user
+                // - Exercise should RESUME when user picks handles back up into ROM
+                // - Only auto-stop timer expiry OR manual Stop should end the exercise
+                // - DO NOT send StopPacket automatically on deload - this was the root cause
+                //   of Just Lift mode failing (premature exercise termination)
+                scope.launch {
+                    deloadOccurredEvents.collect {
+                        Timber.d("DELOAD_EVENT: Deload occurred (safety holding state) - NOT sending stop, exercise can resume")
+                    }
+                }
             }
 
             // Store references to the new BLE manager
@@ -391,19 +417,52 @@ class BleRepositoryImpl @Inject constructor(
             Timber.d("Disconnecting from device...")
             val manager = bleManager
             if (manager != null) {
+                // Stop polling first to prevent callbacks during disconnect
                 manager.stopPolling()
-                manager.cleanup()  // Clean up resources and cancel polling jobs
-                // Use await() instead of enqueue() to ensure disconnect completes
-                manager.disconnect().await()
-                Timber.d("BLE disconnect completed")
+                manager.cleanup()  // Clean up coroutine jobs
+
+                try {
+                    // Use withTimeout to prevent hanging on disconnect
+                    withTimeout(3000L) {
+                        manager.disconnect().await()
+                    }
+                    Timber.d("BLE disconnect completed via await()")
+                } catch (e: TimeoutCancellationException) {
+                    Timber.w("Disconnect timed out, forcing close")
+                } catch (e: Exception) {
+                    Timber.w(e, "Disconnect await failed, forcing close")
+                }
+
+                // Always call close() to ensure GATT resources are released
+                // This is the nuclear option that truly closes the connection
+                try {
+                    manager.close()
+                    Timber.d("BLE manager closed")
+                } catch (e: Exception) {
+                    Timber.w(e, "Error closing BLE manager")
+                }
             }
+
+            // Also clean up any connecting manager
+            connectingBleManager?.let { connecting ->
+                try {
+                    connecting.close()
+                } catch (e: Exception) {
+                    Timber.w(e, "Error closing connecting BLE manager")
+                }
+            }
+
             bleManager = null
             connectingBleManager = null
             _connectionState.value = ConnectionState.Disconnected
-            Timber.d("Disconnected from device - state updated")
+            Timber.d("Disconnected from device - state updated, resources released")
         } catch (e: Exception) {
-            Timber.e(e, "Error disconnecting")
-            // Still update state even on error to allow reconnection
+            Timber.e(e, "Error during disconnect")
+            // Force cleanup even on error
+            try {
+                bleManager?.close()
+                connectingBleManager?.close()
+            } catch (ignored: Exception) {}
             bleManager = null
             connectingBleManager = null
             _connectionState.value = ConnectionState.Disconnected
@@ -425,19 +484,11 @@ class BleRepositoryImpl @Inject constructor(
                 return@withContext Result.failure(Exception("BLE manager not available"))
             }
 
-            // MATCHING OFFICIAL APP: Only send INIT_PRESET (0x11), skip INIT_COMMAND (0x0A)
-            // The official Android app does NOT send 0x0A and does NOT wait for responses
-            // It only sends INIT_PRESET and uses a fixed delay
-            Timber.d("Sending INIT_PRESET (0x11) - matching official app protocol...")
-            val initPreset = ProtocolBuilder.buildInitPreset()
-            connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
-            manager.sendCommand(initPreset).getOrThrow()
-
-            // Use fixed delay instead of waiting for response (matching official app)
-            Timber.d("Waiting ${BleConstants.BLE_QUEUE_DRAIN_DELAY_MS}ms for BLE queue to drain...")
-            delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
-
-            Timber.d("=== INIT sequence completed successfully ===")
+            // DEPRECATED: The official app does not use the 0x0A handshake.
+            // Per patch analysis, sendInitSequence should be a no-op.
+            // The 0x0A/0x11 init sequence is legacy web app protocol that causes issues.
+            Timber.w("sendInitSequence called but is deprecated - official app doesn't use 0x0A handshake")
+            Timber.d("=== INIT sequence skipped (deprecated) ===")
             connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -452,10 +503,25 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun startWorkout(params: WorkoutParameters): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            // Cache parameters for re-arming after stop (Just Lift seamless recovery)
+            cachedWorkoutParams = params
+            
             val connectedState = _connectionState.value
             val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
             val hardwareModel = if (connectedState is ConnectionState.Connected) connectedState.hardwareModel else null
+
+            // WEB APP STARTUP SEQUENCE (verified from exerciselibrary & workoutmachineappfree):
+            // 1. Send INIT command (0x0A) - same command used for stop, resets machine state
+            // 2. Wait 50ms
+            // 3. (Optional: Send INIT preset - we skip this as program params contain full config)
+            // Previous 0x50 approach did NOT match web app behavior and caused delayed starts
+
+            Timber.d("WORKOUT_START: Sending INIT command (0x0A) to reset machine state...")
+            val initCommand = ProtocolBuilder.buildInitCommand()
+            connectionLogger.logCommandSent("INIT_RESET", deviceName, deviceAddress, initCommand, "INIT 0x0A to reset before workout")
+            bleManager?.sendCommand(initCommand)?.getOrThrow()
+            delay(50) // Web app uses 50ms between init and program commands
 
             // MATCH WEB APP EXACTLY:
             // - Program modes (Old School, Pump, TUT): Send ONLY program params (96 bytes)
@@ -472,6 +538,7 @@ class BleRepositoryImpl @Inject constructor(
                         warmupReps = params.warmupReps,
                         targetReps = params.reps,
                         isJustLift = params.isJustLift,
+                        isAMRAP = params.isAMRAP,
                         eccentricPct = params.workoutType.eccentricLoad.percentage
                     )
                     connectionLogger.logCommandSent(
@@ -479,14 +546,15 @@ class BleRepositoryImpl @Inject constructor(
                         deviceName,
                         deviceAddress,
                         echoFrame,
-                        "Mode=${params.workoutType.displayName}, Level=${params.workoutType.level}, Eccentric=${params.workoutType.eccentricLoad.percentage}%, Reps=${params.reps}, JustLift=${params.isJustLift}"
+                        "Mode=${params.workoutType.displayName}, Level=${params.workoutType.level}, Eccentric=${params.workoutType.eccentricLoad.percentage}%, Reps=${params.reps}, JustLift=${params.isJustLift}, AMRAP=${params.isAMRAP}"
                     )
                     bleManager?.sendCommand(echoFrame)?.getOrThrow()
                     delay(100)
                 }
                 is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
-                    // Program mode: Send ONLY program params (web app: device.js line 283)
-                    Timber.d("Program mode: sending ONLY program params (96 bytes)")
+                    // Program mode: Send ONLY REGULAR packet (28 bytes) - Command 0x4F
+                    // Matches official app 'RegularPacket'
+                    Timber.d("Program mode: sending REGULAR packet (28 bytes)")
                     val programFrame = ProtocolBuilder.buildProgramParams(params)
 
                     val additionalInfo = buildString {
@@ -542,46 +610,33 @@ class BleRepositoryImpl @Inject constructor(
             val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
 
-            Timber.d("STOP_DEBUG: ============================================")
-            Timber.d("STOP_DEBUG: stopWorkout() called at timestamp: $timestamp")
-            Timber.d("STOP_DEBUG: ============================================")
+            Timber.w("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            Timber.w("AUTOSTOP_TRACE: BleRepositoryImpl.stopWorkout() ENTERED")
+            Timber.w("AUTOSTOP_TRACE: bleManager is ${if (bleManager != null) "NOT NULL" else "NULL"}")
+            Timber.w("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
-            // CRITICAL SAFETY: Stop all polling BEFORE sending INIT command
-            // This ensures the machine fully exits workout mode
-            val beforePollingStop = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$beforePollingStop] BEFORE stopping polling jobs")
-            Timber.d("STOP_DEBUG: Cancelling polling jobs...")
+            // WEB APP STOP STRATEGY (verified from exerciselibrary & workoutmachineappfree):
+            // Send INIT/RESET command (0x0A) - this is SAME command used for init AND stop
+            // The web app comment: "Stop command is same as init command"
+            // Previous 0x50/0x05 approach did NOT match web app behavior
+
+            val resetCommand = ProtocolBuilder.buildResetCommand() // 0x0A 0x00 0x00 0x00
+            Timber.d("STOP_DEBUG: Sending RESET/INIT command (0x0A) - matches web app stop...")
+            connectionLogger.logCommandSent("STOP_RESET", deviceName, deviceAddress, resetCommand, "0x0A INIT/RESET (web app stop)")
+            bleManager?.sendCommand(resetCommand)?.getOrThrow()
+
+            // Brief delay to allow firmware to process (web app uses 50ms between commands)
+            delay(50)
+
+            Timber.d("STOP_DEBUG: RESET command sent - machine should return to Ready state")
+
+            // Now stop polling AFTER the commands have been sent
+            Timber.d("STOP_DEBUG: Stopping polling jobs...")
             connectionLogger.logPollingStopped("ALL", deviceName, deviceAddress)
             bleManager?.stopPolling()
-            val afterPollingStop = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
-
-            // FIX FOR ISSUE #124: Add delay to allow BLE queue to drain pending operations
-            // This prevents race condition where INIT command is sent while rep notifications
-            // or monitor reads are still being processed, especially critical on Android 16
-            // which has stricter BLE timing enforcement
-            Timber.d("STOP_DEBUG: Waiting 250ms for BLE queue to drain...")
-            delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
-            Timber.d("STOP_DEBUG: BLE queue drain delay complete")
-
-            // Send INIT command to stop workout and release resistance
-            // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
-            // The device interprets 0x0A contextually based on current state
-            val initCommand = ProtocolBuilder.buildInitCommand()
-            val beforeInitSend = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$beforeInitSend] BEFORE sending INIT command")
-            Timber.d("STOP_DEBUG: INIT command bytes: ${initCommand.joinToString(" ") { "0x%02X".format(it) }}")
-            Timber.d("STOP_DEBUG: INIT command size: ${initCommand.size} bytes")
-            Timber.d("STOP_DEBUG: Sending INIT command to release tension...")
-            connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, initCommand)
-            bleManager?.sendCommand(initCommand)?.getOrThrow()
-            val afterInitSend = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending INIT command (took ${afterInitSend - beforeInitSend}ms)")
-            Timber.d("STOP_DEBUG: INIT command sent successfully")
 
             val finalTimestamp = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$finalTimestamp] Workout stopped - Total stopWorkout() time: ${finalTimestamp - timestamp}ms")
-            Timber.d("STOP_DEBUG: ============================================")
             connectionLogger.logCommandSuccess("STOP_WORKOUT", deviceName, deviceAddress)
             Result.success(Unit)
         } catch (e: Exception) {
@@ -590,6 +645,39 @@ class BleRepositoryImpl @Inject constructor(
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
             Timber.e(e, "STOP_DEBUG: FAILED to stop workout")
             connectionLogger.logCommandFailed("STOP_WORKOUT", deviceName, deviceAddress, e.message ?: "Unknown error")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Send stop command to machine WITHOUT stopping polling.
+     * Use this for Just Lift mode where we need continuous polling for auto-start detection.
+     */
+    override suspend fun sendStopCommand(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+
+            Timber.w("AUTOSTOP_TRACE: sendStopCommand() - sending StopPacket WITHOUT stopping polling")
+
+            val stopPacket = ProtocolBuilder.buildOfficialStopPacket()
+            Timber.w("AUTOSTOP_TRACE: StopPacket bytes: ${stopPacket.joinToString(" ") { "0x%02X".format(it) }}")
+            connectionLogger.logCommandSent("SEND_STOP_CMD", deviceName, deviceAddress, stopPacket, "StopPacket 0x50 (polling continues)")
+
+            val sendResult = bleManager?.sendCommand(stopPacket)
+            Timber.w("AUTOSTOP_TRACE: sendCommand returned: $sendResult")
+            sendResult?.getOrThrow()
+
+            Timber.w("AUTOSTOP_TRACE: StopPacket sent - polling still active for quick machine response")
+            connectionLogger.logCommandSuccess("SEND_STOP_CMD", deviceName, deviceAddress)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            val connectedState = _connectionState.value
+            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+            Timber.e(e, "AUTOSTOP_TRACE: FAILED to send stop command")
+            connectionLogger.logCommandFailed("SEND_STOP_CMD", deviceName, deviceAddress, e.message ?: "Unknown error")
             Result.failure(e)
         }
     }

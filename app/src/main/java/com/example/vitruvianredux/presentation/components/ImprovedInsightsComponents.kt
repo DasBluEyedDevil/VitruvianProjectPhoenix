@@ -1,3 +1,5 @@
+@file:Suppress("unused")  // Insight components - exported for reuse
+
 package com.example.vitruvianredux.presentation.components
 
 import androidx.compose.foundation.layout.*
@@ -264,6 +266,51 @@ fun WorkoutModeDistributionCard(
             } else {
                 Text(
                     "No mode data available.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 32.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TotalVolumeCard(
+    workoutSessions: List<WorkoutSession>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Total Volume History",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Volume lifted per workout session",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            if (workoutSessions.isNotEmpty()) {
+                VolumeTrendChart(
+                    workoutSessions = workoutSessions,
+                    weightUnit = weightUnit,
+                    formatWeight = formatWeight,
+                    modifier = Modifier.height(280.dp)
+                )
+            } else {
+                Text(
+                    "No workout data available yet.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 32.dp)
