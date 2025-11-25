@@ -24,8 +24,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
+import com.example.vitruvianredux.presentation.viewmodel.HistoryItem
+import com.example.vitruvianredux.util.ColorScheme
+import com.example.vitruvianredux.util.ColorSchemes
 import kotlinx.coroutines.launch
 import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.ui.theme.*
@@ -34,14 +38,15 @@ import java.util.*
 
 @Composable
 fun HistoryTab(
-    groupedWorkoutHistory: List<com.example.vitruvianredux.presentation.viewmodel.HistoryItem>,
+    groupedWorkoutHistory: List<HistoryItem>,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     onDeleteWorkout: (String) -> Unit,
-    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
+    exerciseRepository: ExerciseRepository,
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    @Suppress("UNUSED_VARIABLE")  // Kept for future pull-to-refresh implementation
     var isRefreshing by remember { mutableStateOf(false) }
 
     Column(
@@ -1065,7 +1070,7 @@ fun SettingsTab(
             Spacer(modifier = Modifier.height(Spacing.medium))
             
             // Compact horizontal scrollable color chips
-            val colorSchemes = com.example.vitruvianredux.util.ColorSchemes.ALL
+            val colorSchemes = ColorSchemes.ALL
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1273,8 +1278,8 @@ fun SettingsTab(
                 )
             }
                 Spacer(modifier = Modifier.height(Spacing.small))
-                Text("Version: 0.5.1-beta", color = MaterialTheme.colorScheme.onSurface)
-                Text("Build: Beta 5 Patch 1", color = MaterialTheme.colorScheme.onSurface)
+                Text("Version: 0.6.0-beta", color = MaterialTheme.colorScheme.onSurface)
+                Text("Build: Beta 6", color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(Spacing.small))
                 Text(
                     "Open source community project to control Vitruvian Trainer machines locally.",
@@ -1358,6 +1363,7 @@ private fun formatTimestamp(timestamp: Long): String {
     return sdf.format(Date(timestamp))
 }
 
+@Suppress("unused")  // Available for future UI enhancements
 private fun formatRelativeTimestamp(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
@@ -1422,7 +1428,7 @@ private fun formatDuration(millis: Long): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ColorSchemeChip(
-    scheme: com.example.vitruvianredux.util.ColorScheme,
+    scheme: ColorScheme,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {

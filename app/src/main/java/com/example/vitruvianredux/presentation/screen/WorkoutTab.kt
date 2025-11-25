@@ -1184,6 +1184,35 @@ fun ConnectionCard(
     onScan: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    var showDisconnectDialog by remember { mutableStateOf(false) }
+
+    // Disconnect confirmation dialog
+    if (showDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectDialog = false },
+            icon = { Icon(Icons.Default.BluetoothDisabled, contentDescription = null) },
+            title = { Text("Disconnect?") },
+            text = {
+                Text("Are you sure you want to disconnect from the Vitruvian machine?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDisconnectDialog = false
+                        onDisconnect()
+                    }
+                ) {
+                    Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisconnectDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
@@ -1254,20 +1283,40 @@ fun ConnectionCard(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(
-                                    connectionState.deviceName,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                            ) {
+                                Icon(
+                                    Icons.Default.Bluetooth,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Text(
-                                    connectionState.deviceAddress,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column {
+                                    Text(
+                                        connectionState.deviceName,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        connectionState.deviceAddress,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            IconButton(onClick = onDisconnect) {
-                                Icon(Icons.Default.Close, contentDescription = "Disconnect")
+                            FilledTonalIconButton(
+                                onClick = { showDisconnectDialog = true },
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.BluetoothDisabled,
+                                    contentDescription = "Disconnect",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
                             }
                         }
                     }
@@ -1586,10 +1635,19 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
                 .padding(Spacing.large),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val countText = if (repCount.isWarmupComplete) {
-                repCount.workingReps.toString()
+            // Determine display values for working reps:
+            // - hasPendingRep: At TOP (concentric peak) - show next rep number in grey
+            // - !hasPendingRep: At BOTTOM (confirmed) - show current rep in full color
+            val (countText, isPending) = if (repCount.isWarmupComplete) {
+                if (repCount.hasPendingRep) {
+                    // At TOP - show PENDING rep (next number, will be confirmed at bottom)
+                    Pair((repCount.workingReps + 1).toString(), true)
+                } else {
+                    // At BOTTOM or idle - show CONFIRMED rep count
+                    Pair(repCount.workingReps.toString(), false)
+                }
             } else {
-                "${repCount.warmupReps} / ${workoutParameters.warmupReps}"
+                Pair("${repCount.warmupReps} / ${workoutParameters.warmupReps}", false)
             }
 
             // Show AMRAP indicator when in AMRAP mode and warmup is complete
@@ -1622,11 +1680,18 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
             )
             Spacer(modifier = Modifier.height(Spacing.medium))
 
+            // Rep count display with pending state (grey when at TOP, colored when confirmed)
             Text(
                 text = countText,
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                color = if (isPending) {
+                    // Grey color for pending rep (at TOP, waiting for eccentric)
+                    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f)
+                } else {
+                    // Full color for confirmed rep (at BOTTOM, completed)
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                }
             )
         }
     }

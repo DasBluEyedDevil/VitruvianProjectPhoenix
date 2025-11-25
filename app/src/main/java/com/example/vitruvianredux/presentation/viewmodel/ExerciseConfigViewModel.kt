@@ -204,6 +204,12 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
 
     fun onEchoLevelChange(level: EchoLevel) {
         _echoLevel.value = level
+        // Also update _selectedMode if it's Echo mode to keep them in sync
+        // This ensures the workoutType uses the correct level when saving
+        val current = _selectedMode.value
+        if (current is WorkoutMode.Echo) {
+            _selectedMode.value = WorkoutMode.Echo(level)
+        }
     }
 
     fun updateReps(setId: String, reps: Int?) {

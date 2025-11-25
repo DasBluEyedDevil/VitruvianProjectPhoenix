@@ -1,3 +1,5 @@
+@file:Suppress("unused")  // Chart components - exported for reuse
+
 package com.example.vitruvianredux.presentation.components.charts
 
 import android.graphics.Paint
@@ -68,7 +70,6 @@ fun RadarChart(
     val primaryColor = colorScheme.primary
     val primaryContainerColor = colorScheme.primaryContainer
     val onSurfaceColor = colorScheme.onSurface
-    val onSurfaceVariantColor = colorScheme.onSurfaceVariant
     
     Canvas(
         modifier = modifier
@@ -174,7 +175,6 @@ fun RadarChart(
                         color = onSurfaceColor.toArgb()
                         textSize = 12.sp.toPx()
                         textAlign = Paint.Align.CENTER
-                        isFakeBoldText = true
                     }
                     drawText(
                         label,

@@ -9,14 +9,15 @@ import kotlin.math.max
 /**
  * Handles rep counting based on notifications emitted by the Vitruvian machine.
  *
- * CRITICAL: The trainer uses device-provided rep counts directly from the 24-byte Reps packet:
- * - repsRomCount (offset 16-17): Warmup reps with proper ROM
- * - repsSetCount (offset 20-21): Working set rep count - THIS IS WHAT TO DISPLAY
+ * REP COUNTING APPROACH (Official App Method with Visual Feedback):
+ * Uses machine-provided ROM and Set counters for actual rep counting, PLUS
+ * directional counters (up/down) for visual feedback timing:
  *
- * The up/down counters (topCounter/completeCounter) are used for detecting rep events (for haptics)
- * but the DISPLAYED rep count should come from repsRomCount and repsSetCount.
+ * - At TOP (concentric peak): Show PENDING rep (grey number, +1 preview)
+ * - During eccentric: Fill animation from top to bottom
+ * - At BOTTOM (eccentric valley): Rep CONFIRMED (colored number)
  *
- * This matches the trainer behavior exactly - firmware handles rep counting, app just displays.
+ * This creates the "number rolls up grey, fills with color going down" effect.
  */
 class RepCounterFromMachine {
 
@@ -29,10 +30,11 @@ class RepCounterFromMachine {
     private var shouldStop = false
     private var isAMRAP = false
 
-    // Track device-provided rep counts (trainer method)
-    private var lastDeviceWarmupReps = 0
-    private var lastDeviceWorkingReps = 0
+    // Pending rep state - true when at TOP, waiting for eccentric completion
+    private var hasPendingRep = false
+    private var pendingRepProgress = 0f  // 0.0 at TOP, 1.0 at BOTTOM
 
+    // Track directional counters for position calibration AND visual feedback
     private var lastTopCounter: Int? = null
     private var lastCompleteCounter: Int? = null
 
@@ -79,10 +81,10 @@ class RepCounterFromMachine {
         warmupReps = 0
         workingReps = 0
         shouldStop = false
+        hasPendingRep = false
+        pendingRepProgress = 0f
         lastTopCounter = null
         lastCompleteCounter = null
-        lastDeviceWarmupReps = 0
-        lastDeviceWorkingReps = 0
         topPositionsA.clear()
         topPositionsB.clear()
         bottomPositionsA.clear()
@@ -95,6 +97,25 @@ class RepCounterFromMachine {
         minRepPosARange = null
         maxRepPosBRange = null
         minRepPosBRange = null
+    }
+
+    /**
+     * Resets rep counts but PRESERVES position ranges.
+     *
+     * This is critical for Just Lift mode where we track positions continuously during
+     * the handle detection phase (before workout starts). A full reset() would wipe out
+     * the position ranges we built up, making hasMeaningfulRange() return false.
+     */
+    fun resetCountsOnly() {
+        warmupReps = 0
+        workingReps = 0
+        shouldStop = false
+        hasPendingRep = false
+        pendingRepProgress = 0f
+        lastTopCounter = null
+        lastCompleteCounter = null
+        // NOTE: Do NOT clear position tracking lists or min/max ranges!
+        // This preserves hasMeaningfulRange() for auto-stop detection
     }
 
     /**
@@ -117,40 +138,110 @@ class RepCounterFromMachine {
     }
 
     /**
-     * Process rep notification with device-provided rep counts (OFFICIAL APP METHOD).
+     * Continuously update position ranges for Just Lift mode.
      *
-     * The device firmware tracks reps accurately and provides:
-     * - repsRomCount: Warmup reps completed with proper ROM
-     * - repsSetCount: Working set reps completed
+     * In Just Lift mode, no rep events fire, so we need to track min/max positions
+     * continuously from monitor data to establish meaningful ranges for auto-stop.
      *
-     * We use topCounter/completeCounter only for detecting rep EVENTS (haptic feedback),
-     * but the actual rep COUNT should come from the device's repsRomCount/repsSetCount.
+     * This should be called on every monitor metric during an active Just Lift workout.
+     */
+    fun updatePositionRangesContinuously(posA: Int, posB: Int) {
+        if (posA <= 0 && posB <= 0) return
+
+        // Track minimum positions (cable at rest / bottom of movement)
+        if (posA > 0) {
+            if (minRepPosA == null || posA < minRepPosA!!) {
+                minRepPosA = posA
+                minRepPosARange = Pair(posA, minRepPosARange?.second ?: posA)
+            }
+            // Track maximum positions (cable extended / top of movement)
+            if (maxRepPosA == null || posA > maxRepPosA!!) {
+                maxRepPosA = posA
+                maxRepPosARange = Pair(maxRepPosARange?.first ?: posA, posA)
+            }
+        }
+
+        if (posB > 0) {
+            if (minRepPosB == null || posB < minRepPosB!!) {
+                minRepPosB = posB
+                minRepPosBRange = Pair(posB, minRepPosBRange?.second ?: posB)
+            }
+            if (maxRepPosB == null || posB > maxRepPosB!!) {
+                maxRepPosB = posB
+                maxRepPosBRange = Pair(maxRepPosBRange?.first ?: posB, posB)
+            }
+        }
+    }
+
+    /**
+     * Process rep data from machine with visual feedback timing.
      *
-     * @param topCounter u32 up counter from device (for event detection)
-     * @param completeCounter u32 down counter from device (for event detection)
-     * @param deviceWarmupReps repsRomCount from device (warmup rep count to display)
-     * @param deviceWorkingReps repsSetCount from device (working rep count to display)
+     * For WARMUP reps: Uses ROM counter directly (no pending animation)
+     * For WORKING reps: Shows pending (grey) at TOP, confirmed (colored) at BOTTOM
+     *
+     * @param repsRomCount Machine's ROM rep count (warmup reps)
+     * @param repsSetCount Machine's set rep count (working reps)
+     * @param up Directional counter - increments at TOP (concentric peak)
+     * @param down Directional counter - increments at BOTTOM (eccentric valley)
      * @param posA Position A for range calibration
      * @param posB Position B for range calibration
      */
     fun process(
-        topCounter: Int,
-        completeCounter: Int,
-        deviceWarmupReps: Int = 0,
-        deviceWorkingReps: Int = 0,
+        repsRomCount: Int,
+        repsSetCount: Int,
+        up: Int = 0,
+        down: Int = 0,
         posA: Int = 0,
         posB: Int = 0
     ) {
-        // OFFICIAL APP METHOD: Use device-provided rep counts directly
-        // This ensures rep counting matches exactly what the firmware reports
-        val warmupRepsDelta = deviceWarmupReps - lastDeviceWarmupReps
-        val workingRepsDelta = deviceWorkingReps - lastDeviceWorkingReps
+        Timber.d("Rep process: ROM=$repsRomCount, Set=$repsSetCount, up=$up, down=$down, pending=$hasPendingRep")
 
-        // Detect warmup rep completion from device counter
-        if (warmupRepsDelta > 0 && deviceWarmupReps <= warmupTarget) {
-            warmupReps = deviceWarmupReps
-            Timber.d("🏋️ WARMUP REP from device: $warmupReps/$warmupTarget")
-            recordTopPosition(posA, posB)
+        // Track UP movement - for working reps, show PENDING (grey) at TOP
+        if (lastTopCounter != null) {
+            val upDelta = calculateDelta(lastTopCounter!!, up)
+            if (upDelta > 0) {
+                recordTopPosition(posA, posB)
+
+                // Only show pending for WORKING reps (after warmup complete)
+                if (warmupReps >= warmupTarget && !hasPendingRep) {
+                    hasPendingRep = true
+                    pendingRepProgress = 0f
+                    Timber.d("📈 TOP - WORKING_PENDING: showing grey rep ${workingReps + 1}")
+
+                    onRepEvent?.invoke(
+                        RepEvent(
+                            type = RepType.WORKING_PENDING,
+                            warmupCount = warmupReps,
+                            workingCount = workingReps  // Still the old count, pending shows +1
+                        )
+                    )
+                }
+            }
+        }
+
+        // Track DOWN movement - for working reps, CONFIRM (colored) at BOTTOM
+        if (lastCompleteCounter != null) {
+            val downDelta = calculateDelta(lastCompleteCounter!!, down)
+            if (downDelta > 0) {
+                recordBottomPosition(posA, posB)
+
+                // Clear pending state when we reach bottom
+                if (hasPendingRep) {
+                    hasPendingRep = false
+                    pendingRepProgress = 1f
+                    Timber.d("📉 BOTTOM - pending cleared, waiting for machine confirm")
+                }
+            }
+        }
+
+        // Update tracking counters AFTER position recording
+        lastTopCounter = up
+        lastCompleteCounter = down
+
+        // Track warmup reps using ROM counter (no pending animation)
+        if (repsRomCount > warmupReps && warmupReps < warmupTarget) {
+            warmupReps = repsRomCount.coerceAtMost(warmupTarget)
+
             onRepEvent?.invoke(
                 RepEvent(
                     type = RepType.WARMUP_COMPLETED,
@@ -158,7 +249,8 @@ class RepCounterFromMachine {
                     workingCount = workingReps
                 )
             )
-            if (warmupReps == warmupTarget) {
+
+            if (warmupReps >= warmupTarget) {
                 onRepEvent?.invoke(
                     RepEvent(
                         type = RepType.WARMUP_COMPLETE,
@@ -169,11 +261,11 @@ class RepCounterFromMachine {
             }
         }
 
-        // Detect working rep completion from device counter
-        if (workingRepsDelta > 0) {
-            workingReps = deviceWorkingReps
-            Timber.d("💪 WORKING REP from device: $workingReps/$workingTarget")
-            recordTopPosition(posA, posB)
+        // Track working reps using Set counter - this confirms the rep (colored)
+        if (warmupReps >= warmupTarget && repsSetCount > workingReps) {
+            workingReps = repsSetCount
+            Timber.d("💪 WORKING_COMPLETED: rep $workingReps confirmed (colored)")
+
             onRepEvent?.invoke(
                 RepEvent(
                     type = RepType.WORKING_COMPLETED,
@@ -182,10 +274,9 @@ class RepCounterFromMachine {
                 )
             )
 
-            // Check for workout completion (unless AMRAP or Just Lift)
+            // Check if target reached (unless AMRAP or Just Lift)
             if (!isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
-                Timber.d("⚠️ shouldStop set to TRUE (device reports target reached)")
-                Timber.d("  isJustLift=$isJustLift, isAMRAP=$isAMRAP")
+                Timber.d("⚠️ shouldStop set to TRUE (target reached)")
                 Timber.d("  workingTarget=$workingTarget, workingReps=$workingReps")
                 shouldStop = true
                 onRepEvent?.invoke(
@@ -197,20 +288,6 @@ class RepCounterFromMachine {
                 )
             }
         }
-
-        // Update last known device rep counts
-        lastDeviceWarmupReps = deviceWarmupReps
-        lastDeviceWorkingReps = deviceWorkingReps
-
-        // Also track up/down counters for bottom position recording
-        if (lastCompleteCounter != null) {
-            val delta = calculateDelta(lastCompleteCounter!!, completeCounter)
-            if (delta > 0) {
-                recordBottomPosition(posA, posB)
-            }
-        }
-        lastTopCounter = topCounter
-        lastCompleteCounter = completeCounter
     }
 
     private fun calculateDelta(last: Int, current: Int): Int {
@@ -283,7 +360,9 @@ class RepCounterFromMachine {
             warmupReps = warmupReps,
             workingReps = workingReps,
             totalReps = total,
-            isWarmupComplete = warmupReps >= warmupTarget
+            isWarmupComplete = warmupReps >= warmupTarget,
+            hasPendingRep = hasPendingRep,
+            pendingRepProgress = pendingRepProgress
         )
     }
 
@@ -305,32 +384,40 @@ class RepCounterFromMachine {
     )
 
     fun hasMeaningfulRange(minRangeThreshold: Int = 50): Boolean {
-        val rangeA = if (minRepPosA != null && maxRepPosA != null) maxRepPosA!! - minRepPosA!! else 0
-        val rangeB = if (minRepPosB != null && maxRepPosB != null) maxRepPosB!! - minRepPosB!! else 0
+        val minA = minRepPosA
+        val maxA = maxRepPosA
+        val minB = minRepPosB
+        val maxB = maxRepPosB
+        val rangeA = if (minA != null && maxA != null) maxA - minA else 0
+        val rangeB = if (minB != null && maxB != null) maxB - minB else 0
         return rangeA > minRangeThreshold || rangeB > minRangeThreshold
     }
 
     fun isInDangerZone(posA: Int, posB: Int, minRangeThreshold: Int = 50): Boolean {
-        val checkA = minRepPosA != null && maxRepPosA != null
-        val checkB = minRepPosB != null && maxRepPosB != null
-        if (!checkA && !checkB) return false
+        val minA = minRepPosA
+        val maxA = maxRepPosA
+        val minB = minRepPosB
+        val maxB = maxRepPosB
 
-        var danger = false
-        if (checkA) {
-            val rangeA = maxRepPosA!! - minRepPosA!!
+        // Check if position A is in danger zone (within 5% of minimum)
+        if (minA != null && maxA != null) {
+            val rangeA = maxA - minA
             if (rangeA > minRangeThreshold) {
-                val thresholdA = minRepPosA!! + (rangeA * 0.05f).toInt()
-                danger = danger || posA <= thresholdA
+                val thresholdA = minA + (rangeA * 0.05f).toInt()
+                if (posA <= thresholdA) return true
             }
         }
-        if (checkB) {
-            val rangeB = maxRepPosB!! - minRepPosB!!
+
+        // Check if position B is in danger zone (within 5% of minimum)
+        if (minB != null && maxB != null) {
+            val rangeB = maxB - minB
             if (rangeB > minRangeThreshold) {
-                val thresholdB = minRepPosB!! + (rangeB * 0.05f).toInt()
-                danger = danger || posB <= thresholdB
+                val thresholdB = minB + (rangeB * 0.05f).toInt()
+                if (posB <= thresholdB) return true
             }
         }
-        return danger
+
+        return false
     }
 }
 

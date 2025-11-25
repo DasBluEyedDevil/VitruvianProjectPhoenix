@@ -1,40 +1,38 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.shadow
+import java.text.SimpleDateFormat
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.data.repository.PersonalRecordRepository
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.ui.theme.*
-import java.text.SimpleDateFormat
+import timber.log.Timber
 import java.util.*
 
+@Suppress("UNUSED_PARAMETER")  // Some parameters kept for API compatibility
 @Composable
 fun RoutinesTab(
     routines: List<Routine>,
     exerciseRepository: ExerciseRepository,
-    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    personalRecordRepository: PersonalRecordRepository,
     formatWeight: (Float, WeightUnit) -> String,
     weightUnit: WeightUnit,
     enableVideoPlayback: Boolean,
@@ -42,7 +40,6 @@ fun RoutinesTab(
     displayToKg: (Float, WeightUnit) -> Float,
     onStartWorkout: (Routine) -> Unit,
     onDeleteRoutine: (String) -> Unit,
-    onCreateRoutine: () -> Unit,
     onSaveRoutine: (Routine) -> Unit,
     onUpdateRoutine: (Routine) -> Unit = onSaveRoutine,
     themeMode: ThemeMode,
@@ -106,15 +103,15 @@ fun RoutinesTab(
                             onDelete = { onDeleteRoutine(routine.id) },
                             onDuplicate = {
                                 // Generate new IDs explicitly and create deep copies
-                                val newRoutineId = java.util.UUID.randomUUID().toString()
+                                val newRoutineId = UUID.randomUUID().toString()
                                 val newExercises = routine.exercises.map { exercise ->
-                                    android.util.Log.d("RoutinesDuplicate", "📋 Original exercise '${exercise.exercise.name}': setReps=${exercise.setReps}, setWeights=${exercise.setWeightsPerCableKg}, setRest=${exercise.setRestSeconds}")
+                                    Timber.d("📋 Original exercise '${exercise.exercise.name}': setReps=${exercise.setReps}, setWeights=${exercise.setWeightsPerCableKg}, setRest=${exercise.setRestSeconds}")
                                     val copied = exercise.copy(
-                                        id = java.util.UUID.randomUUID().toString(),
+                                        id = UUID.randomUUID().toString(),
                                         // Deep copy the Exercise object to avoid any shared references
                                         exercise = exercise.exercise.copy()
                                     )
-                                    android.util.Log.d("RoutinesDuplicate", "📋 Copied exercise '${copied.exercise.name}': setReps=${copied.setReps}, setWeights=${copied.setWeightsPerCableKg}, setRest=${copied.setRestSeconds}")
+                                    Timber.d("📋 Copied exercise '${copied.exercise.name}': setReps=${copied.setReps}, setWeights=${copied.setWeightsPerCableKg}, setRest=${copied.setRestSeconds}")
                                     copied
                                 }
 
@@ -337,31 +334,34 @@ fun RoutineCard(
                         OutlinedButton(
                             onClick = onEdit,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
                             Text("Edit", maxLines = 1, softWrap = false)
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         OutlinedButton(
                             onClick = onDuplicate,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
                             Text("Copy", maxLines = 1, softWrap = false)
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         OutlinedButton(
                             onClick = { showDeleteDialog = true },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
                             Text("Delete", maxLines = 1, softWrap = false)
                         }
                     }

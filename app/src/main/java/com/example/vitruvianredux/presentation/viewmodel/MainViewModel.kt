@@ -432,6 +432,10 @@ class MainViewModel @Inject constructor(
                         Timber.d("Emitting haptic event: WORKOUT_COMPLETE")
                         _hapticEvents.emit(HapticEvent.WORKOUT_COMPLETE)
                     }
+                    RepType.WORKING_PENDING -> {
+                        // No haptic for pending - it's just a visual preview
+                        Timber.d("Rep pending (at TOP) - visual update only, no haptic")
+                    }
                 }
 
                 // Check if workout should stop
@@ -510,10 +514,16 @@ class MainViewModel @Inject constructor(
                 currentHandleState = state
 
                 Timber.d("Handle state received in ViewModel: $state, useAutoStart=${workoutParameters.value.useAutoStart}, workoutState=${workoutState.value}")
-                if (workoutParameters.value.useAutoStart && workoutState.value is WorkoutState.Idle) {
+
+                // Handle auto-START when Idle and waiting for handles
+                // Also allow auto-start from SetSummary if in Just Lift mode (interrupting the summary)
+                val isIdle = workoutState.value is WorkoutState.Idle
+                val isSummaryAndJustLift = workoutState.value is WorkoutState.SetSummary && workoutParameters.value.isJustLift
+                
+                if (workoutParameters.value.useAutoStart && (isIdle || isSummaryAndJustLift)) {
                     when (state) {
                         com.example.vitruvianredux.data.ble.HandleState.Grabbed -> {
-                            Timber.d("Handles grabbed! Starting auto-start timer")
+                            Timber.d("Handles grabbed! Starting auto-start timer (State: ${workoutState.value})")
                             startAutoStartTimer()
                         }
                         com.example.vitruvianredux.data.ble.HandleState.Released -> {
@@ -521,6 +531,26 @@ class MainViewModel @Inject constructor(
                             cancelAutoStartTimer()
                         }
                         else -> { /* Do nothing */ }
+                    }
+                }
+
+                // Handle auto-STOP when Active in Just Lift mode and handles released
+                // This starts the countdown timer via checkAutoStop logic (triggered by handle state)
+                if (workoutParameters.value.isJustLift && workoutState.value is WorkoutState.Active) {
+                    if (state == com.example.vitruvianredux.data.ble.HandleState.Released) {
+                        Timber.d("🛑 Just Lift: Handles RELEASED - starting auto-stop timer")
+                        // Do NOT trigger immediately. Let checkAutoStop handle the timer.
+                        // We ensure autoStopStartTime is set to start the countdown.
+                        if (autoStopStartTime == null) {
+                            autoStopStartTime = System.currentTimeMillis()
+                            Timber.d("🛑 Auto-stop timer STARTED (Just Lift) - handles released")
+                        }
+                    } else {
+                        // Handles grabbed or moving - reset timer
+                        if (autoStopStartTime != null) {
+                            Timber.d("🟢 Auto-stop timer RESET (Handles active: $state)")
+                            resetAutoStopTimer()
+                        }
                     }
                 }
             }
@@ -587,11 +617,23 @@ class MainViewModel @Inject constructor(
     }
 
     private fun handleMonitorMetric(metric: WorkoutMetric) {
+        // CRITICAL: Track positions during handle detection phase (before workout starts)
+        // This builds up min/max ranges for hasMeaningfulRange() auto-stop detection
+        // useAutoStart is true when in Just Lift mode and waiting for handles
+        if (_workoutParameters.value.useAutoStart && _workoutState.value is WorkoutState.Idle) {
+            repCounter.updatePositionRangesContinuously(metric.positionA, metric.positionB)
+        }
+
         if (_workoutState.value is WorkoutState.Active) {
             collectMetricForHistory(metric)
             val params = _workoutParameters.value
             // AMRAP also uses autostop like Just Lift mode
             if (params.isJustLift || params.isAMRAP) {
+                // CRITICAL: In Just Lift/AMRAP modes, we must track positions continuously
+                // because no rep events fire to establish min/max ranges.
+                // This enables hasMeaningfulRange() to return true for auto-stop detection.
+                repCounter.updatePositionRangesContinuously(metric.positionA, metric.positionB)
+
                 if (params.isAMRAP && autoStopStartTime == null) {
                     // Log once per AMRAP set to confirm we're checking auto-stop
                     Timber.v("✓ AMRAP set: checkAutoStop will be called (isAMRAP=true)")
@@ -613,11 +655,13 @@ class MainViewModel @Inject constructor(
      */
     private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
         val currentPositions = _currentMetric.value
+        // Use machine's ROM and Set counters directly (trainer method)
+        // This prevents "getting ready" pull from being counted as a rep
         repCounter.process(
-            topCounter = notification.topCounter,
-            completeCounter = notification.completeCounter,
-            deviceWarmupReps = notification.repsRomCount,   // Device-provided warmup rep count
-            deviceWorkingReps = notification.repsSetCount,  // Device-provided working rep count
+            repsRomCount = notification.repsRomCount,   // Machine's warmup rep count
+            repsSetCount = notification.repsSetCount,   // Machine's working rep count
+            up = notification.topCounter,               // For position calibration
+            down = notification.completeCounter,        // For position calibration
             posA = currentPositions?.positionA ?: 0,
             posB = currentPositions?.positionB ?: 0
         )
@@ -632,6 +676,9 @@ class MainViewModel @Inject constructor(
     }
 
     private fun triggerAutoStop() {
+        Timber.w("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        Timber.w("AUTOSTOP_TRACE: triggerAutoStop() ENTERED")
+        Timber.w("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         autoStopTriggered.set(true)
         // Ensure UI reflects completion state immediately
         if (_workoutParameters.value.isJustLift || _workoutParameters.value.isAMRAP) {
@@ -639,31 +686,100 @@ class MainViewModel @Inject constructor(
         } else {
             _autoStopState.value = AutoStopUiState()
         }
+        Timber.w("AUTOSTOP_TRACE: About to call handleSetCompletion()")
         handleSetCompletion()
+        Timber.w("AUTOSTOP_TRACE: handleSetCompletion() returned")
     }
 
     private fun checkAutoStop(metric: WorkoutMetric) {
+        val hasMeaningful = repCounter.hasMeaningfulRange()
         val params = _workoutParameters.value
 
         // Diagnostic: Log when checkAutoStop is called for Just Lift mode
         if (params.isJustLift && autoStopStartTime == null) {
-            Timber.d("🎯 Just Lift auto-stop check: posA=${metric.positionA}, posB=${metric.positionB}")
+            Timber.d("🎯 Just Lift auto-stop check: hasMeaningful=$hasMeaningful, " +
+                "posA=${metric.positionA}, posB=${metric.positionB}")
         }
 
-        // Just Lift / AMRAP Auto-Stop Logic
-        // Stop if handles are put down (position < 2.5)
-        // This uses the same threshold as the trainer for "rest" detection
-        val HANDLE_REST_THRESHOLD = 2.5 
-        val posA = metric.positionA.toDouble()
-        val posB = metric.positionB.toDouble()
+        if (!hasMeaningful) {
+            if (params.isAMRAP || params.isJustLift) {
+                Timber.d("⚠️ ${if (params.isJustLift) "Just Lift" else "AMRAP"} " +
+                    "auto-stop blocked: NO meaningful range yet")
+            }
+            resetAutoStopTimer()
+            return
+        }
 
-        // Check if BOTH handles are at rest
-        val handlesAtRest = posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD
+        val inDangerZone = repCounter.isInDangerZone(metric.positionA, metric.positionB)
 
-        if (handlesAtRest) {
+        val repRanges = repCounter.getRepRanges()
+        if (params.isAMRAP) {
+            Timber.v("AMRAP auto-stop check: inDangerZone=$inDangerZone, " +
+                "rangeA=${repRanges.maxPosA?.let { max -> repRanges.minPosA?.let { min -> max - min } }}, " +
+                "rangeB=${repRanges.maxPosB?.let { max -> repRanges.minPosB?.let { min -> max - min } }}")
+        }
+
+        // Diagnostic: Log danger zone status for Just Lift
+        if (params.isJustLift && autoStopStartTime == null) {
+            Timber.d("🎯 Just Lift danger zone check: inDangerZone=$inDangerZone, " +
+                "rangeA=${repRanges.maxPosA?.let { max -> repRanges.minPosA?.let { min -> max - min } }}, " +
+                "rangeB=${repRanges.maxPosB?.let { max -> repRanges.minPosB?.let { min -> max - min } }}")
+        }
+
+        // For Just Lift and AMRAP modes, check if the cable(s) in danger zone are released
+        // This supports both single-cable (left OR right) and double-cable exercises
+        val HANDLE_REST_THRESHOLD = 2.5  // Position < 2.5 = handle at rest
+
+        var cableInDangerAndReleased = false
+
+        // Check cable A: is it in danger zone AND released?
+        if (repRanges.minPosA != null && repRanges.maxPosA != null) {
+            val rangeA = repRanges.maxPosA!! - repRanges.minPosA!!
+            if (rangeA > 50) {  // minRangeThreshold
+                val thresholdA = repRanges.minPosA!! + (rangeA * 0.05f).toInt()
+                val cableAInDanger = metric.positionA <= thresholdA
+                // Check if cable A is released: position is very low (at rest) or near minimum position
+                val cableAReleased = metric.positionA.toDouble() < HANDLE_REST_THRESHOLD ||
+                                     (metric.positionA - repRanges.minPosA!!) < 10
+                if (cableAInDanger && cableAReleased) {
+                    cableInDangerAndReleased = true
+                    Timber.d("Cable A in danger zone and released: posA=${metric.positionA}, " +
+                        "thresholdA=$thresholdA, minPosA=${repRanges.minPosA}")
+                }
+            }
+        }
+
+        // Check cable B: is it in danger zone AND released?
+        if (repRanges.minPosB != null && repRanges.maxPosB != null) {
+            val rangeB = repRanges.maxPosB!! - repRanges.minPosB!!
+            if (rangeB > 50) {  // minRangeThreshold
+                val thresholdB = repRanges.minPosB!! + (rangeB * 0.05f).toInt()
+                val cableBInDanger = metric.positionB <= thresholdB
+                // Check if cable B is released: position is very low (at rest) or near minimum position
+                val cableBReleased = metric.positionB.toDouble() < HANDLE_REST_THRESHOLD ||
+                                    (metric.positionB - repRanges.minPosB!!) < 10
+                if (cableBInDanger && cableBReleased) {
+                    cableInDangerAndReleased = true
+                    Timber.d("Cable B in danger zone and released: posB=${metric.positionB}, " +
+                        "thresholdB=$thresholdB, minPosB=${repRanges.minPosB}")
+                }
+            }
+        }
+
+        // Diagnostic: Log cable release detection for Just Lift
+        if (params.isJustLift && autoStopStartTime == null) {
+            Timber.d("🎯 Just Lift cable check: inDangerZone=$inDangerZone, " +
+                "cableInDangerAndReleased=$cableInDangerAndReleased")
+        }
+
+        // Auto-stop triggers when BOTH conditions are met:
+        // 1. Position is in danger zone (near bottom)
+        // 2. The cable(s) in danger zone are actually released (not during eccentric phase)
+        if (inDangerZone && cableInDangerAndReleased) {
             val startTime = autoStopStartTime ?: run {
                 autoStopStartTime = System.currentTimeMillis()
-                Timber.d("🔴 Auto-stop timer STARTED (${if (params.isJustLift) "Just Lift" else "AMRAP"}) - handles at rest (posA=$posA, posB=$posB)")
+                Timber.d("🔴 Auto-stop timer STARTED (${if (params.isJustLift) "Just Lift" else "AMRAP"}) " +
+                    "- handles at rest")
                 System.currentTimeMillis()
             }
 
@@ -683,7 +799,8 @@ class MainViewModel @Inject constructor(
             }
         } else {
             if (autoStopStartTime != null) {
-                Timber.d("🟢 Auto-stop timer RESET (handles moved: posA=$posA, posB=$posB)")
+                Timber.d("🟢 Auto-stop timer RESET (inDangerZone=$inDangerZone, " +
+                    "cableReleased=$cableInDangerAndReleased)")
             }
             resetAutoStopTimer()
         }
@@ -962,7 +1079,13 @@ class MainViewModel @Inject constructor(
             _workoutParameters.value = params
 
             val workingTarget = if (params.isJustLift) 0 else params.reps
-            repCounter.reset()
+            // For Just Lift mode, preserve position ranges built during handle detection
+            // A full reset() would wipe out hasMeaningfulRange() data needed for auto-stop
+            if (params.isJustLift) {
+                repCounter.resetCountsOnly()
+            } else {
+                repCounter.reset()
+            }
             repCounter.configure(
                 warmupTarget = params.warmupReps, // Already 0 for bodyweight
                 workingTarget = workingTarget,
@@ -1109,6 +1232,7 @@ class MainViewModel @Inject constructor(
                 Timber.d("Just Lift mode: Manual finish - resetting to Idle for next set")
                 resetForNewWorkout()
                 _workoutState.value = WorkoutState.Idle  // Back to Idle, ready for next set
+
                 Timber.d("Just Lift mode: Re-enabling handle detection for next auto-start")
                 enableHandleDetection() // Re-enable for next auto-start
 
@@ -1146,17 +1270,26 @@ class MainViewModel @Inject constructor(
     private fun handleSetCompletion() {
         viewModelScope.launch {
             val completionStartTime = System.currentTimeMillis()
-            Timber.d("???????????????????????????????????????????????????")
-            Timber.d("HANDLE SET COMPLETION CALLED at $completionStartTime")
-            Timber.d("???????????????????????????????????????????????????")
+            Timber.w("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            Timber.w("AUTOSTOP_TRACE: handleSetCompletion() STARTED at $completionStartTime")
+            Timber.w("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
             val params = _workoutParameters.value
             val isJustLift = params.isJustLift
 
             // Stop hardware
-            Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Sending STOP command to machine...")
-            bleRepository.stopWorkout()
-            Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] STOP command sent")
+            Timber.w("AUTOSTOP_TRACE: Calling bleRepository.stopWorkout()...")
+            val stopResult = bleRepository.stopWorkout()
+            Timber.w("AUTOSTOP_TRACE: stopWorkout() returned: ${stopResult.isSuccess}, failure=${stopResult.exceptionOrNull()?.message}")
+
+            // Just Lift mode: Immediately restart polling to clear machine fault state
+            // The machine needs active polling to process the stop command and reset quickly.
+            // Without this, the machine stays in fault state (red lights) until polling resumes.
+            if (isJustLift) {
+                Timber.w("AUTOSTOP_TRACE: Just Lift - immediately restarting polling to clear fault state")
+                bleRepository.restartMonitorPolling()
+                Timber.w("AUTOSTOP_TRACE: Polling restarted - machine should reset now")
+            }
 
             // Just Lift mode: Don't stop foreground service, keep it running for next set
             if (!isJustLift) {
@@ -1195,20 +1328,31 @@ class MainViewModel @Inject constructor(
 
             // Just Lift mode: Auto-advance to next set after showing summary
             if (isJustLift) {
-                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Showing summary for 5 seconds")
-                delay(5000) // Show summary for 5 seconds
-
-                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Resetting to Idle")
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: IMMEDIATE reset for next set (while showing summary)")
+                
+                // 1. Reset logical state immediately
                 repCounter.reset()
                 resetAutoStopState()
-                resetForNewWorkout()
-                _workoutState.value = WorkoutState.Idle  // Back to Idle, ready for next set
-                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Re-enabling handle detection")
-                enableHandleDetection() // Re-enable for next auto-start
-
-                // Enable velocity-based wake-up detection for next exercise
+                
+                // 2. Re-enable machine detection immediately (clears faults, allows instant restart)
+                enableHandleDetection() 
                 bleRepository.enableJustLiftWaitingMode()
-                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Ready for next set - grab handles to auto-start")
+                
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Machine armed & ready. Showing summary for 5s...")
+                
+                // 3. Show summary for 5 seconds (User preference)
+                // Note: If user grabs handles during this delay, auto-start logic in handleState collector
+                // will interrupt this and start the next set immediately.
+                delay(5000) 
+
+                // 4. Transition UI to Idle (only if we haven't already started a new set)
+                if (_workoutState.value is WorkoutState.SetSummary) {
+                    Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Summary complete, UI transitioning to Idle")
+                    resetForNewWorkout() // Ensures clean state
+                    _workoutState.value = WorkoutState.Idle
+                } else {
+                    Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Summary interrupted by user action (state is ${_workoutState.value})")
+                }
             } else if (params.isAMRAP) {
                 // AMRAP mode: Restart monitor polling to clear danger zone alarm on machine
                 // This ensures the machine exits danger zone state just like Just Lift mode
@@ -1216,6 +1360,18 @@ class MainViewModel @Inject constructor(
                 // This is CRITICAL for the "red light fix" to prevent machine hanging in fault state
                 Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Restarting monitor polling to clear danger zone")
                 bleRepository.restartMonitorPolling()
+
+                // Enhanced debug logging for AMRAP set progression (Issue #147 debugging)
+                val routine = _loadedRoutine.value
+                val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+                Timber.w("🔍 AMRAP SET COMPLETED - DEBUG INFO:")
+                Timber.w("  _currentSetIndex = ${_currentSetIndex.value}")
+                Timber.w("  _currentExerciseIndex = ${_currentExerciseIndex.value}")
+                Timber.w("  exercise.isAMRAP (all sets) = ${currentExercise?.isAMRAP}")
+                Timber.w("  exercise.setReps = ${currentExercise?.setReps}")
+                Timber.w("  params.isAMRAP (current set) = ${params.isAMRAP}")
+                Timber.w("  WorkoutState = ${_workoutState.value}")
+                Timber.w("  User must click 'Continue' to proceed to rest timer and next set")
             }
             // Normal mode or Routine: Wait for user to click "Continue"
 
@@ -1277,14 +1433,26 @@ class MainViewModel @Inject constructor(
             // Check if there are more sets or exercises remaining
             val hasMoreSets = routine?.let {
                 val currentExercise = it.exercises.getOrNull(_currentExerciseIndex.value)
-                // For AMRAP exercises (empty setReps), allow infinite sets - user manually advances
+                // IMPORTANT: isAMRAPExercise is true ONLY if ALL sets in the exercise have null reps
+                // If only some sets are AMRAP, this should be FALSE
                 val isAMRAPExercise = currentExercise?.isAMRAP == true
+
+                // Log warning if exercise-level isAMRAP might be incorrectly set
+                val hasNullReps = currentExercise?.setReps?.any { it == null } == true
+                val hasNonNullReps = currentExercise?.setReps?.any { it != null } == true
+                if (isAMRAPExercise && hasNonNullReps) {
+                    Timber.e("⚠️ BUG DETECTED: exercise.isAMRAP=true but setReps contains non-null values! setReps=${currentExercise?.setReps}")
+                }
+                if (!isAMRAPExercise && hasNullReps && !hasNonNullReps) {
+                    Timber.e("⚠️ BUG DETECTED: exercise.isAMRAP=false but ALL setReps are null! setReps=${currentExercise?.setReps}")
+                }
+
                 val result = if (isAMRAPExercise) {
                     true // AMRAP always has "more sets" - user decides when to move on
                 } else {
                     currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1
                 }
-                Timber.d("  hasMoreSets calculation: currentExercise=$currentExercise, isAMRAP=$isAMRAPExercise, currentSetIndex=${_currentSetIndex.value}, setReps.size=${currentExercise?.setReps?.size}, result=$result")
+                Timber.d("  hasMoreSets calculation: currentExercise=$currentExercise, isAMRAPExercise=$isAMRAPExercise, currentSetIndex=${_currentSetIndex.value}, setReps.size=${currentExercise?.setReps?.size}, setReps=${currentExercise?.setReps}, result=$result")
                 result
             } ?: false
 
@@ -1433,6 +1601,16 @@ class MainViewModel @Inject constructor(
                     val currentExerciseSets = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
                     if (currentExerciseSets != null && _currentSetIndex.value < currentExerciseSets.setReps.size - 1) {
                         _currentSetIndex.value++
+                        // CRITICAL: Update workout parameters for the new set (Issue #147 fix)
+                        val targetReps = currentExerciseSets.setReps[_currentSetIndex.value]
+                        val setWeight = currentExerciseSets.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                            ?: currentExerciseSets.weightPerCableKg
+                        Timber.d("Autoplay: Advancing to set ${_currentSetIndex.value + 1}, targetReps=$targetReps, isAMRAP=${targetReps == null}")
+                        _workoutParameters.value = workoutParameters.value.copy(
+                            reps = targetReps ?: 0,
+                            weightPerCableKg = setWeight,
+                            isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+                        )
                         startWorkout(skipCountdown = true)
                     } else {
                         Timber.d("Single exercise complete - no more sets remaining")
@@ -1598,8 +1776,25 @@ class MainViewModel @Inject constructor(
             // Check if this is single exercise mode (no routine or temp routine from SingleExerciseScreen)
             val isSingleExercise = isSingleExerciseMode() && !_workoutParameters.value.isJustLift
             if (isSingleExercise) {
-                // For single exercise, restart with same parameters
-                startWorkout(skipCountdown = true)
+                // For single exercise, advance to next set with proper parameter updates
+                val routine = _loadedRoutine.value
+                val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+                if (currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1) {
+                    _currentSetIndex.value++
+                    val targetReps = currentExercise.setReps[_currentSetIndex.value]
+                    val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                        ?: currentExercise.weightPerCableKg
+                    Timber.d("skipRest: Advancing to set ${_currentSetIndex.value + 1}, targetReps=$targetReps, isAMRAP=${targetReps == null}")
+                    _workoutParameters.value = workoutParameters.value.copy(
+                        reps = targetReps ?: 0,
+                        weightPerCableKg = setWeight,
+                        isAMRAP = targetReps == null
+                    )
+                    startWorkout(skipCountdown = true)
+                } else {
+                    Timber.d("skipRest: Single exercise complete - no more sets remaining")
+                    _workoutState.value = WorkoutState.Completed
+                }
             } else {
                 startNextSetOrExercise()
             }
@@ -2142,7 +2337,7 @@ class MainViewModel @Inject constructor(
     }
 
     companion object {
-        private const val AUTO_STOP_DURATION_SECONDS = 5f  // User preference: 5 seconds
+        private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
     }
 }
 

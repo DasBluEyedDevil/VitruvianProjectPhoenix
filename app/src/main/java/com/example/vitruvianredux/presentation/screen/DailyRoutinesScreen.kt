@@ -89,7 +89,6 @@ fun DailyRoutinesScreen(
                 )
             },
             onDeleteRoutine = { routineId -> viewModel.deleteRoutine(routineId) },
-            onCreateRoutine = {},
             onSaveRoutine = { routine -> viewModel.saveRoutine(routine) },
             onUpdateRoutine = { routine -> viewModel.updateRoutine(routine) },
             themeMode = themeMode,
