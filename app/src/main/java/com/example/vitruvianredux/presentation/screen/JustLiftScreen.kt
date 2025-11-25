@@ -37,6 +37,7 @@ import com.example.vitruvianredux.presentation.components.ExpressiveSlider
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
+import timber.log.Timber
 
 /**
  * Just Lift screen - quick workout configuration.
@@ -90,7 +91,7 @@ fun JustLiftScreen(
                 eccentricLoad = defaults.getEccentricLoad()
                 echoLevel = defaults.getEchoLevel()
 
-                timber.log.Timber.d("Loaded Just Lift defaults: modeId=${defaults.workoutModeId}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
+                Timber.d("Loaded Just Lift defaults: modeId=${defaults.workoutModeId}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
             }
             defaultsLoaded = true
         }

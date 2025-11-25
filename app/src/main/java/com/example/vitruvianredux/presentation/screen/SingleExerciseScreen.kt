@@ -23,8 +23,11 @@ import com.example.vitruvianredux.presentation.components.ConnectionErrorDialog
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+import com.example.vitruvianredux.presentation.viewmodel.MainViewModel.Companion.TEMP_SINGLE_EXERCISE_PREFIX
 import com.example.vitruvianredux.ui.theme.Spacing
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +45,9 @@ fun SingleExerciseScreen(
     var exerciseToConfig by remember { mutableStateOf<RoutineExercise?>(null) }
     var isLoadingDefaults by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+
+    // Track current loading job to cancel on rapid selection changes
+    var loadingJob by remember { mutableStateOf<Job?>(null) }
 
     // Local state for picker
     var searchQuery by remember { mutableStateOf("") }
@@ -125,11 +131,14 @@ fun SingleExerciseScreen(
 
                     val defaultCableConfig = exercise.resolveDefaultCableConfig()
 
+                    // Cancel any in-progress loading to prevent race conditions
+                    loadingJob?.cancel()
+
                     // Set loading state to prevent showing dialog before defaults are loaded
                     isLoadingDefaults = true
 
                     // Load saved defaults for this exercise+cable config asynchronously
-                    coroutineScope.launch {
+                    loadingJob = coroutineScope.launch {
                         try {
                             val savedDefaults = selectedExercise.id?.let { exerciseId ->
                                 viewModel.getSingleExerciseDefaults(exerciseId, defaultCableConfig.name)
@@ -137,7 +146,7 @@ fun SingleExerciseScreen(
 
                             val newRoutineExercise = if (savedDefaults != null) {
                                 // Apply saved defaults using helper methods
-                                timber.log.Timber.d("Loaded saved defaults for ${selectedExercise.name} (${savedDefaults.cableConfig})")
+                                Timber.d("Loaded saved defaults for ${selectedExercise.name} (${savedDefaults.cableConfig})")
 
                                 RoutineExercise(
                                     id = UUID.randomUUID().toString(),
@@ -208,7 +217,7 @@ fun SingleExerciseScreen(
                     buttonText = "Start Workout",
                     onSave = { configuredExercise ->
                         val tempRoutine = Routine(
-                            id = "temp_single_exercise_${UUID.randomUUID()}",
+                            id = "${TEMP_SINGLE_EXERCISE_PREFIX}${UUID.randomUUID()}",
                             name = "Single Exercise: ${configuredExercise.exercise.name}",
                             description = "Temporary routine for single exercise mode",
                             exercises = listOf(configuredExercise)
