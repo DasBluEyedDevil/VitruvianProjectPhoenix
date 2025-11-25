@@ -192,6 +192,7 @@ fun NavGraph(
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
                 onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                 onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
+                onNavigateToProtocolTester = { navController.navigate(NavigationRoutes.ProtocolTester.route) },
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
                 onClearConnectionError = { viewModel.clearConnectionError() },
@@ -205,6 +206,39 @@ fun NavGraph(
             ConnectionLogsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 mainViewModel = viewModel
+            )
+        }
+
+        // Protocol Tester screen - diagnostic tool for BLE protocol testing
+        composable(
+            route = NavigationRoutes.ProtocolTester.route,
+            enterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(300)
+                )
+            },
+            exitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
+                    animationSpec = tween(300)
+                )
+            },
+            popEnterTransition = {
+                slideIntoContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(300)
+                )
+            },
+            popExitTransition = {
+                slideOutOfContainer(
+                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
+                    animationSpec = tween(300)
+                )
+            }
+        ) {
+            ProtocolTesterScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }
