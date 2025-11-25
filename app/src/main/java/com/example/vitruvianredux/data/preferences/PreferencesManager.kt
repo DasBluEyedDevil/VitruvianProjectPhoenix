@@ -6,8 +6,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.vitruvianredux.domain.model.CableConfiguration
+import com.example.vitruvianredux.domain.model.EccentricLoad
+import com.example.vitruvianredux.domain.model.EchoLevel
+import com.example.vitruvianredux.domain.model.ProgramMode
 import com.example.vitruvianredux.domain.model.UserPreferences
 import com.example.vitruvianredux.domain.model.WeightUnit
+import com.example.vitruvianredux.domain.model.WorkoutType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -21,27 +26,106 @@ import javax.inject.Singleton
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
 /**
- * Saved settings for Just Lift mode
- * These are stored and recalled automatically when entering Just Lift mode
+ * Workout mode identifiers for serialization.
+ * Using stable string identifiers instead of enum names or display names for forward compatibility.
+ */
+object WorkoutModeId {
+    const val OLD_SCHOOL = "old_school"
+    const val PUMP = "pump"
+    const val TUT = "tut"
+    const val TUT_BEAST = "tut_beast"
+    const val ECCENTRIC_ONLY = "eccentric_only"
+    const val ECHO = "echo"
+
+    fun fromWorkoutType(workoutType: WorkoutType): String = when (workoutType) {
+        is WorkoutType.Program -> when (workoutType.mode) {
+            ProgramMode.OldSchool -> OLD_SCHOOL
+            ProgramMode.Pump -> PUMP
+            ProgramMode.TUT -> TUT
+            ProgramMode.TUTBeast -> TUT_BEAST
+            ProgramMode.EccentricOnly -> ECCENTRIC_ONLY
+        }
+        is WorkoutType.Echo -> ECHO
+    }
+
+    fun toWorkoutType(
+        modeId: String,
+        eccentricLoad: EccentricLoad = EccentricLoad.LOAD_100,
+        echoLevel: EchoLevel = EchoLevel.HARDER
+    ): WorkoutType = when (modeId) {
+        OLD_SCHOOL -> WorkoutType.Program(ProgramMode.OldSchool)
+        PUMP -> WorkoutType.Program(ProgramMode.Pump)
+        TUT -> WorkoutType.Program(ProgramMode.TUT)
+        TUT_BEAST -> WorkoutType.Program(ProgramMode.TUTBeast)
+        ECCENTRIC_ONLY -> WorkoutType.Program(ProgramMode.EccentricOnly)
+        ECHO -> WorkoutType.Echo(echoLevel, eccentricLoad)
+        else -> {
+            Timber.w("Unknown workout mode ID: $modeId, defaulting to OldSchool")
+            WorkoutType.Program(ProgramMode.OldSchool)
+        }
+    }
+}
+
+/**
+ * Saved settings for Just Lift mode.
+ * These are stored and recalled automatically when entering Just Lift mode.
+ *
+ * @param version Schema version for future migration support
+ * @param workoutModeId Stable identifier for workout mode (see WorkoutModeId)
+ * @param weightPerCableKg Weight per cable in kilograms (always stored in KG)
+ * @param weightChangePerRep Progression/regression value in KG
+ * @param eccentricLoadPercentage Eccentric load percentage (0, 50, 75, 100, 125, 150)
+ * @param echoLevelValue Echo level ordinal (0=Hard, 1=Harder, 2=Hardest, 3=Epic)
  */
 @Serializable
 data class JustLiftDefaults(
-    val workoutMode: String = "OldSchool",  // Stored as enum name
+    val version: Int = 1,
+    val workoutModeId: String = WorkoutModeId.OLD_SCHOOL,
     val weightPerCableKg: Float = 10f,
     val weightChangePerRep: Int = 0,
-    val eccentricLoadPercentage: Int = 100,  // EccentricLoad.LOAD_100
-    val echoLevelValue: Int = 1  // EchoLevel.HARDER
-)
+    val eccentricLoadPercentage: Int = 100,
+    val echoLevelValue: Int = 1
+) {
+    init {
+        require(weightPerCableKg > 0) { "Weight must be positive" }
+        require(eccentricLoadPercentage in listOf(0, 50, 75, 100, 125, 150)) {
+            "Invalid eccentric load percentage: $eccentricLoadPercentage"
+        }
+        require(echoLevelValue in 0..3) { "Invalid echo level value: $echoLevelValue" }
+    }
+
+    fun toWorkoutType(): WorkoutType {
+        val eccentricLoad = EccentricLoad.entries.find { it.percentage == eccentricLoadPercentage }
+            ?: EccentricLoad.LOAD_100
+        val echoLevel = EchoLevel.entries.find { it.levelValue == echoLevelValue }
+            ?: EchoLevel.HARDER
+        return WorkoutModeId.toWorkoutType(workoutModeId, eccentricLoad, echoLevel)
+    }
+
+    fun getEccentricLoad(): EccentricLoad =
+        EccentricLoad.entries.find { it.percentage == eccentricLoadPercentage }
+            ?: EccentricLoad.LOAD_100
+
+    fun getEchoLevel(): EchoLevel =
+        EchoLevel.entries.find { it.levelValue == echoLevelValue }
+            ?: EchoLevel.HARDER
+}
 
 /**
- * Saved settings for a specific exercise in Single Exercise mode
- * Keyed by exerciseId + cableConfig (e.g., "bicep_curl_DOUBLE")
+ * Saved settings for a specific exercise in Single Exercise mode.
+ * Keyed by exerciseId + cableConfig (e.g., "exercise_123_DOUBLE")
+ *
+ * @param version Schema version for future migration support
+ * @param exerciseId Unique identifier of the exercise
+ * @param cableConfig Cable configuration name ("SINGLE", "DOUBLE", or "EITHER")
+ * @param workoutModeId Stable identifier for workout mode (see WorkoutModeId)
  */
 @Serializable
 data class SingleExerciseDefaults(
+    val version: Int = 1,
     val exerciseId: String,
-    val cableConfig: String,  // "SINGLE" or "DOUBLE"
-    val workoutMode: String = "OldSchool",
+    val cableConfig: String,
+    val workoutModeId: String = WorkoutModeId.OLD_SCHOOL,
     val setReps: List<Int?> = listOf(10, 10, 10),
     val weightPerCableKg: Float = 20f,
     val setWeightsPerCableKg: List<Float> = emptyList(),
@@ -52,7 +136,33 @@ data class SingleExerciseDefaults(
     val echoLevelValue: Int = 1,
     val duration: Int? = null,
     val isAMRAP: Boolean = false
-)
+) {
+    init {
+        require(exerciseId.isNotBlank()) { "Exercise ID must not be blank" }
+        require(weightPerCableKg >= 0) { "Weight must be non-negative" }
+        require(setReps.isNotEmpty()) { "Must have at least one set" }
+    }
+
+    fun toWorkoutType(): WorkoutType {
+        val eccentricLoad = EccentricLoad.entries.find { it.percentage == eccentricLoadPercentage }
+            ?: EccentricLoad.LOAD_100
+        val echoLevel = EchoLevel.entries.find { it.levelValue == echoLevelValue }
+            ?: EchoLevel.HARDER
+        return WorkoutModeId.toWorkoutType(workoutModeId, eccentricLoad, echoLevel)
+    }
+
+    fun getCableConfiguration(): CableConfiguration =
+        CableConfiguration.entries.find { it.name == cableConfig }
+            ?: CableConfiguration.DOUBLE
+
+    fun getEccentricLoad(): EccentricLoad =
+        EccentricLoad.entries.find { it.percentage == eccentricLoadPercentage }
+            ?: EccentricLoad.LOAD_100
+
+    fun getEchoLevel(): EchoLevel =
+        EchoLevel.entries.find { it.levelValue == echoLevelValue }
+            ?: EchoLevel.HARDER
+}
 
 /**
  * Manager for user preferences using DataStore

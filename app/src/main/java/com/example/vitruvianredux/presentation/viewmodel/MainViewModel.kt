@@ -2046,15 +2046,18 @@ class MainViewModel @Inject constructor(
             is WorkoutType.Program -> 100 to 1
         }
 
-        val defaults = com.example.vitruvianredux.data.preferences.JustLiftDefaults(
-            workoutMode = params.workoutType.displayName,
-            weightPerCableKg = params.weightPerCableKg,
-            weightChangePerRep = params.progressionRegressionKg.toInt(),
-            eccentricLoadPercentage = eccentricLoad,
-            echoLevelValue = echoLevel
-        )
-
-        preferencesManager.saveJustLiftDefaults(defaults)
+        try {
+            val defaults = com.example.vitruvianredux.data.preferences.JustLiftDefaults(
+                workoutModeId = com.example.vitruvianredux.data.preferences.WorkoutModeId.fromWorkoutType(params.workoutType),
+                weightPerCableKg = params.weightPerCableKg.coerceAtLeast(0.1f),
+                weightChangePerRep = params.progressionRegressionKg.toInt(),
+                eccentricLoadPercentage = eccentricLoad,
+                echoLevelValue = echoLevel
+            )
+            preferencesManager.saveJustLiftDefaults(defaults)
+        } catch (e: IllegalArgumentException) {
+            Timber.e(e, "Failed to save Just Lift defaults - validation error")
+        }
     }
 
     /**
@@ -2075,24 +2078,27 @@ class MainViewModel @Inject constructor(
             is WorkoutType.Program -> 100 to 1
         }
 
-        val defaults = com.example.vitruvianredux.data.preferences.SingleExerciseDefaults(
-            exerciseId = exerciseId,
-            cableConfig = currentExercise.cableConfig.name,
-            workoutMode = currentExercise.workoutType.displayName,
-            setReps = currentExercise.setReps,
-            weightPerCableKg = currentExercise.weightPerCableKg,
-            setWeightsPerCableKg = currentExercise.setWeightsPerCableKg,
-            progressionKg = currentExercise.progressionKg,
-            setRestSeconds = currentExercise.setRestSeconds,
-            perSetRestTime = currentExercise.perSetRestTime,
-            eccentricLoadPercentage = eccentricLoad,
-            echoLevelValue = echoLevel,
-            duration = currentExercise.duration,
-            isAMRAP = currentExercise.isAMRAP
-        )
-
-        preferencesManager.saveSingleExerciseDefaults(defaults)
-        Timber.d("Saved Single Exercise defaults for ${currentExercise.exercise.name} (${currentExercise.cableConfig})")
+        try {
+            val defaults = com.example.vitruvianredux.data.preferences.SingleExerciseDefaults(
+                exerciseId = exerciseId,
+                cableConfig = currentExercise.cableConfig.name,
+                workoutModeId = com.example.vitruvianredux.data.preferences.WorkoutModeId.fromWorkoutType(currentExercise.workoutType),
+                setReps = currentExercise.setReps.ifEmpty { listOf(10) },
+                weightPerCableKg = currentExercise.weightPerCableKg.coerceAtLeast(0f),
+                setWeightsPerCableKg = currentExercise.setWeightsPerCableKg,
+                progressionKg = currentExercise.progressionKg,
+                setRestSeconds = currentExercise.setRestSeconds,
+                perSetRestTime = currentExercise.perSetRestTime,
+                eccentricLoadPercentage = eccentricLoad,
+                echoLevelValue = echoLevel,
+                duration = currentExercise.duration,
+                isAMRAP = currentExercise.isAMRAP
+            )
+            preferencesManager.saveSingleExerciseDefaults(defaults)
+            Timber.d("Saved Single Exercise defaults for ${currentExercise.exercise.name} (${currentExercise.cableConfig})")
+        } catch (e: IllegalArgumentException) {
+            Timber.e(e, "Failed to save Single Exercise defaults - validation error")
+        }
     }
 
     /**
