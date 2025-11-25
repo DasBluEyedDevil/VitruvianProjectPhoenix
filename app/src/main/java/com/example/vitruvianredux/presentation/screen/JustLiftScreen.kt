@@ -76,9 +76,10 @@ fun JustLiftScreen(
                 // Apply saved defaults
                 weightPerCable = defaults.weightPerCableKg
 
-                // Convert stored weight change to display unit if needed
+                // Convert stored weight change (KG) to display unit if needed
+                // Use roundToInt() to minimize accumulating rounding errors
                 weightChangePerRep = if (weightUnit == WeightUnit.LB) {
-                    (defaults.weightChangePerRep * 2.20462f).toInt()
+                    kotlin.math.round(defaults.weightChangePerRep * 2.20462f).toInt()
                 } else {
                     defaults.weightChangePerRep
                 }
