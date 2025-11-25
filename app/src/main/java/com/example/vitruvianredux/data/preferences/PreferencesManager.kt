@@ -4,15 +4,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.example.vitruvianredux.domain.model.EccentricLoad
-import com.example.vitruvianredux.domain.model.EchoLevel
 import com.example.vitruvianredux.domain.model.UserPreferences
 import com.example.vitruvianredux.domain.model.WeightUnit
-import com.example.vitruvianredux.domain.model.WorkoutMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
