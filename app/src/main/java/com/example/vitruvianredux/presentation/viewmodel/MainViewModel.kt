@@ -1388,7 +1388,7 @@ class MainViewModel @Inject constructor(
      */
     private fun isSingleExerciseMode(): Boolean {
         val routine = _loadedRoutine.value
-        return routine == null || routine.id.startsWith("temp_single_exercise_")
+        return routine == null || routine.id.startsWith(TEMP_SINGLE_EXERCISE_PREFIX)
     }
 
     /**
@@ -2068,7 +2068,7 @@ class MainViewModel @Inject constructor(
         val routine = _loadedRoutine.value ?: return
 
         // Only save for temp single exercise routines, not for regular routines
-        if (!routine.id.startsWith("temp_single_exercise_")) return
+        if (!routine.id.startsWith(TEMP_SINGLE_EXERCISE_PREFIX)) return
 
         val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return
         val exerciseId = currentExercise.exercise.id ?: return
@@ -2435,6 +2435,9 @@ class MainViewModel @Inject constructor(
 
     companion object {
         private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
+
+        /** Prefix for temporary routines created in Single Exercise mode */
+        const val TEMP_SINGLE_EXERCISE_PREFIX = "temp_single_exercise_"
     }
 }
 
