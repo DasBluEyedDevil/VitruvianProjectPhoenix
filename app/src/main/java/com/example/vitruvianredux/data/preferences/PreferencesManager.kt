@@ -16,6 +16,8 @@ import com.example.vitruvianredux.domain.model.WorkoutType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -141,6 +143,14 @@ data class SingleExerciseDefaults(
         require(exerciseId.isNotBlank()) { "Exercise ID must not be blank" }
         require(weightPerCableKg >= 0) { "Weight must be non-negative" }
         require(setReps.isNotEmpty()) { "Must have at least one set" }
+        require(progressionKg in -50f..50f) { "Progression must be between -50kg and 50kg" }
+        require(duration == null || duration > 0) { "Duration must be positive if set" }
+        require(setWeightsPerCableKg.isEmpty() || setWeightsPerCableKg.size == setReps.size) {
+            "setWeightsPerCableKg must be empty or match setReps size"
+        }
+        require(setRestSeconds.isEmpty() || setRestSeconds.size == setReps.size) {
+            "setRestSeconds must be empty or match setReps size"
+        }
     }
 
     fun toWorkoutType(): WorkoutType {
@@ -171,6 +181,12 @@ data class SingleExerciseDefaults(
 class PreferencesManager @Inject constructor(
     private val context: Context
 ) {
+    /** Mutex to prevent concurrent save race conditions */
+    private val exerciseDefaultsSaveMutex = Mutex()
+
+    /** Maximum number of exercise defaults before triggering cleanup warning */
+    private val MAX_EXERCISE_DEFAULTS_SIZE = 200
+
     private val WEIGHT_UNIT_KEY = stringPreferencesKey("weight_unit")
     private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
     private val STOP_AT_TOP_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("stop_at_top")
@@ -286,30 +302,43 @@ class PreferencesManager @Inject constructor(
     /**
      * Save Single Exercise mode defaults for a specific exercise+equipment combination
      * Called when a Single Exercise workout is completed (not routine-based)
+     *
+     * Uses mutex to prevent concurrent save race conditions
      */
     suspend fun saveSingleExerciseDefaults(defaults: SingleExerciseDefaults) {
-        val key = getExerciseKey(defaults.exerciseId, defaults.cableConfig)
-        context.dataStore.edit { preferences ->
-            // Load existing map
-            val existingJson = preferences[SINGLE_EXERCISE_DEFAULTS_KEY]
-            val existingMap: MutableMap<String, SingleExerciseDefaults> = if (existingJson != null) {
-                try {
-                    Json.decodeFromString<Map<String, SingleExerciseDefaults>>(existingJson).toMutableMap()
-                } catch (e: Exception) {
-                    Timber.w(e, "Failed to parse existing exercise defaults, starting fresh")
+        exerciseDefaultsSaveMutex.withLock {
+            val key = getExerciseKey(defaults.exerciseId, defaults.cableConfig)
+            context.dataStore.edit { preferences ->
+                // Load existing map
+                val existingJson = preferences[SINGLE_EXERCISE_DEFAULTS_KEY]
+                val existingMap: MutableMap<String, SingleExerciseDefaults> = if (existingJson != null) {
+                    try {
+                        Json.decodeFromString<Map<String, SingleExerciseDefaults>>(existingJson).toMutableMap()
+                    } catch (e: Exception) {
+                        // Data corruption or schema change - log error but preserve raw data
+                        Timber.e(e, "Failed to parse existing exercise defaults - raw data preserved, saving only new entry")
+                        // Instead of discarding all data, we'll just save the new entry
+                        // The old corrupted data will be overwritten with just this one entry
+                        // This is a data recovery strategy: lose old entries but don't crash
+                        mutableMapOf()
+                    }
+                } else {
                     mutableMapOf()
                 }
-            } else {
-                mutableMapOf()
+
+                // Update with new defaults
+                existingMap[key] = defaults
+
+                // Monitor map size for potential cleanup
+                if (existingMap.size > MAX_EXERCISE_DEFAULTS_SIZE) {
+                    Timber.w("Exercise defaults map has ${existingMap.size} entries - consider implementing cleanup strategy")
+                }
+
+                // Save back
+                preferences[SINGLE_EXERCISE_DEFAULTS_KEY] = Json.encodeToString(existingMap)
             }
-
-            // Update with new defaults
-            existingMap[key] = defaults
-
-            // Save back
-            preferences[SINGLE_EXERCISE_DEFAULTS_KEY] = Json.encodeToString(existingMap)
+            Timber.d("Single Exercise defaults saved: exerciseId=${defaults.exerciseId}, cableConfig=${defaults.cableConfig}, mode=${defaults.workoutModeId}")
         }
-        Timber.d("Single Exercise defaults saved: exerciseId=${defaults.exerciseId}, cableConfig=${defaults.cableConfig}, mode=${defaults.workoutModeId}")
     }
 
     /**

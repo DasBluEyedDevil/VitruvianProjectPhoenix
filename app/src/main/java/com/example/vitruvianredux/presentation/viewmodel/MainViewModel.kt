@@ -2050,7 +2050,8 @@ class MainViewModel @Inject constructor(
             val defaults = com.example.vitruvianredux.data.preferences.JustLiftDefaults(
                 workoutModeId = com.example.vitruvianredux.data.preferences.WorkoutModeId.fromWorkoutType(params.workoutType),
                 weightPerCableKg = params.weightPerCableKg.coerceAtLeast(0.1f),
-                weightChangePerRep = params.progressionRegressionKg.toInt(),
+                // Use roundToInt() to minimize accumulating rounding errors when converting between units
+                weightChangePerRep = kotlin.math.round(params.progressionRegressionKg).toInt(),
                 eccentricLoadPercentage = eccentricLoad,
                 echoLevelValue = echoLevel
             )
@@ -2079,19 +2080,36 @@ class MainViewModel @Inject constructor(
         }
 
         try {
+            val setReps = currentExercise.setReps.ifEmpty { listOf(10) }
+            val numSets = setReps.size
+
+            // Normalize setWeightsPerCableKg to match setReps size (or be empty)
+            val normalizedSetWeights = when {
+                currentExercise.setWeightsPerCableKg.isEmpty() -> emptyList()
+                currentExercise.setWeightsPerCableKg.size == numSets -> currentExercise.setWeightsPerCableKg
+                else -> emptyList() // Reset if invalid size
+            }
+
+            // Normalize setRestSeconds to match setReps size (or be empty)
+            val normalizedSetRest = when {
+                currentExercise.setRestSeconds.isEmpty() -> emptyList()
+                currentExercise.setRestSeconds.size == numSets -> currentExercise.setRestSeconds
+                else -> emptyList() // Reset if invalid size
+            }
+
             val defaults = com.example.vitruvianredux.data.preferences.SingleExerciseDefaults(
                 exerciseId = exerciseId,
                 cableConfig = currentExercise.cableConfig.name,
                 workoutModeId = com.example.vitruvianredux.data.preferences.WorkoutModeId.fromWorkoutType(currentExercise.workoutType),
-                setReps = currentExercise.setReps.ifEmpty { listOf(10) },
+                setReps = setReps,
                 weightPerCableKg = currentExercise.weightPerCableKg.coerceAtLeast(0f),
-                setWeightsPerCableKg = currentExercise.setWeightsPerCableKg,
-                progressionKg = currentExercise.progressionKg,
-                setRestSeconds = currentExercise.setRestSeconds,
+                setWeightsPerCableKg = normalizedSetWeights,
+                progressionKg = currentExercise.progressionKg.coerceIn(-50f, 50f),
+                setRestSeconds = normalizedSetRest,
                 perSetRestTime = currentExercise.perSetRestTime,
                 eccentricLoadPercentage = eccentricLoad,
                 echoLevelValue = echoLevel,
-                duration = currentExercise.duration,
+                duration = currentExercise.duration?.takeIf { it > 0 },
                 isAMRAP = currentExercise.isAMRAP
             )
             preferencesManager.saveSingleExerciseDefaults(defaults)
