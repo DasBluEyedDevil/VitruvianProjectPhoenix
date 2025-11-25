@@ -1,8 +1,5 @@
 package com.example.vitruvianredux.domain.model
 
-import com.example.vitruvianredux.util.VitruvianModel
-import com.example.vitruvianredux.util.HardwareDetection
-
 /**
  * Personal record for an exercise
  */
@@ -24,8 +21,7 @@ sealed class ConnectionState {
     object Connecting : ConnectionState()
     data class Connected(
         val deviceName: String,
-        val deviceAddress: String,
-        val hardwareModel: VitruvianModel = HardwareDetection.detectModel(deviceName)
+        val deviceAddress: String
     ) : ConnectionState()
     data class Error(val message: String, val throwable: Throwable? = null) : ConnectionState()
 }

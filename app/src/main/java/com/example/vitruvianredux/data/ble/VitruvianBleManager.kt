@@ -204,6 +204,10 @@ class VitruvianBleManager(
             // This is NON-BLOCKING and purely for logging/diagnostics
             tryReadFirmwareVersion(gatt)
 
+            // DIAGNOSTIC: Try to read Vitruvian VERSION characteristic
+            // This contains hardware/firmware info in a proprietary format (undocumented)
+            tryReadVitruvianVersion(gatt)
+
             // Get the NUS service
             val nusService = gatt.getService(BleConstants.NUS_SERVICE_UUID)
             if (nusService == null) {
@@ -381,6 +385,63 @@ class VitruvianBleManager(
             }
         }
 
+        /**
+         * Try to read Vitruvian VERSION characteristic
+         * This contains hardware/firmware info in a proprietary format.
+         * Format is undocumented - we log raw hex to help with reverse engineering.
+         *
+         * @param gatt The GATT instance with discovered services
+         */
+        private fun tryReadVitruvianVersion(gatt: BluetoothGatt) {
+            try {
+                // Find VERSION characteristic across all services
+                val versionChar = gatt.services
+                    .flatMap { it.characteristics }
+                    .find { it.uuid == BleConstants.VERSION_CHAR_UUID }
+
+                if (versionChar == null) {
+                    Timber.d("VERSION characteristic not found - cannot read Vitruvian version info")
+                    return
+                }
+
+                Timber.d("VERSION characteristic found - attempting to read...")
+
+                readCharacteristic(versionChar)
+                    .with { _, data ->
+                        try {
+                            val bytes = data.value
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                val hexString = bytes.joinToString(" ") { "%02X".format(it) }
+                                Timber.i("╔════════════════════════════════════════════════════════════╗")
+                                Timber.i("║  VITRUVIAN VERSION CHARACTERISTIC (READ)                   ║")
+                                Timber.i("║  Size: ${bytes.size} bytes                                        ║")
+                                Timber.i("║  Hex: $hexString")
+                                Timber.i("╚════════════════════════════════════════════════════════════╝")
+
+                                // Log to connection logger for user reports
+                                connectionLogger?.log(
+                                    eventType = "VERSION_DATA",
+                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                                    deviceName = currentDeviceName,
+                                    deviceAddress = currentDeviceAddress,
+                                    message = "Vitruvian VERSION characteristic read",
+                                    details = "Size: ${bytes.size} bytes\nHex: $hexString\n\nNote: Format is proprietary/undocumented. Contains hardware/firmware info."
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Timber.w("Failed to parse VERSION characteristic: ${e.message}")
+                        }
+                    }
+                    .fail { _, status ->
+                        Timber.d("Failed to read VERSION characteristic (status: $status) - this is OK")
+                    }
+                    .enqueue()
+
+            } catch (e: Exception) {
+                Timber.w("Exception while trying to read VERSION characteristic: ${e.message}")
+            }
+        }
+
         @Deprecated("Using deprecated Nordic BLE API")
         override fun onServicesInvalidated() {
             val timestamp = System.currentTimeMillis()
@@ -505,6 +566,29 @@ class VitruvianBleManager(
                         Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
                         handleRepNotification(data)
                     }
+                } else if (characteristic.uuid == BleConstants.VERSION_CHAR_UUID) {
+                    // Special handler for VERSION characteristic - log raw hex for reverse engineering
+                    setNotificationCallback(characteristic).with { _, data ->
+                        val bytes = data.value
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val hexString = bytes.joinToString(" ") { "%02X".format(it) }
+                            Timber.i("╔════════════════════════════════════════════════════════════╗")
+                            Timber.i("║  VERSION CHARACTERISTIC DATA RECEIVED                      ║")
+                            Timber.i("║  Size: ${bytes.size} bytes                                        ║")
+                            Timber.i("║  Hex: $hexString")
+                            Timber.i("╚════════════════════════════════════════════════════════════╝")
+
+                            // Log to connection logger for user reports - helps with reverse engineering
+                            connectionLogger?.log(
+                                eventType = "VERSION_DATA",
+                                level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                                deviceName = currentDeviceName,
+                                deviceAddress = currentDeviceAddress,
+                                message = "VERSION characteristic notification",
+                                details = "Size: ${bytes.size} bytes\nHex: $hexString"
+                            )
+                        }
+                    }
                 } else {
                     // Generic handler for other notifications - capture command responses
                     setNotificationCallback(characteristic).with { _, data ->
@@ -513,7 +597,7 @@ class VitruvianBleManager(
                             // Parse opcode from first byte (command responses start with opcode)
                             val opcode = bytes[0].toUByte()
                             Timber.d("[notify ${characteristic.uuid}] ${bytes.size} bytes, opcode=0x${opcode.toString(16).uppercase().padStart(2, '0')}")
-                            
+
                             // Emit opcode to response flow for awaitResponse() to catch
                             _commandResponses.tryEmit(opcode)
                         } else {

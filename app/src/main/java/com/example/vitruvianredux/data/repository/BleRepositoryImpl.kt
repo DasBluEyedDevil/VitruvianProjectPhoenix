@@ -509,7 +509,6 @@ class BleRepositoryImpl @Inject constructor(
             val connectedState = _connectionState.value
             val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
-            val hardwareModel = if (connectedState is ConnectionState.Connected) connectedState.hardwareModel else null
 
             // WEB APP STARTUP SEQUENCE (verified from exerciselibrary & workoutmachineappfree):
             // 1. Send INIT command (0x0A) - same command used for stop, resets machine state
@@ -527,7 +526,6 @@ class BleRepositoryImpl @Inject constructor(
             // - Program modes (Old School, Pump, TUT): Send ONLY program params (96 bytes)
             // - Echo mode: Send ONLY echo control (40 bytes)
             Timber.d("Starting workout with type: ${params.workoutType.displayName}")
-            Timber.d("Hardware: ${hardwareModel?.displayName ?: "Unknown"}")
 
             when (params.workoutType) {
                 is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
@@ -563,9 +561,6 @@ class BleRepositoryImpl @Inject constructor(
                         append("Reps=${params.reps}, ")
                         append("JustLift=${params.isJustLift}, ")
                         append("Progression=${params.progressionRegressionKg}kg")
-                        hardwareModel?.let {
-                            append(", Hardware=${it.displayName} [${it.modelNumber}]")
-                        }
                         if (params.workoutType.mode == com.example.vitruvianredux.domain.model.ProgramMode.EccentricOnly) {
                             append("\n⚠️ ECCENTRIC-ONLY MODE - Please verify resistance applies ONLY during lowering phase")
                         }

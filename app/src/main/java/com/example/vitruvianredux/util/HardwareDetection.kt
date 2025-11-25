@@ -1,124 +1,59 @@
 package com.example.vitruvianredux.util
 
 /**
- * Vitruvian Hardware Model Detection
+ * Vitruvian Hardware Detection
  *
- * Identifies which generation of Vitruvian Trainer is connected based on device name
- * and determines hardware capabilities.
+ * Previously attempted to identify hardware models (Euclid, Trainer+) from device name prefixes,
+ * but this approach was flawed - device name patterns don't reliably indicate hardware capabilities.
  *
- * Known Models:
- * - Euclid (VIT-200): Original V-Form Trainer with older motors
- *   - Device names start with "Vee"
- *   - Limited eccentric mode support due to hardware constraints
+ * Current approach: Report only what we can actually detect (device name) and avoid making
+ * assumptions about capabilities. True capability detection would require reading firmware
+ * version from the device, which is not currently implemented.
  *
- * - Trainer+: Second generation with improved motors
- *   - Better eccentric mode performance
- *   - Smoother operation overall
- *
- * Note: Currently we can only detect Euclid devices via "Vee" prefix.
- * Trainer+ detection would require additional device name patterns to be identified.
+ * The VERSION BLE characteristic (UUID: 74e994ac-0e80-4c02-9cd0-76cb31d3959b) contains
+ * hardware/firmware info but the parsing format is undocumented.
  */
 object HardwareDetection {
 
     /**
-     * Detect Vitruvian hardware model from device name
+     * Get device display info without making capability assumptions
      */
-    fun detectModel(deviceName: String): VitruvianModel {
-        return when {
-            // Euclid/V-Form devices use "Vee" prefix
-            deviceName.startsWith("Vee", ignoreCase = true) -> VitruvianModel.EUCLID
-
-            // Trainer+ detection pattern (to be confirmed with actual device names)
-            deviceName.startsWith("Vitruvian", ignoreCase = true) -> VitruvianModel.TRAINER_PLUS
-
-            // Default to unknown if pattern doesn't match
-            else -> VitruvianModel.UNKNOWN
-        }
+    fun getDeviceDisplayInfo(deviceName: String): String {
+        return "Vitruvian Trainer ($deviceName)"
     }
 
     /**
-     * Get hardware capabilities for a device name
+     * Get hardware capabilities - currently returns defaults since we can't
+     * reliably detect hardware model from device name alone.
+     *
+     * All capabilities are assumed to be available until we can implement
+     * proper firmware version detection.
      */
     fun getCapabilities(deviceName: String): HardwareCapabilities {
-        val model = detectModel(deviceName)
-        return model.capabilities
-    }
-
-    /**
-     * Check if eccentric mode is supported on this device
-     */
-    fun supportsEccentricMode(deviceName: String): Boolean {
-        return getCapabilities(deviceName).supportsEccentricMode
-    }
-
-    /**
-     * Get user-friendly model name for display
-     */
-    fun getDisplayName(deviceName: String): String {
-        val model = detectModel(deviceName)
-        return "${model.displayName} ($deviceName)"
+        return HardwareCapabilities.DEFAULT
     }
 }
 
 /**
- * Vitruvian hardware models
- */
-enum class VitruvianModel(
-    val modelNumber: String,
-    val displayName: String,
-    val capabilities: HardwareCapabilities
-) {
-    /**
-     * Euclid (VIT-200) - Original V-Form Trainer
-     * First generation with eccentric mode support (confirmed in 2021 reviews)
-     * However, users report eccentric-only mode not working properly on this hardware
-     */
-    EUCLID(
-        modelNumber = "VIT-200",
-        displayName = "Vitruvian V-Form Trainer (Euclid)",
-        capabilities = HardwareCapabilities(
-            supportsEccentricMode = true,  // Feature exists but has known issues
-            supportsEchoMode = true,
-            maxResistanceKg = 200f,
-            notes = "Original V-Form Trainer. Eccentric-only mode supported but may not work correctly - under investigation."
-        )
-    ),
-
-    /**
-     * Trainer+ - Second generation with improved motors
-     */
-    TRAINER_PLUS(
-        modelNumber = "VIT-300",  // Assumed model number
-        displayName = "Vitruvian Trainer+",
-        capabilities = HardwareCapabilities(
-            supportsEccentricMode = true,
-            supportsEchoMode = true,
-            maxResistanceKg = 220f,
-            notes = "Second generation with improved motors for better eccentric mode performance."
-        )
-    ),
-
-    /**
-     * Unknown model - treat conservatively
-     */
-    UNKNOWN(
-        modelNumber = "UNKNOWN",
-        displayName = "Unknown Vitruvian Model",
-        capabilities = HardwareCapabilities(
-            supportsEccentricMode = true,  // Assume support for unknown devices
-            supportsEchoMode = true,
-            maxResistanceKg = 200f,
-            notes = "Unknown device model. Capabilities assumed."
-        )
-    )
-}
-
-/**
- * Hardware capabilities for a specific Vitruvian model
+ * Hardware capabilities for Vitruvian trainers
+ *
+ * Note: Without firmware version detection, we assume all features are available.
+ * This is safer than incorrectly disabling features based on flawed model detection.
  */
 data class HardwareCapabilities(
     val supportsEccentricMode: Boolean,
     val supportsEchoMode: Boolean,
-    val maxResistanceKg: Float,
-    val notes: String = ""
-)
+    val maxResistanceKg: Float
+) {
+    companion object {
+        /**
+         * Default capabilities - assume all features available
+         * Conservative max resistance of 200kg (lowest known model)
+         */
+        val DEFAULT = HardwareCapabilities(
+            supportsEccentricMode = true,
+            supportsEchoMode = true,
+            maxResistanceKg = 200f
+        )
+    }
+}
