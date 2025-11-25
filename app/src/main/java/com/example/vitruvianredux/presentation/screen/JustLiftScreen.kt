@@ -82,25 +82,15 @@ fun JustLiftScreen(
                     defaults.weightChangePerRep
                 }
 
-                // Set mode from saved defaults
-                selectedMode = when (defaults.workoutMode) {
-                    "Old School" -> WorkoutMode.OldSchool
-                    "Pump" -> WorkoutMode.Pump
-                    "Echo" -> {
-                        // Restore echo level from saved defaults
-                        val savedLevel = EchoLevel.entries.find { it.levelValue == defaults.echoLevelValue }
-                            ?: EchoLevel.HARDER
-                        echoLevel = savedLevel
-                        WorkoutMode.Echo(savedLevel)
-                    }
-                    else -> WorkoutMode.OldSchool
-                }
+                // Set mode from saved defaults using helper method
+                val savedWorkoutType = defaults.toWorkoutType()
+                selectedMode = savedWorkoutType.toWorkoutMode()
 
-                // Restore eccentric load for Echo mode
-                eccentricLoad = EccentricLoad.entries.find { it.percentage == defaults.eccentricLoadPercentage }
-                    ?: EccentricLoad.LOAD_100
+                // Restore eccentric load and echo level for Echo mode
+                eccentricLoad = defaults.getEccentricLoad()
+                echoLevel = defaults.getEchoLevel()
 
-                timber.log.Timber.d("Loaded Just Lift defaults: mode=${defaults.workoutMode}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
+                timber.log.Timber.d("Loaded Just Lift defaults: modeId=${defaults.workoutModeId}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
             }
             defaultsLoaded = true
         }
