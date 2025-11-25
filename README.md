@@ -149,12 +149,6 @@ cd VitruvianProjectPhoenix
 | `FOREGROUND_SERVICE` | Background workout tracking |
 | `POST_NOTIFICATIONS` | Workout status notifications |
 
-## Known Issues
-
-- **Echo Mode Timing**: May have occasional quirks on some devices
-- **Very Fast Reps**: Rapid reps may occasionally miscount
-- **Eccentric-Only on Euclid**: May not work correctly on older hardware ([#80](https://github.com/DasBluEyedDevil/VitruvianProjectPhoenix/issues/80))
-
 ## Contributing
 
 This is an open-source community project. Contributions welcome!
