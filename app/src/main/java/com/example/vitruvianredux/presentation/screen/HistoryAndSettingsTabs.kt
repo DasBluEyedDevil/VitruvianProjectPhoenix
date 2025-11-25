@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -768,6 +769,7 @@ fun SettingsTab(
     autoplayEnabled: Boolean,
     stopAtTop: Boolean,
     enableVideoPlayback: Boolean,
+    selectedColorScheme: Int = 0,
     onWeightUnitChange: (WeightUnit) -> Unit,
     onAutoplayChange: (Boolean) -> Unit,
     onStopAtTopChange: (Boolean) -> Unit,
@@ -785,6 +787,7 @@ fun SettingsTab(
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     // Optimistic UI state for immediate visual feedback
     var localWeightUnit by remember(weightUnit) { mutableStateOf(weightUnit) }
+    var localSelectedColorScheme by remember(selectedColorScheme) { mutableIntStateOf(selectedColorScheme) }
 
     // Set global title
     LaunchedEffect(Unit) {
@@ -1018,7 +1021,7 @@ fun SettingsTab(
             }
         }
 
-    // Color Scheme Section - Compact with visual previews
+    // LED Color Scheme Section - Controls the trainer's LED lights
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1045,13 +1048,13 @@ fun SettingsTab(
                             RoundedCornerShape(20.dp)
                         ),
                     contentAlignment = Alignment.Center
-                ) { 
+                ) {
                     Icon(
                         Icons.Default.ColorLens,
                         contentDescription = "LED color scheme",
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(24.dp)
-                    ) 
+                    )
                 }
                 Spacer(modifier = Modifier.width(Spacing.medium))
                 Text(
@@ -1061,10 +1064,19 @@ fun SettingsTab(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Description text
+            Text(
+                "Customize the LED lights on your Vitruvian Trainer",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             Spacer(modifier = Modifier.height(Spacing.medium))
-            
-            // Compact horizontal scrollable color chips
+
+            // Horizontal scrollable color chips with selection state
             val colorSchemes = com.example.vitruvianredux.util.ColorSchemes.ALL
             Row(
                 modifier = Modifier
@@ -1075,8 +1087,11 @@ fun SettingsTab(
                 colorSchemes.forEachIndexed { index, scheme ->
                     ColorSchemeChip(
                         scheme = scheme,
-                        isSelected = false, // TODO: Add selected state tracking if needed
-                        onClick = { onColorSchemeChange(index) }
+                        isSelected = localSelectedColorScheme == index,
+                        onClick = {
+                            localSelectedColorScheme = index
+                            onColorSchemeChange(index)
+                        }
                     )
                 }
             }
@@ -1417,7 +1432,13 @@ private fun formatDuration(millis: Long): String {
 }
 
 /**
- * Compact color scheme chip with visual preview
+ * Compact color scheme chip with visual preview.
+ *
+ * Features a clean design with:
+ * - Gradient color preview at top
+ * - Readable label on neutral background
+ * - Clear selection indicator with checkmark overlay
+ * - Spring animation for press feedback
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1428,87 +1449,98 @@ private fun ColorSchemeChip(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.9f else 1f,
+        targetValue = if (isPressed) 0.92f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
         ),
         label = "scale"
     )
-    
+
     // Convert RGB colors to Compose Color
     val composeColors = scheme.colors.map { rgbColor ->
         Color(rgbColor.r, rgbColor.g, rgbColor.b)
     }
-    
+
     // Create gradient from the color scheme
     val gradientColors = if (composeColors.size >= 2) {
         composeColors
     } else {
         listOf(composeColors.firstOrNull() ?: Color.Gray, Color.DarkGray)
     }
-    
+
     Surface(
         onClick = {
             isPressed = true
             onClick()
         },
         modifier = Modifier
-            .width(80.dp)
-            .height(100.dp)
+            .width(72.dp)
             .scale(scale)
             .shadow(if (isSelected) 8.dp else 4.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        color = Color.Transparent,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(
-            width = if (isSelected) 3.dp else 2.dp,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+            width = if (isSelected) 3.dp else 1.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
         ),
-        tonalElevation = if (isSelected) 4.dp else 2.dp
+        tonalElevation = if (isSelected) 4.dp else 1.dp
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(gradientColors),
-                    RoundedCornerShape(16.dp)
-                )
-                .padding(8.dp),
+                .fillMaxWidth()
+                .padding(Spacing.small),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(Spacing.small)
         ) {
-            // Color preview (gradient box)
+            // Color preview circle with gradient and selection overlay
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .background(
-                        Brush.horizontalGradient(gradientColors),
-                        RoundedCornerShape(8.dp)
-                    )
-            )
-            
-            // Color name
+                    .size(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Gradient circle
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(gradientColors),
+                            RoundedCornerShape(24.dp)
+                        )
+                )
+
+                // Selection checkmark overlay
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Color.Black.copy(alpha = 0.3f),
+                                RoundedCornerShape(24.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+
+            // Color name on neutral background for readability
             Text(
                 text = scheme.name,
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
-            
-            // Selected indicator
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
         }
     }
-    
+
     LaunchedEffect(isPressed) {
         if (isPressed) {
             kotlinx.coroutines.delay(100)
