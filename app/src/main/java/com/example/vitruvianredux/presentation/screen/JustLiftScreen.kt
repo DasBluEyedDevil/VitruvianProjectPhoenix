@@ -65,6 +65,46 @@ fun JustLiftScreen(
     var restTime by remember { mutableStateOf(60) } // Rest time in seconds
     var eccentricLoad by remember { mutableStateOf(EccentricLoad.LOAD_100) }
     var echoLevel by remember { mutableStateOf(EchoLevel.HARDER) }
+    var defaultsLoaded by remember { mutableStateOf(false) }
+
+    // Load saved Just Lift defaults on screen init
+    LaunchedEffect(Unit) {
+        if (!defaultsLoaded) {
+            val defaults = viewModel.getJustLiftDefaults()
+            if (defaults != null) {
+                // Apply saved defaults
+                weightPerCable = defaults.weightPerCableKg
+
+                // Convert stored weight change to display unit if needed
+                weightChangePerRep = if (weightUnit == WeightUnit.LB) {
+                    (defaults.weightChangePerRep * 2.20462f).toInt()
+                } else {
+                    defaults.weightChangePerRep
+                }
+
+                // Set mode from saved defaults
+                selectedMode = when (defaults.workoutMode) {
+                    "Old School" -> WorkoutMode.OldSchool
+                    "Pump" -> WorkoutMode.Pump
+                    "Echo" -> {
+                        // Restore echo level from saved defaults
+                        val savedLevel = EchoLevel.entries.find { it.levelValue == defaults.echoLevelValue }
+                            ?: EchoLevel.HARDER
+                        echoLevel = savedLevel
+                        WorkoutMode.Echo(savedLevel)
+                    }
+                    else -> WorkoutMode.OldSchool
+                }
+
+                // Restore eccentric load for Echo mode
+                eccentricLoad = EccentricLoad.entries.find { it.percentage == defaults.eccentricLoadPercentage }
+                    ?: EccentricLoad.LOAD_100
+
+                timber.log.Timber.d("Loaded Just Lift defaults: mode=${defaults.workoutMode}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
+            }
+            defaultsLoaded = true
+        }
+    }
 
     LaunchedEffect(workoutParameters.workoutType) {
         val workoutType = workoutParameters.workoutType
