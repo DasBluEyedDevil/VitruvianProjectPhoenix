@@ -3,7 +3,6 @@ package com.example.vitruvianredux.data.logger
 import com.example.vitruvianredux.data.local.ConnectionLogDao
 import com.example.vitruvianredux.data.local.ConnectionLogEntity
 import com.example.vitruvianredux.util.DeviceInfo
-import com.example.vitruvianredux.util.HardwareDetection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -198,34 +197,12 @@ class ConnectionLogger @Inject constructor(
             deviceName = deviceName,
             details = buildString {
                 appendLine("Device Name: $deviceName")
-                appendLine("Model: ${extractVitruvianModel(deviceName)}")
                 appendLine()
-                appendLine("Note: Firmware version not available via BLE")
-                appendLine("To check firmware: Settings → About on Vitruvian touchscreen")
+                appendLine("Note: Firmware version detection requires reading VERSION characteristic")
+                appendLine("To check firmware manually: Settings -> About on Vitruvian touchscreen")
             },
-            metadata = """{"deviceName":"$deviceName","model":"${extractVitruvianModel(deviceName)}"}"""
+            metadata = """{"deviceName":"$deviceName"}"""
         )
-    }
-
-    /**
-     * Extract Vitruvian model from device name using hardware detection
-     * Device names typically follow pattern "Vee123" or "Vitruvian-XXX"
-     */
-    private fun extractVitruvianModel(deviceName: String): String {
-        val model = HardwareDetection.detectModel(deviceName)
-        val capabilities = model.capabilities
-
-        return buildString {
-            append("${model.displayName} [${model.modelNumber}]")
-            appendLine()
-            append("  • Eccentric Mode: ${if (capabilities.supportsEccentricMode) "Supported" else "Not Supported"}")
-            appendLine()
-            append("  • Max Resistance: ${capabilities.maxResistanceKg} kg")
-            if (capabilities.notes.isNotEmpty()) {
-                appendLine()
-                append("  • Note: ${capabilities.notes}")
-            }
-        }
     }
 
     fun logConnectionFailed(deviceName: String, deviceAddress: String, error: String) {

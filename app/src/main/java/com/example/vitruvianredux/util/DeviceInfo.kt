@@ -1,11 +1,41 @@
 package com.example.vitruvianredux.util
 
 import android.os.Build
+import com.example.vitruvianredux.BuildConfig
 
 /**
- * Device information utility for logging and debugging
+ * Device and app information utility for logging and debugging
  */
 object DeviceInfo {
+
+    // ==================== App Build Info ====================
+
+    /**
+     * App version name (e.g., "0.5.1-beta" or "0.5.1-beta-DEBUG")
+     */
+    val appVersionName: String = BuildConfig.VERSION_NAME
+
+    /**
+     * App version code (incrementing integer)
+     */
+    val appVersionCode: Int = BuildConfig.VERSION_CODE
+
+    /**
+     * Build type (debug or release)
+     */
+    val buildType: String = BuildConfig.BUILD_TYPE
+
+    /**
+     * Whether this is a debug build
+     */
+    val isDebugBuild: Boolean = BuildConfig.DEBUG
+
+    /**
+     * Application ID (may differ between debug/release)
+     */
+    val applicationId: String = BuildConfig.APPLICATION_ID
+
+    // ==================== Android Device Info ====================
 
     /**
      * Get device manufacturer (e.g., "samsung", "Google")
@@ -42,11 +72,16 @@ object DeviceInfo {
      */
     val fingerprint: String = Build.FINGERPRINT
 
+    // ==================== Formatted Output ====================
+
     /**
-     * Get a formatted device info string for logging
+     * Get a formatted device and app info string for logging
      */
     fun getFormattedInfo(): String {
         return buildString {
+            appendLine("App: VitruvianRedux v$appVersionName (build $appVersionCode)")
+            appendLine("Build Type: $buildType")
+            appendLine()
             appendLine("Device: $manufacturer $model")
             appendLine("Model Name: $device")
             appendLine("OS: $androidVersionFull")
@@ -62,10 +97,30 @@ object DeviceInfo {
     }
 
     /**
+     * Get a compact one-line app version description
+     */
+    fun getAppVersionInfo(): String {
+        return "v$appVersionName ($buildType)"
+    }
+
+    /**
      * Get device info as structured JSON string for metadata storage
      */
     fun toJson(): String {
-        return """{"manufacturer":"$manufacturer","model":"$model","device":"$device","androidVersion":"$androidVersion","sdkInt":$sdkInt,"fingerprint":"$fingerprint"}"""
+        return buildString {
+            append("{")
+            append("\"appVersion\":\"$appVersionName\",")
+            append("\"appVersionCode\":$appVersionCode,")
+            append("\"buildType\":\"$buildType\",")
+            append("\"applicationId\":\"$applicationId\",")
+            append("\"manufacturer\":\"$manufacturer\",")
+            append("\"model\":\"$model\",")
+            append("\"device\":\"$device\",")
+            append("\"androidVersion\":\"$androidVersion\",")
+            append("\"sdkInt\":$sdkInt,")
+            append("\"fingerprint\":\"$fingerprint\"")
+            append("}")
+        }
     }
 
     /**
