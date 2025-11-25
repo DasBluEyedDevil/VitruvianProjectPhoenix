@@ -40,6 +40,7 @@ fun SingleExerciseScreen(
     val connectionError by viewModel.connectionError.collectAsState()
 
     var exerciseToConfig by remember { mutableStateOf<RoutineExercise?>(null) }
+    var isLoadingDefaults by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     // Local state for picker
@@ -124,69 +125,57 @@ fun SingleExerciseScreen(
 
                     val defaultCableConfig = exercise.resolveDefaultCableConfig()
 
+                    // Set loading state to prevent showing dialog before defaults are loaded
+                    isLoadingDefaults = true
+
                     // Load saved defaults for this exercise+cable config asynchronously
                     coroutineScope.launch {
-                        val savedDefaults = selectedExercise.id?.let { exerciseId ->
-                            viewModel.getSingleExerciseDefaults(exerciseId, defaultCableConfig.name)
-                        }
-
-                        val newRoutineExercise = if (savedDefaults != null) {
-                            // Apply saved defaults
-                            timber.log.Timber.d("Loaded saved defaults for ${selectedExercise.name} (${defaultCableConfig.name})")
-
-                            // Convert saved workout mode string back to WorkoutType
-                            val workoutType = when (savedDefaults.workoutMode) {
-                                "Old School" -> WorkoutType.Program(ProgramMode.OldSchool)
-                                "Pump" -> WorkoutType.Program(ProgramMode.Pump)
-                                "TUT" -> WorkoutType.Program(ProgramMode.TUT)
-                                "TUT Beast" -> WorkoutType.Program(ProgramMode.TUTBeast)
-                                "Eccentric Only" -> WorkoutType.Program(ProgramMode.EccentricOnly)
-                                "Echo" -> {
-                                    val echoLevel = EchoLevel.entries.find { it.levelValue == savedDefaults.echoLevelValue }
-                                        ?: EchoLevel.HARDER
-                                    val eccentricLoad = EccentricLoad.entries.find { it.percentage == savedDefaults.eccentricLoadPercentage }
-                                        ?: EccentricLoad.LOAD_100
-                                    WorkoutType.Echo(echoLevel, eccentricLoad)
-                                }
-                                else -> WorkoutType.Program(ProgramMode.OldSchool)
+                        try {
+                            val savedDefaults = selectedExercise.id?.let { exerciseId ->
+                                viewModel.getSingleExerciseDefaults(exerciseId, defaultCableConfig.name)
                             }
 
-                            RoutineExercise(
-                                id = UUID.randomUUID().toString(),
-                                exercise = exercise,
-                                cableConfig = CableConfiguration.valueOf(savedDefaults.cableConfig),
-                                orderIndex = 0,
-                                setReps = savedDefaults.setReps,
-                                weightPerCableKg = savedDefaults.weightPerCableKg,
-                                setWeightsPerCableKg = savedDefaults.setWeightsPerCableKg,
-                                progressionKg = savedDefaults.progressionKg,
-                                setRestSeconds = savedDefaults.setRestSeconds,
-                                workoutType = workoutType,
-                                eccentricLoad = EccentricLoad.entries.find { it.percentage == savedDefaults.eccentricLoadPercentage }
-                                    ?: EccentricLoad.LOAD_100,
-                                echoLevel = EchoLevel.entries.find { it.levelValue == savedDefaults.echoLevelValue }
-                                    ?: EchoLevel.HARDER,
-                                duration = savedDefaults.duration,
-                                isAMRAP = savedDefaults.isAMRAP,
-                                perSetRestTime = savedDefaults.perSetRestTime
-                            )
-                        } else {
-                            // No saved defaults - use system defaults
-                            RoutineExercise(
-                                id = UUID.randomUUID().toString(),
-                                exercise = exercise,
-                                cableConfig = defaultCableConfig,
-                                orderIndex = 0,
-                                setReps = listOf(10, 10, 10),
-                                weightPerCableKg = 20f,
-                                progressionKg = 0f,
-                                setRestSeconds = listOf(60, 60, 60),
-                                workoutType = WorkoutType.Program(ProgramMode.OldSchool),
-                                eccentricLoad = EccentricLoad.LOAD_100,
-                                echoLevel = EchoLevel.HARDER
-                            )
+                            val newRoutineExercise = if (savedDefaults != null) {
+                                // Apply saved defaults using helper methods
+                                timber.log.Timber.d("Loaded saved defaults for ${selectedExercise.name} (${savedDefaults.cableConfig})")
+
+                                RoutineExercise(
+                                    id = UUID.randomUUID().toString(),
+                                    exercise = exercise,
+                                    cableConfig = savedDefaults.getCableConfiguration(),
+                                    orderIndex = 0,
+                                    setReps = savedDefaults.setReps,
+                                    weightPerCableKg = savedDefaults.weightPerCableKg,
+                                    setWeightsPerCableKg = savedDefaults.setWeightsPerCableKg,
+                                    progressionKg = savedDefaults.progressionKg,
+                                    setRestSeconds = savedDefaults.setRestSeconds,
+                                    workoutType = savedDefaults.toWorkoutType(),
+                                    eccentricLoad = savedDefaults.getEccentricLoad(),
+                                    echoLevel = savedDefaults.getEchoLevel(),
+                                    duration = savedDefaults.duration,
+                                    isAMRAP = savedDefaults.isAMRAP,
+                                    perSetRestTime = savedDefaults.perSetRestTime
+                                )
+                            } else {
+                                // No saved defaults - use system defaults
+                                RoutineExercise(
+                                    id = UUID.randomUUID().toString(),
+                                    exercise = exercise,
+                                    cableConfig = defaultCableConfig,
+                                    orderIndex = 0,
+                                    setReps = listOf(10, 10, 10),
+                                    weightPerCableKg = 20f,
+                                    progressionKg = 0f,
+                                    setRestSeconds = listOf(60, 60, 60),
+                                    workoutType = WorkoutType.Program(ProgramMode.OldSchool),
+                                    eccentricLoad = EccentricLoad.LOAD_100,
+                                    echoLevel = EchoLevel.HARDER
+                                )
+                            }
+                            exerciseToConfig = newRoutineExercise
+                        } finally {
+                            isLoadingDefaults = false
                         }
-                        exerciseToConfig = newRoutineExercise
                     }
                 },
                 exerciseRepository = exerciseRepository,
@@ -194,9 +183,20 @@ fun SingleExerciseScreen(
                 fullScreen = true // Use full screen layout (no local header)
             )
 
-            // Show bottom sheet as overlay when an exercise is selected
-            exerciseToConfig?.let {
-                ExerciseEditBottomSheet(
+            // Show loading indicator while defaults are being loaded
+            if (isLoadingDefaults) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            // Show bottom sheet as overlay when an exercise is selected and defaults are loaded
+            if (!isLoadingDefaults) {
+                exerciseToConfig?.let {
+                    ExerciseEditBottomSheet(
                     exercise = it,
                     weightUnit = weightUnit,
                     enableVideoPlayback = enableVideoPlayback,
@@ -232,6 +232,7 @@ fun SingleExerciseScreen(
                         exerciseToConfig = null
                     }
                 )
+                }
             }
         }
 
