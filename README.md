@@ -22,7 +22,7 @@ This app enables local control of Vitruvian Trainer machines after the company's
 
 ## 🚀 Current Status
 
-**Version:** 0.5.1-beta (Beta 6)
+**Version:** 0.6.0-beta
 **Last Updated:** November 25, 2025
 
 ### What's Working
