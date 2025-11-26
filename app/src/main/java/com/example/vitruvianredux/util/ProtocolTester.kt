@@ -214,4 +214,98 @@ object ProtocolTester {
         appendLine()
         appendLine("═══════════════════════════════════════════════════════")
     }
+
+    /**
+     * Phases of the exercise cycle test
+     */
+    enum class ExerciseCyclePhase(val displayName: String, val description: String) {
+        SCAN("Scan", "Scanning for Vitruvian device"),
+        CONNECT("Connect", "Establishing BLE connection"),
+        INITIALIZE("Initialize", "Sending INIT command"),
+        CONFIGURE("Configure", "Sending workout configuration"),
+        START("Start", "Sending START command"),
+        WAIT("Wait", "Holding active for 15 seconds"),
+        STOP_PRIMARY("Stop (0x05)", "Sending primary STOP command"),
+        STOP_OFFICIAL("Stop (0x50)", "Sending official stop packet"),
+        CLEANUP("Cleanup", "Disconnecting and cleaning up")
+    }
+
+    /**
+     * Result of a single phase in the exercise cycle test
+     */
+    data class ExerciseCyclePhaseResult(
+        val phase: ExerciseCyclePhase,
+        val success: Boolean,
+        val durationMs: Long,
+        val commandSent: ByteArray? = null,
+        val errorMessage: String? = null,
+        val notes: String? = null
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+            other as ExerciseCyclePhaseResult
+            return phase == other.phase && success == other.success && durationMs == other.durationMs
+        }
+
+        override fun hashCode(): Int {
+            var result = phase.hashCode()
+            result = 31 * result + success.hashCode()
+            result = 31 * result + durationMs.hashCode()
+            return result
+        }
+    }
+
+    /**
+     * Format exercise cycle test results as a shareable report
+     */
+    fun formatExerciseCycleReport(
+        phaseResults: List<ExerciseCyclePhaseResult>,
+        deviceName: String,
+        androidVersion: String,
+        appVersion: String
+    ): String = buildString {
+        appendLine("═══════════════════════════════════════════════════════")
+        appendLine("       VITRUVIAN EXERCISE CYCLE TEST REPORT")
+        appendLine("═══════════════════════════════════════════════════════")
+        appendLine()
+        appendLine("Generated: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
+        appendLine("Device: $deviceName")
+        appendLine("Android: $androidVersion")
+        appendLine("App Version: $appVersion")
+        appendLine()
+        appendLine("─── PHASE RESULTS ───")
+        appendLine()
+
+        phaseResults.forEachIndexed { index, result ->
+            val status = if (result.success) "✅ SUCCESS" else "❌ FAILED"
+            appendLine("${index + 1}. ${result.phase.displayName}: $status (${result.durationMs}ms)")
+
+            result.commandSent?.let { cmd ->
+                val hexStr = cmd.joinToString(" ") { "%02X".format(it) }
+                val truncated = if (cmd.size > 16) "$hexStr... (${cmd.size} bytes)" else hexStr
+                appendLine("   Sent: $truncated")
+            }
+
+            result.notes?.let { appendLine("   Notes: $it") }
+            result.errorMessage?.let { appendLine("   Error: $it") }
+            appendLine()
+        }
+
+        appendLine("─── SUMMARY ───")
+        appendLine()
+
+        val totalDuration = phaseResults.sumOf { it.durationMs }
+        val failedPhases = phaseResults.filter { !it.success }
+
+        if (failedPhases.isEmpty()) {
+            appendLine("Result: ALL PHASES PASSED")
+        } else {
+            appendLine("Result: ${failedPhases.size} PHASE(S) FAILED")
+            failedPhases.forEach { appendLine("  - ${it.phase.displayName}: ${it.errorMessage ?: "Unknown error"}") }
+        }
+        appendLine("Total duration: ${totalDuration}ms")
+        appendLine()
+        appendLine("═══════════════════════════════════════════════════════")
+    }
 }
