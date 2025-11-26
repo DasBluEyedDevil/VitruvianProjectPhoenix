@@ -59,7 +59,9 @@ object ProtocolTester {
         val connectionTimeMs: Long,
         val initTimeMs: Long,
         val errorMessage: String? = null,
-        val notes: String? = null
+        val notes: String? = null,
+        // Enhanced diagnostics
+        val diagnostics: TestDiagnostics? = null
     ) {
         val totalTimeMs: Long get() = connectionTimeMs + initTimeMs
 
@@ -73,6 +75,20 @@ object ProtocolTester {
             }
         }
     }
+
+    /**
+     * Enhanced diagnostic data collected during test
+     */
+    data class TestDiagnostics(
+        val firmwareVersion: String? = null,
+        val mtuSize: Int? = null,
+        val monitorPollsReceived: Int = 0,
+        val monitorPollsFailed: Int = 0,
+        val disconnectTimeSeconds: Int? = null,  // If disconnected, when did it happen?
+        val lastDisconnectReason: String? = null,
+        val rssiAtDisconnect: Int? = null,
+        val workoutSimulationDurationMs: Long = 0
+    )
 
     /**
      * Protocol test configuration
@@ -115,7 +131,7 @@ object ProtocolTester {
             TestConfig(InitProtocol.INIT_0x0A_PLUS_PRESET, ConnectionDelay.DELAY_100MS),
 
             // Double init might help with flaky connections
-            TestConfig(InitProtocol.DOUBLE_0x0A, ConnectionDelay.DELAY_500MS)
+            TestConfig(InitProtocol.INIT_DOUBLE_0x0A, ConnectionDelay.DELAY_500MS)
         )
     }
 
@@ -127,7 +143,7 @@ object ProtocolTester {
             InitProtocol.NO_INIT -> null
             InitProtocol.INIT_0x0A_NO_WAIT,
             InitProtocol.INIT_0x0A_WAIT_0x0B,
-            InitProtocol.DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
+            InitProtocol.INIT_DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
             InitProtocol.INIT_0x0A_PLUS_PRESET -> ProtocolBuilder.buildInitCommand()
         }
     }
@@ -138,7 +154,7 @@ object ProtocolTester {
     fun buildSecondaryCommandForProtocol(protocol: InitProtocol): ByteArray? {
         return when (protocol) {
             InitProtocol.INIT_0x0A_PLUS_PRESET -> ProtocolBuilder.buildInitPreset()
-            InitProtocol.DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
+            InitProtocol.INIT_DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
             else -> null
         }
     }
@@ -177,6 +193,15 @@ object ProtocolTester {
         appendLine("Device: $deviceName")
         appendLine("Android: $androidVersion")
         appendLine("App Version: $appVersion")
+
+        // Show firmware version from first result that has it
+        val firmwareVersion = results.firstNotNullOfOrNull { it.diagnostics?.firmwareVersion }
+        firmwareVersion?.let { appendLine("Firmware: $it") }
+
+        // Show MTU from first result that has it
+        val mtuSize = results.firstNotNullOfOrNull { it.diagnostics?.mtuSize }
+        mtuSize?.let { appendLine("MTU Size: $it bytes") }
+
         appendLine()
         appendLine("─── TEST RESULTS ───")
         appendLine()
@@ -188,6 +213,14 @@ object ProtocolTester {
         successfulResults.forEach { result ->
             appendLine("  • ${result.protocol.displayName} + ${result.delay.displayName}")
             appendLine("    Time: ${result.totalTimeMs}ms (connect: ${result.connectionTimeMs}ms, init: ${result.initTimeMs}ms)")
+            result.diagnostics?.let { diag ->
+                if (diag.monitorPollsReceived > 0) {
+                    appendLine("    Monitor polls: ${diag.monitorPollsReceived} received, ${diag.monitorPollsFailed} failed")
+                }
+                if (diag.workoutSimulationDurationMs > 0) {
+                    appendLine("    Workout simulation: ${diag.workoutSimulationDurationMs}ms stable")
+                }
+            }
             result.notes?.let { appendLine("    Notes: $it") }
         }
 
@@ -196,6 +229,41 @@ object ProtocolTester {
         failedResults.forEach { result ->
             appendLine("  • ${result.protocol.displayName} + ${result.delay.displayName}")
             appendLine("    Error: ${result.errorMessage ?: "Unknown error"}")
+            result.diagnostics?.let { diag ->
+                diag.disconnectTimeSeconds?.let { sec ->
+                    appendLine("    ⚠️ DISCONNECTED at ${sec}s into workout simulation")
+                }
+                diag.lastDisconnectReason?.let { reason ->
+                    appendLine("    Disconnect reason: $reason")
+                }
+                if (diag.monitorPollsReceived > 0 || diag.monitorPollsFailed > 0) {
+                    appendLine("    Monitor polls before failure: ${diag.monitorPollsReceived} received, ${diag.monitorPollsFailed} failed")
+                }
+            }
+        }
+
+        // Analyze disconnect patterns
+        val disconnectTimes = failedResults.mapNotNull { it.diagnostics?.disconnectTimeSeconds }
+        if (disconnectTimes.isNotEmpty()) {
+            appendLine()
+            appendLine("─── DISCONNECT PATTERN ANALYSIS ───")
+            appendLine()
+            val avgDisconnect = disconnectTimes.average()
+            val minDisconnect = disconnectTimes.minOrNull() ?: 0
+            val maxDisconnect = disconnectTimes.maxOrNull() ?: 0
+            appendLine("Disconnect times: ${disconnectTimes.joinToString(", ")}s")
+            appendLine("Average disconnect time: %.1fs".format(avgDisconnect))
+            appendLine("Range: ${minDisconnect}s - ${maxDisconnect}s")
+
+            if (avgDisconnect in 4.0..6.0) {
+                appendLine()
+                appendLine("⚠️ PATTERN DETECTED: ~5 second disconnects")
+                appendLine("This suggests a connection supervision timeout issue.")
+                appendLine("The device may be timing out due to:")
+                appendLine("  - Missing keep-alive packets")
+                appendLine("  - BLE connection parameter mismatch")
+                appendLine("  - Android BLE stack issues")
+            }
         }
 
         appendLine()
