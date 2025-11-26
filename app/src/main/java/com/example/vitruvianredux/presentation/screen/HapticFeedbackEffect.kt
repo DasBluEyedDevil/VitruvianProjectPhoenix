@@ -1,9 +1,8 @@
 package com.example.vitruvianredux.presentation.screen
 
+import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.media.SoundPool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -12,19 +11,21 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vitruvianredux.R
 import com.example.vitruvianredux.domain.model.HapticEvent
 import kotlinx.coroutines.flow.SharedFlow
 import timber.log.Timber
 
 /**
  * Composable effect that provides haptic and audio feedback in response to workout events.
- * 
- * Different haptic patterns and tones are used for different events:
- * - REP_COMPLETED: Light click + short high beep
- * - WARMUP_COMPLETE: Long press + success tone
- * - WORKOUT_COMPLETE: Long press + success tone
- * - WORKOUT_START: Light click + medium beep
- * - WORKOUT_END: Light click + medium beep
+ *
+ * Different haptic patterns and sounds are used for different events:
+ * - REP_COMPLETED: Light click + beep.ogg
+ * - WARMUP_COMPLETE: Long press + beepboop.ogg
+ * - WORKOUT_COMPLETE: Long press + boopbeepbeep.ogg
+ * - WORKOUT_START: Light click + chirpchirp.ogg
+ * - WORKOUT_END: Light click + chirpchirp.ogg
+ * - ERROR: Long press (haptic only, no sound)
  */
 @Composable
 fun HapticFeedbackEffect(
@@ -33,29 +34,52 @@ fun HapticFeedbackEffect(
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
 
-    // Get AudioManager for audio focus management
-    val audioManager = remember {
-        context.getSystemService(AudioManager::class.java)
-    }
-
-    // Create ToneGenerator for audio cues (80% volume on media stream)
-    val toneGenerator = remember {
+    // Create SoundPool for audio cues
+    val soundPool = remember {
         try {
-            ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+            SoundPool.Builder()
+                .setMaxStreams(2)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                .build()
         } catch (e: Exception) {
-            Timber.w(e, "Failed to create ToneGenerator")
+            Timber.w(e, "Failed to create SoundPool")
             null
         }
     }
 
-    // Release ToneGenerator when composable is disposed
+    // Load sounds into memory, mapping each HapticEvent to its sound ID
+    val soundIds = remember(soundPool) {
+        soundPool?.let { pool ->
+            try {
+                mapOf(
+                    HapticEvent.REP_COMPLETED to pool.load(context, R.raw.beep, 1),
+                    HapticEvent.WARMUP_COMPLETE to pool.load(context, R.raw.beepboop, 1),
+                    HapticEvent.WORKOUT_COMPLETE to pool.load(context, R.raw.boopbeepbeep, 1),
+                    HapticEvent.WORKOUT_START to pool.load(context, R.raw.chirpchirp, 1),
+                    HapticEvent.WORKOUT_END to pool.load(context, R.raw.chirpchirp, 1),
+                    HapticEvent.REST_ENDING to pool.load(context, R.raw.restover, 1)
+                    // ERROR: no sound (haptic only)
+                )
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to load sounds")
+                null
+            }
+        }
+    }
+
+    // Release SoundPool when composable is disposed
     DisposableEffect(Unit) {
         onDispose {
             try {
-                toneGenerator?.release()
-                Timber.v("ToneGenerator released")
+                soundPool?.release()
+                Timber.v("SoundPool released")
             } catch (e: Exception) {
-                Timber.w(e, "Error releasing ToneGenerator")
+                Timber.w(e, "Error releasing SoundPool")
             }
         }
     }
@@ -63,7 +87,7 @@ fun HapticFeedbackEffect(
     LaunchedEffect(hapticEvents) {
         hapticEvents.collect { event ->
             performHapticFeedback(haptic, event)
-            performAudioCue(toneGenerator, audioManager, event)
+            performAudioCue(soundPool, soundIds, event)
         }
     }
 }
@@ -91,6 +115,10 @@ private fun performHapticFeedback(haptic: HapticFeedback, event: HapticEvent) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 Timber.d("Haptic feedback: workout end")
             }
+            HapticEvent.REST_ENDING -> {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                Timber.d("Haptic feedback: rest ending (5 seconds)")
+            }
             HapticEvent.ERROR -> {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 Timber.e("Haptic feedback: ERROR")
@@ -102,112 +130,45 @@ private fun performHapticFeedback(haptic: HapticFeedback, event: HapticEvent) {
 }
 
 /**
- * Plays audio tone for workout events.
- * Different tones are used for different event types to provide audio cues.
+ * Plays audio cue for workout events using SoundPool.
  *
- * Uses audio focus management to allow background music to continue playing
- * at a reduced volume (ducked) while the notification beep plays.
+ * Uses pre-loaded custom sound files for a better user experience
+ * compared to generic system tones.
+ *
+ * @param soundPool SoundPool instance for playing sounds
+ * @param soundIds Map of HapticEvent to loaded sound IDs
+ * @param event The haptic event to play audio for
  */
 private fun performAudioCue(
-    toneGenerator: ToneGenerator?,
-    audioManager: AudioManager?,
+    soundPool: SoundPool?,
+    soundIds: Map<HapticEvent, Int>?,
     event: HapticEvent
 ) {
-    if (toneGenerator == null || audioManager == null) return
+    if (soundPool == null || soundIds == null) return
 
-    try {
-        when (event) {
-            HapticEvent.REP_COMPLETED -> {
-                // Short high beep for each rep (100ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_PROP_BEEP, 100)
-                Timber.v("Audio cue: rep completed")
-            }
-            HapticEvent.WARMUP_COMPLETE -> {
-                // Success tone for warmup completion (200ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_PROP_ACK, 200)
-                Timber.d("Audio cue: warmup complete")
-            }
-            HapticEvent.WORKOUT_COMPLETE -> {
-                // Success tone for workout completion (200ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_PROP_ACK, 200)
-                Timber.d("Audio cue: workout complete")
-            }
-            HapticEvent.WORKOUT_START -> {
-                // Medium beep for workout start (150ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
-                Timber.d("Audio cue: workout start")
-            }
-            HapticEvent.WORKOUT_END -> {
-                // Medium beep for workout end (150ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
-                Timber.d("Audio cue: workout end")
-            }
-            HapticEvent.ERROR -> {
-                // Error tone (400ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_SUP_ERROR, 400)
-                Timber.e("Audio cue: ERROR")
-            }
-        }
-    } catch (e: Exception) {
-        Timber.w(e, "Failed to perform audio cue")
+    // ERROR has no sound - haptic only
+    if (event == HapticEvent.ERROR) {
+        Timber.e("Audio cue: ERROR (haptic only)")
+        return
     }
-}
 
-/**
- * Plays a tone with proper audio focus management to allow background music to continue.
- *
- * Requests transient audio focus with ducking, which allows other audio (like music)
- * to continue playing at a reduced volume while the notification beep plays.
- *
- * @param audioManager AudioManager for requesting audio focus
- * @param generator ToneGenerator instance
- * @param toneType Type of tone to play (from ToneGenerator constants)
- * @param durationMs Duration of the tone in milliseconds
- */
-private fun playToneWithAudioFocus(
-    audioManager: AudioManager,
-    generator: ToneGenerator,
-    toneType: Int,
-    durationMs: Int
-) {
-    var focusRequest: AudioFocusRequest? = null
+    val soundId = soundIds[event]
+    if (soundId == null || soundId == 0) {
+        Timber.w("No sound loaded for event: $event")
+        return
+    }
 
     try {
-        // Request audio focus to duck other audio (like music)
-        // minSdk=26 (Android 8.0) always has AudioFocusRequest API
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-
-        focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-            .setAudioAttributes(audioAttributes)
-            .setWillPauseWhenDucked(false)
-            .build()
-
-        val focusResult = audioManager.requestAudioFocus(focusRequest)
-
-        if (focusResult == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            // Play the tone
-            generator.startTone(toneType, durationMs)
-
-            // Wait for tone to complete before releasing focus
-            Thread.sleep(durationMs.toLong())
-        } else {
-            Timber.w("Audio focus request denied, playing tone anyway")
-            generator.startTone(toneType, durationMs)
-        }
+        soundPool.play(
+            soundId,
+            0.8f,  // left volume (80%)
+            0.8f,  // right volume (80%)
+            1,     // priority
+            0,     // no loop
+            1.0f   // normal playback rate
+        )
+        Timber.v("Audio cue: $event")
     } catch (e: Exception) {
-        Timber.e(e, "Error playing tone type: $toneType")
-    } finally {
-        // Release audio focus
-        try {
-            // minSdk=26 (Android 8.0) always has abandonAudioFocusRequest
-            if (focusRequest != null) {
-                audioManager.abandonAudioFocusRequest(focusRequest)
-            }
-        } catch (e: Exception) {
-            Timber.w(e, "Error releasing audio focus")
-        }
+        Timber.w(e, "Failed to play sound for $event")
     }
 }
