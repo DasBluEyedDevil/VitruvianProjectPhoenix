@@ -115,7 +115,7 @@ object ProtocolTester {
             TestConfig(InitProtocol.INIT_0x0A_PLUS_PRESET, ConnectionDelay.DELAY_100MS),
 
             // Double init might help with flaky connections
-            TestConfig(InitProtocol.DOUBLE_0x0A, ConnectionDelay.DELAY_500MS)
+            TestConfig(InitProtocol.INIT_DOUBLE_0x0A, ConnectionDelay.DELAY_500MS)
         )
     }
 
@@ -127,7 +127,7 @@ object ProtocolTester {
             InitProtocol.NO_INIT -> null
             InitProtocol.INIT_0x0A_NO_WAIT,
             InitProtocol.INIT_0x0A_WAIT_0x0B,
-            InitProtocol.DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
+            InitProtocol.INIT_DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
             InitProtocol.INIT_0x0A_PLUS_PRESET -> ProtocolBuilder.buildInitCommand()
         }
     }
@@ -138,7 +138,7 @@ object ProtocolTester {
     fun buildSecondaryCommandForProtocol(protocol: InitProtocol): ByteArray? {
         return when (protocol) {
             InitProtocol.INIT_0x0A_PLUS_PRESET -> ProtocolBuilder.buildInitPreset()
-            InitProtocol.DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
+            InitProtocol.INIT_DOUBLE_0x0A -> ProtocolBuilder.buildInitCommand()
             else -> null
         }
     }
