@@ -83,6 +83,12 @@ class VitruvianBleManager(
     @Volatile private var lastTimestamp = 0L
     @Volatile private var strictValidationEnabled = false
 
+    // Diagnostic info exposed for Protocol Tester
+    @Volatile var detectedFirmwareVersion: String? = null
+        private set
+    @Volatile var negotiatedMtu: Int? = null
+        private set
+
     // State flows
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
@@ -315,6 +321,7 @@ class VitruvianBleManager(
                         .with { _, data ->
                             try {
                                 val firmwareVersion = data.getStringValue(0) ?: "Unknown"
+                                detectedFirmwareVersion = firmwareVersion  // Store for Protocol Tester
                                 Timber.i("╔════════════════════════════════════════╗")
                                 Timber.i("║  🔧 FIRMWARE VERSION: $firmwareVersion")
                                 Timber.i("╚════════════════════════════════════════╝")
@@ -543,6 +550,7 @@ class VitruvianBleManager(
             // Default MTU is 23 bytes, we need at least 100 bytes for program params
             requestMtu(247)
                 .with { _, mtu ->
+                    negotiatedMtu = mtu  // Store for Protocol Tester
                     Timber.d("MTU successfully changed to $mtu bytes")
                 }
                 .fail { _, status ->

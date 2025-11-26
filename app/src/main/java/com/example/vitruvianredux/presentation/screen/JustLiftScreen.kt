@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,12 +43,14 @@ import timber.log.Timber
  * Allows user to select mode, eccentric load percentage, and progression/regression.
  */
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun JustLiftScreen(
     navController: NavController,
     viewModel: MainViewModel,
     themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
+
     val workoutState by viewModel.workoutState.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val currentMetric by viewModel.currentMetric.collectAsState()
@@ -66,35 +67,31 @@ fun JustLiftScreen(
     var restTime by remember { mutableStateOf(60) } // Rest time in seconds
     var eccentricLoad by remember { mutableStateOf(EccentricLoad.LOAD_100) }
     var echoLevel by remember { mutableStateOf(EchoLevel.HARDER) }
-    var defaultsLoaded by remember { mutableStateOf(false) }
 
     // Load saved Just Lift defaults on screen init
     LaunchedEffect(Unit) {
-        if (!defaultsLoaded) {
-            val defaults = viewModel.getJustLiftDefaults()
-            if (defaults != null) {
-                // Apply saved defaults
-                weightPerCable = defaults.weightPerCableKg
+        val defaults = viewModel.getJustLiftDefaults()
+        if (defaults != null) {
+            // Apply saved defaults
+            weightPerCable = defaults.weightPerCableKg
 
-                // Convert stored weight change (KG) to display unit if needed
-                // Use roundToInt() to minimize accumulating rounding errors
-                weightChangePerRep = if (weightUnit == WeightUnit.LB) {
-                    kotlin.math.round(defaults.weightChangePerRep * 2.20462f).toInt()
-                } else {
-                    defaults.weightChangePerRep
-                }
-
-                // Set mode from saved defaults using helper method
-                val savedWorkoutType = defaults.toWorkoutType()
-                selectedMode = savedWorkoutType.toWorkoutMode()
-
-                // Restore eccentric load and echo level for Echo mode
-                eccentricLoad = defaults.getEccentricLoad()
-                echoLevel = defaults.getEchoLevel()
-
-                Timber.d("Loaded Just Lift defaults: modeId=${defaults.workoutModeId}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
+            // Convert stored weight change (KG) to display unit if needed
+            // Use roundToInt() to minimize accumulating rounding errors
+            weightChangePerRep = if (weightUnit == WeightUnit.LB) {
+                kotlin.math.round(defaults.weightChangePerRep * 2.20462f).toInt()
+            } else {
+                defaults.weightChangePerRep
             }
-            defaultsLoaded = true
+
+            // Set mode from saved defaults using helper method
+            val savedWorkoutType = defaults.toWorkoutType()
+            selectedMode = savedWorkoutType.toWorkoutMode()
+
+            // Restore eccentric load and echo level for Echo mode
+            eccentricLoad = defaults.getEccentricLoad()
+            echoLevel = defaults.getEchoLevel()
+
+            Timber.d("Loaded Just Lift defaults: modeId=${defaults.workoutModeId}, weight=${defaults.weightPerCableKg}kg, progression=${defaults.weightChangePerRep}")
         }
     }
 
@@ -199,7 +196,7 @@ fun JustLiftScreen(
                 )
                 ExpressiveCard(
                     onClick = { isModePressed = true },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().scale(modeScale),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                     elevation = CardDefaults.cardElevation(defaultElevation = if (isModePressed) 8.dp else 12.dp),
                     border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -398,6 +395,7 @@ fun JustLiftScreen(
                                 steps = eccentricLoadValues.size - 2,
                                 modifier = Modifier.fillMaxWidth()
                             )
+
 
                             Spacer(modifier = Modifier.height(Spacing.small))
 
