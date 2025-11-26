@@ -1588,6 +1588,12 @@ class MainViewModel @Inject constructor(
                         totalSets = currentExercise?.setReps?.size ?: 0
                     )
                 }
+
+                // Play "rest ending" sound at 5 seconds remaining
+                if (i == 5) {
+                    _hapticEvents.emit(HapticEvent.REST_ENDING)
+                }
+
                 delay(1000)
             }
 

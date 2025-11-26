@@ -239,6 +239,7 @@ enum class HapticEvent {
     WORKOUT_COMPLETE,
     WORKOUT_START,
     WORKOUT_END,
+    REST_ENDING,  // 5 seconds left in rest timer
     ERROR
 }
 
