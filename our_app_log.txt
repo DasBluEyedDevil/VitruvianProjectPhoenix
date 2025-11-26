@@ -1,0 +1,878 @@
+--------- beginning of main
+11-24 22:52:13.655 22830 22830 D MainViewModel: MainViewModel initialized
+11-24 22:52:13.655 22830 22830 D MainViewModel: Starting to collect monitor data...
+11-24 22:52:13.655 22830 22830 D MainViewModel: Starting to collect rep notifications...
+11-24 22:52:13.656 22830 22830 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Idle@6d5ba29
+11-24 22:52:16.449 22830 22830 D MainViewModel: MainViewModel.startScanning() called
+11-24 22:52:16.544 22830 22830 D MainViewModel: ViewModel received scan result: 80:64:6F:38:3D:96
+11-24 22:52:16.545 22830 22830 D MainViewModel: Added device to list: Vee_0000943D_386F6480 (80:64:6F:38:3D:96) - Total devices: 1
+11-24 22:52:39.280 22830 22830 D MainViewModel: ✅ ROUTINE LOADED: Set currentRoutineSessionId = fc9aa41a-55d4-422f-9721-2db18754e997, routineName = Single Exercise: Bicep Curl 
+11-24 22:52:39.280 22830 22830 D MainViewModel: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11-24 22:52:39.280 22830 22830 D MainViewModel: LOADING ROUTINE: Single Exercise: Bicep Curl 
+11-24 22:52:39.280 22830 22830 D MainViewModel:   ID: temp_single_exercise_c7557f3d-58a9-43b6-a405-d38623b79040
+11-24 22:52:39.280 22830 22830 D MainViewModel:   Total exercises: 1
+11-24 22:52:39.280 22830 22830 D MainViewModel:   First exercise: Bicep Curl 
+11-24 22:52:39.280 22830 22830 D MainViewModel:   Sets: 1 ([4])
+11-24 22:52:39.280 22830 22830 D MainViewModel:   Weight (exercise default): 5.669912kg
+11-24 22:52:39.281 22830 22830 D MainViewModel:   First set weight: 5.669912kg
+11-24 22:52:39.281 22830 22830 D MainViewModel:   First set reps: 4
+11-24 22:52:39.281 22830 22830 D MainViewModel:   Setting isJustLift = false
+11-24 22:52:39.281 22830 22830 D MainViewModel: WORKOUT TYPE DETAILS:
+11-24 22:52:39.281 22830 22830 D MainViewModel:   Type: Old School
+11-24 22:52:39.281 22830 22830 D MainViewModel:   Program mode: Old School
+11-24 22:52:39.281 22830 22830 D MainViewModel:   First exercise isAMRAP: false
+11-24 22:52:39.281 22830 22830 D MainViewModel:   First set reps: 4
+11-24 22:52:39.281 22830 22830 D MainViewModel: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11-24 22:52:39.282 22830 22830 D MainViewModel: Created WorkoutParameters:
+11-24 22:52:39.282 22830 22830 D MainViewModel:   isAMRAP: false
+11-24 22:52:39.282 22830 22830 D MainViewModel:   workoutType.displayName: Old School
+11-24 22:52:39.282 22830 22830 D MainViewModel: ⚖️ updateWorkoutParameters: weight=5.669912 kg (12.5 lbs)
+11-24 22:52:39.283 22830 22830 D MainViewModel: Routine loaded successfully - _loadedRoutine.value is now: Single Exercise: Bicep Curl 
+11-24 22:52:39.283 22830 22830 D MainViewModel: $$$ startWorkout() CALLED! skipCountdown=false, isJustLiftMode=false $$$
+11-24 22:52:44.420 22830 22830 D MainViewModel: Rep notification received: top=0, complete=0, state=Countdown(secondsRemaining=1)
+11-24 22:52:44.421 22830 22830 W MainViewModel: Rep notification ignored - workout not active (state=Countdown(secondsRemaining=1))
+11-24 22:52:44.477 22830 22830 D MainViewModel: Handle state received in ViewModel: Grabbed, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:44.908 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(371,391)
+11-24 22:52:44.968 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(405,429)
+11-24 22:52:45.032 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(445,476)
+11-24 22:52:45.134 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(488,523)
+11-24 22:52:45.241 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(529,564)
+11-24 22:52:45.347 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(554,589)
+11-24 22:52:45.450 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(572,604)
+11-24 22:52:45.555 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(575,603)
+11-24 22:52:45.659 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(567,590)
+11-24 22:52:45.752 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(566,586)
+11-24 22:52:45.853 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(566,586)
+11-24 22:52:45.958 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:46.068 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:46.170 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:46.275 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:46.364 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:46.470 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:46.578 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(564,586)
+11-24 22:52:46.681 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(564,586)
+11-24 22:52:46.788 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(564,586)
+11-24 22:52:46.908 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(564,586)
+11-24 22:52:46.999 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:47.097 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:47.202 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(565,586)
+11-24 22:52:47.312 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(564,586)
+11-24 22:52:47.399 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,585)
+11-24 22:52:47.504 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,585)
+11-24 22:52:47.611 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,585)
+11-24 22:52:47.716 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,585)
+11-24 22:52:47.827 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,585)
+11-24 22:52:47.935 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,584)
+11-24 22:52:48.044 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,584)
+11-24 22:52:48.134 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,583)
+11-24 22:52:48.238 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,583)
+11-24 22:52:48.348 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(561,583)
+11-24 22:52:48.439 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(560,582)
+11-24 22:52:48.556 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(556,579)
+11-24 22:52:48.647 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(556,579)
+11-24 22:52:48.756 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(556,579)
+11-24 22:52:48.857 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(556,578)
+11-24 22:52:48.961 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(557,577)
+11-24 22:52:49.068 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(558,578)
+11-24 22:52:49.157 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(569,585)
+11-24 22:52:49.280 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(627,639)
+11-24 22:52:49.366 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(718,730)
+11-24 22:52:49.471 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(820,836)
+11-24 22:52:49.573 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(917,938)
+11-24 22:52:50.152 22830 22830 D MainViewModel: Rep notification received: top=1, complete=0, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:50.413 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(922,957)
+11-24 22:52:50.520 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(820,864)
+11-24 22:52:50.608 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(759,801)
+11-24 22:52:50.715 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(694,725)
+11-24 22:52:50.819 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(625,641)
+11-24 22:52:50.929 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(584,595)
+11-24 22:52:51.030 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(575,585)
+11-24 22:52:51.155 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(575,585)
+11-24 22:52:51.241 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(578,588)
+11-24 22:52:51.348 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(612,626)
+11-24 22:52:51.348 22830 22830 D MainViewModel: Rep notification received: top=1, complete=1, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:51.350 22830 22830 D MainViewModel: Rep counters updated: warmup=1/3, working=0/4
+11-24 22:52:51.350 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=1, working=0, perCableKg=1.7, totalKg=3.4
+11-24 22:52:51.350 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:52:51.676 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(934,954)
+11-24 22:52:52.223 22830 22830 D MainViewModel: Rep notification received: top=2, complete=1, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:52.400 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(942,982)
+11-24 22:52:52.499 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(841,889)
+11-24 22:52:52.609 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(772,815)
+11-24 22:52:52.710 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(708,737)
+11-24 22:52:52.814 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(655,669)
+11-24 22:52:52.920 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(590,595)
+11-24 22:52:53.007 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(577,584)
+11-24 22:52:53.117 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(579,586)
+11-24 22:52:53.222 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(590,598)
+11-24 22:52:53.295 22830 22830 D MainViewModel: Rep notification received: top=2, complete=2, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:53.296 22830 22830 D MainViewModel: Rep counters updated: warmup=2/3, working=0/4
+11-24 22:52:53.296 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=2, working=0, perCableKg=3.2, totalKg=6.4
+11-24 22:52:53.296 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:52:53.595 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(631,640)
+11-24 22:52:53.621 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(955,961)
+11-24 22:52:54.141 22830 22830 D MainViewModel: Rep notification received: top=3, complete=2, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:54.347 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(938,959)
+11-24 22:52:54.451 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(858,881)
+11-24 22:52:54.557 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(774,798)
+11-24 22:52:54.661 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(682,704)
+11-24 22:52:54.779 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(625,639)
+11-24 22:52:54.871 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(583,588)
+11-24 22:52:54.930 22830 22830 D MainViewModel: Rep notification received: top=3, complete=3, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:54.931 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=0/4
+11-24 22:52:54.932 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=3, working=0, perCableKg=4.0, totalKg=8.0
+11-24 22:52:54.932 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:52:54.932 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=0/4
+11-24 22:52:54.932 22830 22830 D MainViewModel: Emitting haptic event: WARMUP_COMPLETE
+11-24 22:52:55.658 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(935,949)
+11-24 22:52:55.891 22830 22830 D MainViewModel: Rep notification received: top=4, complete=3, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:56.597 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(980,994)
+11-24 22:52:56.714 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(863,877)
+11-24 22:52:56.806 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(788,798)
+11-24 22:52:56.910 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(723,726)
+11-24 22:52:57.016 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(660,658)
+11-24 22:52:57.127 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(586,587)
+11-24 22:52:57.184 22830 22830 D MainViewModel: Rep notification received: top=4, complete=4, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:57.185 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=1/4
+11-24 22:52:57.185 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=3, working=1, perCableKg=5.6, totalKg=11.2
+11-24 22:52:57.185 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:52:57.580 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(582,586)
+11-24 22:52:57.614 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(587,590)
+11-24 22:52:57.677 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(606,608)
+11-24 22:52:57.783 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(675,677)
+11-24 22:52:57.869 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(740,751)
+11-24 22:52:57.973 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(840,858)
+11-24 22:52:58.079 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(977,997)
+11-24 22:52:58.230 22830 22830 D MainViewModel: Rep notification received: top=5, complete=4, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:58.924 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(957,991)
+11-24 22:52:59.010 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(888,918)
+11-24 22:52:59.114 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(803,824)
+11-24 22:52:59.237 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(698,707)
+11-24 22:52:59.327 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(642,651)
+11-24 22:52:59.433 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(583,594)
+11-24 22:52:59.476 22830 22830 D MainViewModel: Rep notification received: top=5, complete=5, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:52:59.477 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=2/4
+11-24 22:52:59.477 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=3, working=2, perCableKg=5.6, totalKg=11.2
+11-24 22:52:59.477 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:52:59.790 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(589,598)
+11-24 22:52:59.898 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(621,632)
+11-24 22:53:00.005 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(719,736)
+11-24 22:53:00.110 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(835,856)
+11-24 22:53:00.211 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(956,979)
+11-24 22:53:00.394 22830 22830 D MainViewModel: Rep notification received: top=6, complete=5, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:53:01.164 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(889,906)
+11-24 22:53:01.246 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(811,820)
+11-24 22:53:01.351 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(738,740)
+11-24 22:53:01.456 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(676,672)
+11-24 22:53:01.561 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(597,595)
+11-24 22:53:01.636 22830 22830 D MainViewModel: Rep notification received: top=6, complete=6, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:53:01.636 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=3/4
+11-24 22:53:01.637 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=3, working=3, perCableKg=5.6, totalKg=11.2
+11-24 22:53:01.637 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:53:02.004 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(586,588)
+11-24 22:53:02.034 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(616,623)
+11-24 22:53:02.129 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(690,700)
+11-24 22:53:02.236 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(795,810)
+11-24 22:53:02.343 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(939,962)
+11-24 22:53:02.537 22830 22830 D MainViewModel: Rep notification received: top=7, complete=6, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:53:03.287 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(898,903)
+11-24 22:53:03.374 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(826,835)
+11-24 22:53:03.481 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(723,734)
+11-24 22:53:03.585 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(649,657)
+11-24 22:53:03.700 22830 22830 V MainViewModel: Monitor metric received in ViewModel: pos=(581,582)
+11-24 22:53:03.736 22830 22830 D MainViewModel: Rep notification received: top=7, complete=7, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@8aa1829
+11-24 22:53:03.737 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=4/4
+11-24 22:53:03.737 22830 22830 D MainViewModel: REP_LOAD_CON: warmup=3, working=4, perCableKg=5.6, totalKg=11.2
+11-24 22:53:03.737 22830 22830 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 22:53:03.737 22830 22830 D MainViewModel: Rep counters updated: warmup=3/3, working=4/4
+11-24 22:53:03.737 22830 22830 D MainViewModel: REP_LOAD_ECC: warmup=3, working=4, perCableKg=5.6, totalKg=11.2
+11-24 22:53:03.737 22830 22830 D MainViewModel: Emitting haptic event: WORKOUT_COMPLETE
+11-24 22:53:03.737 22830 22830 D MainViewModel: Machine indicates workout should stop - requesting stop
+11-24 22:53:03.737 22830 22830 W MainViewModel: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+11-24 22:53:03.737 22830 22830 W MainViewModel: AUTOSTOP_TRACE: triggerAutoStop() ENTERED
+11-24 22:53:03.737 22830 22830 W MainViewModel: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+11-24 22:53:03.737 22830 22830 W MainViewModel: AUTOSTOP_TRACE: About to call handleSetCompletion()
+11-24 22:53:03.737 22830 22830 W MainViewModel: AUTOSTOP_TRACE: handleSetCompletion() returned
+11-24 22:53:04.440 22830 22830 D MainViewModel: 💾 SAVING WORKOUT SESSION:
+11-24 22:53:04.440 22830 22830 D MainViewModel:   sessionId: 97b7fc65-d61c-4997-b53d-54520b3a0311
+11-24 22:53:04.440 22830 22830 D MainViewModel:   mode: Old School
+11-24 22:53:04.440 22830 22830 D MainViewModel:   reps (target): 4
+11-24 22:53:04.440 22830 22830 D MainViewModel:   totalReps (actual): 4
+11-24 22:53:04.440 22830 22830 D MainViewModel:   isAMRAP: false
+11-24 22:53:04.440 22830 22830 D MainViewModel:   isBodyweight: false
+11-24 22:53:04.441 22830 22830 D MainViewModel:   exerciseId: fc5ca114-3cb6-462a-ab54-7ef1233b5fc2
+11-24 22:53:04.441 22830 22830 D MainViewModel:   routineSessionId: fc9aa41a-55d4-422f-9721-2db18754e997
+11-24 22:53:04.441 22830 22830 D MainViewModel:   routineName: Single Exercise: Bicep Curl 
+11-24 22:53:04.441 22830 22830 D MainViewModel:   _loadedRoutine.value: Single Exercise: Bicep Curl 
+11-24 22:53:04.441 22830 22830 D MainViewModel:   _loadedRoutine.value.id: temp_single_exercise_c7557f3d-58a9-43b6-a405-d38623b79040
+11-24 22:53:04.441 22830 22830 D MainViewModel:   maxConcentricPerCableKgThisSession=5.6, maxEccentricPerCableKgThisSession=5.6
+11-24 22:53:04.802 22830 22830 D MainViewModel: Saved workout session: 97b7fc65-d61c-4997-b53d-54520b3a0311 with 115 metrics
+11-24 23:04:09.703 29522 29522 D MainViewModel: MainViewModel initialized
+11-24 23:04:09.704 29522 29522 D MainViewModel: Starting to collect monitor data...
+11-24 23:04:09.704 29522 29522 D MainViewModel: Starting to collect rep notifications...
+11-24 23:04:09.705 29522 29522 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Idle@3741b4f
+11-24 23:04:12.228 29522 29522 D MainViewModel: MainViewModel.startScanning() called
+11-24 23:04:12.349 29522 29522 D MainViewModel: ViewModel received scan result: 80:64:6F:38:3D:96
+11-24 23:04:12.350 29522 29522 D MainViewModel: Added device to list: Vee_0000943D_386F6480 (80:64:6F:38:3D:96) - Total devices: 1
+11-24 23:04:41.939 29522 29522 D MainViewModel: ✅ ROUTINE LOADED: Set currentRoutineSessionId = e6335cdd-c600-4545-8b3a-91914b43f58b, routineName = Single Exercise: Bicep Curl 
+11-24 23:04:41.939 29522 29522 D MainViewModel: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11-24 23:04:41.939 29522 29522 D MainViewModel: LOADING ROUTINE: Single Exercise: Bicep Curl 
+11-24 23:04:41.939 29522 29522 D MainViewModel:   ID: temp_single_exercise_ee37aa07-1679-4b82-8117-f7b069a2a4d9
+11-24 23:04:41.939 29522 29522 D MainViewModel:   Total exercises: 1
+11-24 23:04:41.940 29522 29522 D MainViewModel:   First exercise: Bicep Curl 
+11-24 23:04:41.940 29522 29522 D MainViewModel:   Sets: 2 ([5, 4])
+11-24 23:04:41.940 29522 29522 D MainViewModel:   Weight (exercise default): 5.443115kg
+11-24 23:04:41.940 29522 29522 D MainViewModel:   First set weight: 5.443115kg
+11-24 23:04:41.940 29522 29522 D MainViewModel:   First set reps: 5
+11-24 23:04:41.940 29522 29522 D MainViewModel:   Setting isJustLift = false
+11-24 23:04:41.940 29522 29522 D MainViewModel: WORKOUT TYPE DETAILS:
+11-24 23:04:41.940 29522 29522 D MainViewModel:   Type: Old School
+11-24 23:04:41.940 29522 29522 D MainViewModel:   Program mode: Old School
+11-24 23:04:41.940 29522 29522 D MainViewModel:   First exercise isAMRAP: false
+11-24 23:04:41.940 29522 29522 D MainViewModel:   First set reps: 5
+11-24 23:04:41.940 29522 29522 D MainViewModel: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11-24 23:04:41.940 29522 29522 D MainViewModel: Created WorkoutParameters:
+11-24 23:04:41.940 29522 29522 D MainViewModel:   isAMRAP: false
+11-24 23:04:41.940 29522 29522 D MainViewModel:   workoutType.displayName: Old School
+11-24 23:04:41.940 29522 29522 D MainViewModel: ⚖️ updateWorkoutParameters: weight=5.443115 kg (12.0 lbs)
+11-24 23:04:41.941 29522 29522 D MainViewModel: Routine loaded successfully - _loadedRoutine.value is now: Single Exercise: Bicep Curl 
+11-24 23:04:41.941 29522 29522 D MainViewModel: $$$ startWorkout() CALLED! skipCountdown=false, isJustLiftMode=false $$$
+11-24 23:04:47.084 29522 29522 D MainViewModel: Rep notification received: top=0, complete=0, state=Countdown(secondsRemaining=1)
+11-24 23:04:47.084 29522 29522 W MainViewModel: Rep notification ignored - workout not active (state=Countdown(secondsRemaining=1))
+11-24 23:04:47.133 29522 29522 D MainViewModel: Handle state received in ViewModel: Grabbed, useAutoStart=false, workoutState=Countdown(secondsRemaining=1)
+11-24 23:04:47.574 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:47.574 29522 29522 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:04:47.678 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:47.706 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:47.798 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:47.926 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.005 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.124 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.216 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.306 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.410 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.516 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.652 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.726 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.838 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:48.942 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.044 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.149 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.253 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.367 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.464 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.568 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.671 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.777 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.892 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:49.987 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:50.100 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:50.200 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:04:50.304 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,2)
+11-24 23:04:50.407 29522 29522 D MainViewModel: Handle state received in ViewModel: Grabbed, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:04:50.408 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(10,15)
+11-24 23:04:50.510 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(44,52)
+11-24 23:04:50.602 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(96,103)
+11-24 23:04:50.704 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(154,164)
+11-24 23:04:50.810 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(216,231)
+11-24 23:04:50.924 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(282,301)
+11-24 23:04:51.023 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(359,382)
+11-24 23:04:51.159 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(427,455)
+11-24 23:04:51.215 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(456,485)
+11-24 23:04:51.320 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(508,534)
+11-24 23:04:51.431 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(541,563)
+11-24 23:04:51.533 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(567,582)
+11-24 23:04:51.652 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(582,592)
+11-24 23:04:51.746 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(575,583)
+11-24 23:04:51.831 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(570,580)
+11-24 23:04:51.935 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(570,580)
+11-24 23:04:52.049 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(566,580)
+11-24 23:04:52.144 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(566,580)
+11-24 23:04:52.254 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(565,581)
+11-24 23:04:52.342 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(565,581)
+11-24 23:04:52.448 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(560,581)
+11-24 23:04:52.551 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,581)
+11-24 23:04:52.659 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,581)
+11-24 23:04:52.766 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,580)
+11-24 23:04:52.868 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,580)
+11-24 23:04:52.975 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,580)
+11-24 23:04:53.078 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,580)
+11-24 23:04:53.183 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,580)
+11-24 23:04:53.292 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(555,578)
+11-24 23:04:53.391 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(555,574)
+11-24 23:04:53.504 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,570)
+11-24 23:04:53.601 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:53.708 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:53.818 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:53.916 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.023 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.134 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.234 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(555,567)
+11-24 23:04:54.322 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(555,567)
+11-24 23:04:54.427 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.544 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.669 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.747 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.852 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:54.952 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:55.067 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(554,567)
+11-24 23:04:55.166 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(556,568)
+11-24 23:04:55.251 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(574,586)
+11-24 23:04:55.358 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(633,645)
+11-24 23:04:55.460 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(745,758)
+11-24 23:04:55.569 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(847,863)
+11-24 23:04:55.671 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(942,957)
+11-24 23:04:56.251 29522 29522 D MainViewModel: Rep notification received: top=1, complete=0, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:04:56.391 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(953,978)
+11-24 23:04:56.497 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(865,901)
+11-24 23:04:56.603 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(764,797)
+11-24 23:04:56.705 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(694,713)
+11-24 23:04:56.812 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(640,639)
+11-24 23:04:56.916 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(592,583)
+11-24 23:04:57.019 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(577,575)
+11-24 23:04:57.129 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(577,575)
+11-24 23:04:57.233 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(577,575)
+11-24 23:04:57.340 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(577,575)
+11-24 23:04:57.445 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(599,598)
+11-24 23:04:57.502 29522 29522 D MainViewModel: Rep notification received: top=1, complete=1, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:04:57.545 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(666,665)
+11-24 23:04:57.653 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(770,768)
+11-24 23:04:57.744 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(886,887)
+11-24 23:04:57.846 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(987,995)
+11-24 23:04:58.368 29522 29522 D MainViewModel: Rep notification received: top=2, complete=1, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:04:58.370 29522 29522 D MainViewModel: Rep counters updated: warmup=1/3, working=0/5
+11-24 23:04:58.370 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=1, working=0, perCableKg=0.1, totalKg=0.2
+11-24 23:04:58.370 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:04:58.720 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(796,816)
+11-24 23:04:58.805 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(714,725)
+11-24 23:04:58.912 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(657,657)
+11-24 23:04:59.018 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(603,594)
+11-24 23:04:59.125 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(579,575)
+11-24 23:04:59.242 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(580,576)
+11-24 23:04:59.330 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(581,577)
+11-24 23:04:59.441 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(606,602)
+11-24 23:04:59.479 29522 29522 D MainViewModel: Rep notification received: top=2, complete=2, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:04:59.543 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(683,683)
+11-24 23:04:59.630 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(771,774)
+11-24 23:04:59.750 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(925,936)
+11-24 23:05:00.333 29522 29522 D MainViewModel: Rep notification received: top=3, complete=2, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:00.334 29522 29522 D MainViewModel: Rep counters updated: warmup=2/3, working=0/5
+11-24 23:05:00.335 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=2, working=0, perCableKg=0.1, totalKg=0.2
+11-24 23:05:00.335 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:05:00.714 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(799,814)
+11-24 23:05:00.835 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(707,715)
+11-24 23:05:00.919 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(646,647)
+11-24 23:05:01.026 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(598,594)
+11-24 23:05:01.116 29522 29522 D MainViewModel: Rep notification received: top=3, complete=3, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:01.131 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(579,575)
+11-24 23:05:01.252 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(579,577)
+11-24 23:05:01.350 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(589,594)
+11-24 23:05:01.433 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(610,624)
+11-24 23:05:01.541 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(652,670)
+11-24 23:05:01.639 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(754,773)
+11-24 23:05:01.758 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(891,905)
+11-24 23:05:01.855 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(983,995)
+11-24 23:05:02.104 29522 29522 D MainViewModel: Rep notification received: top=4, complete=3, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:02.107 29522 29522 D MainViewModel: Rep counters updated: warmup=3/3, working=0/5
+11-24 23:05:02.108 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=3, working=0, perCableKg=5.4, totalKg=10.8
+11-24 23:05:02.108 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:05:02.109 29522 29522 D MainViewModel: Rep counters updated: warmup=3/3, working=0/5
+11-24 23:05:02.110 29522 29522 D MainViewModel: Emitting haptic event: WARMUP_COMPLETE
+11-24 23:05:03.785 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(933,939)
+11-24 23:05:03.892 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(844,849)
+11-24 23:05:03.987 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(754,763)
+11-24 23:05:04.086 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(672,688)
+11-24 23:05:04.191 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(603,614)
+11-24 23:05:04.301 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(571,579)
+11-24 23:05:04.303 29522 29522 D MainViewModel: Rep notification received: top=4, complete=4, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:04.408 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(574,581)
+11-24 23:05:04.507 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(574,581)
+11-24 23:05:04.613 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(574,581)
+11-24 23:05:04.722 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(586,589)
+11-24 23:05:04.807 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(639,638)
+11-24 23:05:04.912 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(719,712)
+11-24 23:05:05.016 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(824,817)
+11-24 23:05:05.123 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(965,969)
+11-24 23:05:05.338 29522 29522 D MainViewModel: Rep notification received: top=5, complete=4, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:05.340 29522 29522 D MainViewModel: Rep counters updated: warmup=3/3, working=1/5
+11-24 23:05:05.341 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=3, working=1, perCableKg=5.4, totalKg=10.8
+11-24 23:05:05.341 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:05:06.387 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(899,911)
+11-24 23:05:06.473 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(828,834)
+11-24 23:05:06.577 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(739,746)
+11-24 23:05:06.687 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(643,651)
+11-24 23:05:06.802 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(574,579)
+11-24 23:05:06.837 29522 29522 D MainViewModel: Rep notification received: top=5, complete=5, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:06.894 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(578,582)
+11-24 23:05:06.982 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(578,582)
+11-24 23:05:07.087 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(578,582)
+11-24 23:05:07.192 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(588,589)
+11-24 23:05:07.300 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(639,638)
+11-24 23:05:07.404 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(745,752)
+11-24 23:05:07.509 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(857,873)
+11-24 23:05:07.599 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(952,979)
+11-24 23:05:07.837 29522 29522 D MainViewModel: Rep notification received: top=6, complete=5, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:07.838 29522 29522 D MainViewModel: Rep counters updated: warmup=3/3, working=2/5
+11-24 23:05:07.839 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=3, working=2, perCableKg=5.4, totalKg=10.8
+11-24 23:05:07.839 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:05:08.669 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(928,956)
+11-24 23:05:08.769 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(834,860)
+11-24 23:05:08.876 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(743,762)
+11-24 23:05:08.977 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(656,669)
+11-24 23:05:09.068 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(586,580)
+11-24 23:05:09.112 29522 29522 D MainViewModel: Rep notification received: top=6, complete=6, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:09.172 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(584,579)
+11-24 23:05:09.310 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(585,579)
+11-24 23:05:09.386 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(585,579)
+11-24 23:05:09.489 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(595,592)
+11-24 23:05:09.596 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(642,648)
+11-24 23:05:09.685 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(723,736)
+11-24 23:05:09.804 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(862,871)
+11-24 23:05:09.897 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(970,975)
+11-24 23:05:10.137 29522 29522 D MainViewModel: Rep notification received: top=7, complete=6, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:10.139 29522 29522 D MainViewModel: Rep counters updated: warmup=3/3, working=3/5
+11-24 23:05:10.140 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=3, working=3, perCableKg=5.4, totalKg=10.8
+11-24 23:05:10.140 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:05:11.098 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(863,914)
+11-24 23:05:11.185 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(776,822)
+11-24 23:05:11.288 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(707,728)
+11-24 23:05:11.396 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(652,645)
+11-24 23:05:11.496 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(596,586)
+11-24 23:05:11.575 29522 29522 D MainViewModel: Rep notification received: top=7, complete=7, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:11.609 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(580,579)
+11-24 23:05:11.692 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(580,579)
+11-24 23:05:11.797 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(594,591)
+11-24 23:05:11.906 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(671,667)
+11-24 23:05:12.008 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(765,771)
+11-24 23:05:12.111 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(866,883)
+11-24 23:05:12.341 29522 29522 D MainViewModel: Rep notification received: top=8, complete=7, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:12.343 29522 29522 D MainViewModel: Rep counters updated: warmup=3/3, working=4/5
+11-24 23:05:12.343 29522 29522 D MainViewModel: REP_LOAD_CON: warmup=3, working=4, perCableKg=5.4, totalKg=10.8
+11-24 23:05:12.343 29522 29522 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:05:13.297 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(968,987)
+11-24 23:05:13.404 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(860,874)
+11-24 23:05:13.504 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(773,779)
+11-24 23:05:13.611 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(692,689)
+11-24 23:05:13.716 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(621,612)
+11-24 23:05:13.825 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(581,583)
+11-24 23:05:13.825 29522 29522 D MainViewModel: Rep notification received: top=8, complete=8, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:13.930 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(588,588)
+11-24 23:05:14.032 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(637,630)
+11-24 23:05:14.140 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(780,773)
+11-24 23:05:14.224 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(979,984)
+11-24 23:05:15.173 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(912,948)
+11-24 23:05:15.276 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(839,866)
+11-24 23:05:15.385 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(754,762)
+11-24 23:05:15.493 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(683,687)
+11-24 23:05:15.593 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(615,623)
+11-24 23:05:15.710 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(542,551)
+11-24 23:05:15.791 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(502,509)
+11-24 23:05:15.892 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(435,446)
+11-24 23:05:16.001 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(358,375)
+11-24 23:05:16.100 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(269,290)
+11-24 23:05:16.221 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(186,210)
+11-24 23:05:16.314 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(139,163)
+11-24 23:05:16.415 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(91,116)
+11-24 23:05:16.531 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(49,73)
+11-24 23:05:16.612 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(32,52)
+11-24 23:05:16.735 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(24,28)
+11-24 23:05:16.825 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(24,15)
+11-24 23:05:16.931 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(19,4)
+11-24 23:05:17.032 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(8,1)
+11-24 23:05:17.123 29522 29522 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@a5d441a
+11-24 23:05:17.123 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:17.226 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,0)
+11-24 23:05:17.333 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,0)
+11-24 23:05:17.438 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,0)
+11-24 23:05:17.543 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,0)
+11-24 23:05:17.649 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,0)
+11-24 23:05:17.754 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:05:17.883 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:05:17.949 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:05:18.054 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:05:18.161 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.264 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.371 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.477 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.581 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.683 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.791 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.898 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:18.984 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.087 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.199 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.299 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.401 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.509 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.613 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.731 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.809 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:19.913 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.020 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.122 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.242 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.331 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.445 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.526 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.632 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.737 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.844 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:20.954 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.053 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.158 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.263 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.353 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.457 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.607 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.665 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.770 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.861 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:21.968 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:22.073 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:22.176 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:22.284 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:22.399 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:22.521 29522 29522 D MainViewModel: 💾 SAVING WORKOUT SESSION:
+11-24 23:05:22.521 29522 29522 D MainViewModel:   sessionId: 3e993c83-d369-4b07-9bd9-6b868e2f6859
+11-24 23:05:22.521 29522 29522 D MainViewModel:   mode: Old School
+11-24 23:05:22.521 29522 29522 D MainViewModel:   reps (target): 5
+11-24 23:05:22.521 29522 29522 D MainViewModel:   totalReps (actual): 4
+11-24 23:05:22.521 29522 29522 D MainViewModel:   isAMRAP: false
+11-24 23:05:22.522 29522 29522 D MainViewModel:   isBodyweight: false
+11-24 23:05:22.522 29522 29522 D MainViewModel:   exerciseId: fc5ca114-3cb6-462a-ab54-7ef1233b5fc2
+11-24 23:05:22.522 29522 29522 D MainViewModel:   routineSessionId: e6335cdd-c600-4545-8b3a-91914b43f58b
+11-24 23:05:22.522 29522 29522 D MainViewModel:   routineName: Single Exercise: Bicep Curl 
+11-24 23:05:22.522 29522 29522 D MainViewModel:   _loadedRoutine.value: Single Exercise: Bicep Curl 
+11-24 23:05:22.522 29522 29522 D MainViewModel:   _loadedRoutine.value.id: temp_single_exercise_ee37aa07-1679-4b82-8117-f7b069a2a4d9
+11-24 23:05:22.522 29522 29522 D MainViewModel:   maxConcentricPerCableKgThisSession=5.4, maxEccentricPerCableKgThisSession=0.0
+11-24 23:05:22.922 29522 29522 V MainViewModel: Monitor metric received in ViewModel: pos=(1,1)
+11-24 23:05:22.937 29522 29522 D MainViewModel: Saved workout session: 3e993c83-d369-4b07-9bd9-6b868e2f6859 with 251 metrics
+11-24 23:18:02.632 19646 19646 D MainViewModel: MainViewModel initialized
+11-24 23:18:02.632 19646 19646 D MainViewModel: Starting to collect monitor data...
+11-24 23:18:02.632 19646 19646 D MainViewModel: Starting to collect rep notifications...
+11-24 23:18:02.634 19646 19646 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Idle@6d5ba29
+11-24 23:18:04.697 19646 19646 D MainViewModel: MainViewModel.startScanning() called
+11-24 23:18:04.810 19646 19646 D MainViewModel: ViewModel received scan result: 80:64:6F:38:3D:96
+11-24 23:18:04.811 19646 19646 D MainViewModel: Added device to list: Vee_0000943D_386F6480 (80:64:6F:38:3D:96) - Total devices: 1
+11-24 23:18:35.199 19646 19646 D MainViewModel: ✅ ROUTINE LOADED: Set currentRoutineSessionId = e098b12b-1394-49a9-a9af-30851923ec7e, routineName = Single Exercise: Bicep Curl 
+11-24 23:18:35.199 19646 19646 D MainViewModel: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11-24 23:18:35.199 19646 19646 D MainViewModel: LOADING ROUTINE: Single Exercise: Bicep Curl 
+11-24 23:18:35.199 19646 19646 D MainViewModel:   ID: temp_single_exercise_ebc426fb-368b-4b07-9a65-70db2bfd76ca
+11-24 23:18:35.199 19646 19646 D MainViewModel:   Total exercises: 1
+11-24 23:18:35.199 19646 19646 D MainViewModel:   First exercise: Bicep Curl 
+11-24 23:18:35.199 19646 19646 D MainViewModel:   Sets: 1 ([6])
+11-24 23:18:35.199 19646 19646 D MainViewModel:   Weight (exercise default): 5.443115kg
+11-24 23:18:35.199 19646 19646 D MainViewModel:   First set weight: 5.443115kg
+11-24 23:18:35.199 19646 19646 D MainViewModel:   First set reps: 6
+11-24 23:18:35.200 19646 19646 D MainViewModel:   Setting isJustLift = false
+11-24 23:18:35.200 19646 19646 D MainViewModel: WORKOUT TYPE DETAILS:
+11-24 23:18:35.200 19646 19646 D MainViewModel:   Type: Old School
+11-24 23:18:35.200 19646 19646 D MainViewModel:   Program mode: Old School
+11-24 23:18:35.200 19646 19646 D MainViewModel:   First exercise isAMRAP: false
+11-24 23:18:35.200 19646 19646 D MainViewModel:   First set reps: 6
+11-24 23:18:35.200 19646 19646 D MainViewModel: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11-24 23:18:35.200 19646 19646 D MainViewModel: Created WorkoutParameters:
+11-24 23:18:35.200 19646 19646 D MainViewModel:   isAMRAP: false
+11-24 23:18:35.200 19646 19646 D MainViewModel:   workoutType.displayName: Old School
+11-24 23:18:35.200 19646 19646 D MainViewModel: ⚖️ updateWorkoutParameters: weight=5.443115 kg (12.0 lbs)
+11-24 23:18:35.201 19646 19646 D MainViewModel: Routine loaded successfully - _loadedRoutine.value is now: Single Exercise: Bicep Curl 
+11-24 23:18:35.201 19646 19646 D MainViewModel: $$$ startWorkout() CALLED! skipCountdown=false, isJustLiftMode=false $$$
+11-24 23:18:40.321 19646 19646 D MainViewModel: Rep notification received: top=0, complete=0, state=Countdown(secondsRemaining=1)
+11-24 23:18:40.321 19646 19646 W MainViewModel: Rep notification ignored - workout not active (state=Countdown(secondsRemaining=1))
+11-24 23:18:40.394 19646 19646 D MainViewModel: Handle state received in ViewModel: Grabbed, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:40.827 19646 19646 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:40.828 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:40.887 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:40.948 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.069 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.159 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.263 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.383 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.477 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.587 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.671 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.776 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.891 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:41.983 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.073 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.181 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.285 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.388 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.499 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.602 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.703 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.811 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:42.902 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.019 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.131 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.217 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.320 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.423 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.529 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.634 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.740 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.847 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:43.953 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.054 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.161 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.265 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.378 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.480 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.580 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(0,0)
+11-24 23:18:44.684 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(3,2)
+11-24 23:18:44.789 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(31,26)
+11-24 23:18:44.790 19646 19646 D MainViewModel: Handle state received in ViewModel: Grabbed, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:44.927 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(92,80)
+11-24 23:18:45.001 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(135,124)
+11-24 23:18:45.110 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(189,184)
+11-24 23:18:45.194 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(244,245)
+11-24 23:18:45.302 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(300,304)
+11-24 23:18:45.407 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(363,367)
+11-24 23:18:45.507 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(420,420)
+11-24 23:18:45.612 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(469,470)
+11-24 23:18:45.727 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(510,514)
+11-24 23:18:45.808 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(537,548)
+11-24 23:18:45.914 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(554,569)
+11-24 23:18:46.017 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(568,581)
+11-24 23:18:46.124 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(568,580)
+11-24 23:18:46.242 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,574)
+11-24 23:18:46.332 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,574)
+11-24 23:18:46.441 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,573)
+11-24 23:18:46.529 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,573)
+11-24 23:18:46.635 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,573)
+11-24 23:18:46.745 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,570)
+11-24 23:18:46.843 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(563,570)
+11-24 23:18:46.949 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(560,571)
+11-24 23:18:47.055 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(560,571)
+11-24 23:18:47.160 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(559,571)
+11-24 23:18:47.264 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(558,570)
+11-24 23:18:47.372 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(553,567)
+11-24 23:18:47.477 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(549,565)
+11-24 23:18:47.563 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(549,565)
+11-24 23:18:47.669 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(549,562)
+11-24 23:18:47.777 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(549,561)
+11-24 23:18:47.881 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(548,560)
+11-24 23:18:47.985 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,560)
+11-24 23:18:48.094 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,560)
+11-24 23:18:48.197 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,560)
+11-24 23:18:48.301 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,560)
+11-24 23:18:48.419 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,560)
+11-24 23:18:48.494 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,558)
+11-24 23:18:48.601 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,557)
+11-24 23:18:48.702 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,557)
+11-24 23:18:48.810 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,557)
+11-24 23:18:48.915 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,557)
+11-24 23:18:49.024 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,557)
+11-24 23:18:49.131 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(547,557)
+11-24 23:18:49.229 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(551,562)
+11-24 23:18:49.334 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(588,598)
+11-24 23:18:49.437 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(657,665)
+11-24 23:18:49.546 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(751,762)
+11-24 23:18:49.651 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(861,878)
+11-24 23:18:49.753 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(945,962)
+11-24 23:18:50.350 19646 19646 D MainViewModel: Rep notification received: top=1, complete=0, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:50.491 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(954,989)
+11-24 23:18:50.594 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(870,907)
+11-24 23:18:50.701 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(792,823)
+11-24 23:18:50.787 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(726,748)
+11-24 23:18:50.897 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(670,682)
+11-24 23:18:50.998 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(623,628)
+11-24 23:18:51.106 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(585,585)
+11-24 23:18:51.212 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(575,580)
+11-24 23:18:51.316 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(575,579)
+11-24 23:18:51.433 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(579,583)
+11-24 23:18:51.526 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(599,604)
+11-24 23:18:51.567 19646 19646 D MainViewModel: Rep notification received: top=1, complete=1, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:51.567 19646 19646 D MainViewModel: Rep counters updated: warmup=1/3, working=0/6
+11-24 23:18:51.567 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=1, working=0, perCableKg=1.9, totalKg=3.8
+11-24 23:18:51.567 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:18:51.885 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(923,920)
+11-24 23:18:52.506 19646 19646 D MainViewModel: Rep notification received: top=2, complete=1, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:52.636 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(964,987)
+11-24 23:18:52.739 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(883,911)
+11-24 23:18:52.826 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(804,824)
+11-24 23:18:52.946 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(721,724)
+11-24 23:18:53.046 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(673,668)
+11-24 23:18:53.146 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(625,620)
+11-24 23:18:53.235 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(584,580)
+11-24 23:18:53.356 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(576,578)
+11-24 23:18:53.459 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(576,578)
+11-24 23:18:53.549 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(589,592)
+11-24 23:18:53.641 19646 19646 D MainViewModel: Rep notification received: top=2, complete=2, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:53.642 19646 19646 D MainViewModel: Rep counters updated: warmup=2/3, working=0/6
+11-24 23:18:53.642 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=2, working=0, perCableKg=2.9, totalKg=5.8
+11-24 23:18:53.642 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:18:54.013 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(632,635)
+11-24 23:18:54.596 19646 19646 D MainViewModel: Rep notification received: top=3, complete=2, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:54.764 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(964,987)
+11-24 23:18:54.871 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(851,870)
+11-24 23:18:54.959 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(783,794)
+11-24 23:18:55.083 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(701,700)
+11-24 23:18:55.169 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(649,642)
+11-24 23:18:55.272 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(602,595)
+11-24 23:18:55.379 19646 19646 D MainViewModel: Rep notification received: top=3, complete=3, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:55.380 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=0/6
+11-24 23:18:55.380 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=0, perCableKg=4.0, totalKg=8.0
+11-24 23:18:55.380 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:18:55.380 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=0/6
+11-24 23:18:55.380 19646 19646 D MainViewModel: Emitting haptic event: WARMUP_COMPLETE
+11-24 23:18:55.381 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(575,572)
+11-24 23:18:56.146 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(964,968)
+11-24 23:18:56.508 19646 19646 D MainViewModel: Rep notification received: top=4, complete=3, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:56.510 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=0/6
+11-24 23:18:56.510 19646 19646 D MainViewModel: Rep pending (at TOP) - visual update only, no haptic
+11-24 23:18:57.389 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(910,940)
+11-24 23:18:57.483 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(868,892)
+11-24 23:18:57.595 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(818,827)
+11-24 23:18:57.703 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(755,752)
+11-24 23:18:57.796 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(702,694)
+11-24 23:18:57.897 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(651,646)
+11-24 23:18:58.006 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(604,603)
+11-24 23:18:58.096 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(575,571)
+11-24 23:18:58.123 19646 19646 D MainViewModel: Rep notification received: top=4, complete=4, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:58.123 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=1/6
+11-24 23:18:58.123 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=1, perCableKg=5.4, totalKg=10.8
+11-24 23:18:58.124 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:18:58.545 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(576,573)
+11-24 23:18:58.624 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(576,573)
+11-24 23:18:58.724 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(576,574)
+11-24 23:18:58.830 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(594,588)
+11-24 23:18:58.935 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(633,623)
+11-24 23:18:59.037 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(687,672)
+11-24 23:18:59.131 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(775,761)
+11-24 23:18:59.236 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(875,879)
+11-24 23:18:59.341 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(976,997)
+11-24 23:18:59.619 19646 19646 D MainViewModel: Rep notification received: top=5, complete=4, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:18:59.620 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=1/6
+11-24 23:18:59.620 19646 19646 D MainViewModel: Rep pending (at TOP) - visual update only, no haptic
+11-24 23:19:00.392 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(960,975)
+11-24 23:19:00.478 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(907,923)
+11-24 23:19:00.588 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(841,850)
+11-24 23:19:00.688 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(764,762)
+11-24 23:19:00.796 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(704,697)
+11-24 23:19:00.900 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(653,643)
+11-24 23:19:00.989 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(601,594)
+11-24 23:19:01.080 19646 19646 D MainViewModel: Rep notification received: top=5, complete=5, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:01.081 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=2/6
+11-24 23:19:01.081 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=2, perCableKg=5.4, totalKg=10.8
+11-24 23:19:01.081 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:19:01.377 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(578,574)
+11-24 23:19:01.405 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(579,576)
+11-24 23:19:01.518 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(583,580)
+11-24 23:19:01.620 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(614,602)
+11-24 23:19:01.709 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(684,667)
+11-24 23:19:01.814 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(785,768)
+11-24 23:19:01.921 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(897,888)
+11-24 23:19:02.284 19646 19646 D MainViewModel: Rep notification received: top=6, complete=5, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:02.285 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=2/6
+11-24 23:19:02.286 19646 19646 D MainViewModel: Rep pending (at TOP) - visual update only, no haptic
+11-24 23:19:03.077 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(945,956)
+11-24 23:19:03.181 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(888,897)
+11-24 23:19:03.267 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(829,835)
+11-24 23:19:03.373 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(772,775)
+11-24 23:19:03.481 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(713,715)
+11-24 23:19:03.582 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(660,664)
+11-24 23:19:03.689 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(612,613)
+11-24 23:19:03.796 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(585,585)
+11-24 23:19:03.822 19646 19646 D MainViewModel: Rep notification received: top=6, complete=6, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:03.822 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=3/6
+11-24 23:19:03.822 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=3, perCableKg=5.4, totalKg=10.8
+11-24 23:19:03.822 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:19:04.143 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(585,585)
+11-24 23:19:04.243 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(593,596)
+11-24 23:19:04.352 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(637,644)
+11-24 23:19:04.457 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(711,717)
+11-24 23:19:04.562 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(809,813)
+11-24 23:19:04.677 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(946,953)
+11-24 23:19:04.980 19646 19646 D MainViewModel: Rep notification received: top=7, complete=6, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:04.982 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=3/6
+11-24 23:19:04.982 19646 19646 D MainViewModel: Rep pending (at TOP) - visual update only, no haptic
+11-24 23:19:05.700 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(965,982)
+11-24 23:19:05.809 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(888,905)
+11-24 23:19:05.909 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(798,803)
+11-24 23:19:06.014 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(737,727)
+11-24 23:19:06.120 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(686,668)
+11-24 23:19:06.225 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(633,618)
+11-24 23:19:06.331 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(579,585)
+11-24 23:19:06.352 19646 19646 D MainViewModel: Rep notification received: top=7, complete=7, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:06.353 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=4/6
+11-24 23:19:06.353 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=4, perCableKg=5.3, totalKg=10.6
+11-24 23:19:06.353 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:19:06.690 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(580,586)
+11-24 23:19:06.799 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(595,597)
+11-24 23:19:06.903 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(639,633)
+11-24 23:19:07.004 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(717,713)
+11-24 23:19:07.094 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(805,811)
+11-24 23:19:07.230 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(947,973)
+11-24 23:19:07.489 19646 19646 D MainViewModel: Rep notification received: top=8, complete=7, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:07.491 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=4/6
+11-24 23:19:07.491 19646 19646 D MainViewModel: Rep pending (at TOP) - visual update only, no haptic
+11-24 23:19:08.252 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(920,943)
+11-24 23:19:08.339 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(858,876)
+11-24 23:19:08.445 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(789,784)
+11-24 23:19:08.549 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(715,690)
+11-24 23:19:08.656 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(655,635)
+11-24 23:19:08.759 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(593,590)
+11-24 23:19:08.805 19646 19646 D MainViewModel: Rep notification received: top=8, complete=8, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:08.807 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=5/6
+11-24 23:19:08.807 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=5, perCableKg=5.4, totalKg=10.8
+11-24 23:19:08.807 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:19:09.217 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(582,589)
+11-24 23:19:09.323 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(616,621)
+11-24 23:19:09.406 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(661,662)
+11-24 23:19:09.512 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(767,770)
+11-24 23:19:09.613 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(872,889)
+11-24 23:19:10.011 19646 19646 D MainViewModel: Rep notification received: top=9, complete=8, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:10.014 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=5/6
+11-24 23:19:10.014 19646 19646 D MainViewModel: Rep pending (at TOP) - visual update only, no haptic
+11-24 23:19:10.668 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(903,941)
+11-24 23:19:10.769 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(809,836)
+11-24 23:19:10.859 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(753,766)
+11-24 23:19:10.965 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(690,689)
+11-24 23:19:11.068 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(627,619)
+11-24 23:19:11.175 19646 19646 V MainViewModel: Monitor metric received in ViewModel: pos=(581,581)
+11-24 23:19:11.202 19646 19646 D MainViewModel: Rep notification received: top=9, complete=9, state=com.example.vitruvianredux.domain.model.WorkoutState$Active@c028b6b
+11-24 23:19:11.202 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=6/6
+11-24 23:19:11.202 19646 19646 D MainViewModel: REP_LOAD_CON: warmup=3, working=6, perCableKg=5.4, totalKg=10.8
+11-24 23:19:11.202 19646 19646 D MainViewModel: Emitting haptic event: REP_COMPLETED
+11-24 23:19:11.203 19646 19646 D MainViewModel: Rep counters updated: warmup=3/3, working=6/6
+11-24 23:19:11.203 19646 19646 D MainViewModel: REP_LOAD_ECC: warmup=3, working=6, perCableKg=5.4, totalKg=10.8
+11-24 23:19:11.203 19646 19646 D MainViewModel: Emitting haptic event: WORKOUT_COMPLETE
+11-24 23:19:11.203 19646 19646 D MainViewModel: Machine indicates workout should stop - requesting stop
+11-24 23:19:11.203 19646 19646 W MainViewModel: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+11-24 23:19:11.203 19646 19646 W MainViewModel: AUTOSTOP_TRACE: triggerAutoStop() ENTERED
+11-24 23:19:11.203 19646 19646 W MainViewModel: !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+11-24 23:19:11.203 19646 19646 W MainViewModel: AUTOSTOP_TRACE: About to call handleSetCompletion()
+11-24 23:19:11.203 19646 19646 W MainViewModel: AUTOSTOP_TRACE: handleSetCompletion() returned
+11-24 23:19:11.906 19646 19646 D MainViewModel: 💾 SAVING WORKOUT SESSION:
+11-24 23:19:11.906 19646 19646 D MainViewModel:   sessionId: 8f70673b-931f-4797-9186-8bad6f4aa869
+11-24 23:19:11.906 19646 19646 D MainViewModel:   mode: Old School
+11-24 23:19:11.906 19646 19646 D MainViewModel:   reps (target): 6
+11-24 23:19:11.906 19646 19646 D MainViewModel:   totalReps (actual): 6
+11-24 23:19:11.906 19646 19646 D MainViewModel:   isAMRAP: false
+11-24 23:19:11.906 19646 19646 D MainViewModel:   isBodyweight: false
+11-24 23:19:11.906 19646 19646 D MainViewModel:   exerciseId: fc5ca114-3cb6-462a-ab54-7ef1233b5fc2
+11-24 23:19:11.906 19646 19646 D MainViewModel:   routineSessionId: e098b12b-1394-49a9-a9af-30851923ec7e
+11-24 23:19:11.907 19646 19646 D MainViewModel:   routineName: Single Exercise: Bicep Curl 
+11-24 23:19:11.907 19646 19646 D MainViewModel:   _loadedRoutine.value: Single Exercise: Bicep Curl 
+11-24 23:19:11.907 19646 19646 D MainViewModel:   _loadedRoutine.value.id: temp_single_exercise_ebc426fb-368b-4b07-9a65-70db2bfd76ca
+11-24 23:19:11.907 19646 19646 D MainViewModel:   maxConcentricPerCableKgThisSession=5.4, maxEccentricPerCableKgThisSession=5.4
+11-24 23:19:12.257 19646 19646 D MainViewModel: Saved workout session: 8f70673b-931f-4797-9186-8bad6f4aa869 with 194 metrics
+11-25 00:48:28.756  9089  9089 D MainViewModel: MainViewModel initialized
+11-25 00:48:28.757  9089  9089 D MainViewModel: Starting to collect monitor data...
+11-25 00:48:28.757  9089  9089 D MainViewModel: Starting to collect rep notifications...
+11-25 00:48:28.758  9089  9089 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Idle@6d5ba29
+11-25 00:48:31.744  9089  9089 D MainViewModel: MainViewModel.startScanning() called
+11-25 00:48:35.785  9089  9089 D MainViewModel: 🔴 cancelAutoConnecting() called - User cancelled connection
+11-25 00:48:35.785  9089  9089 D MainViewModel: 🔴 connectionJob exists: true, isActive: true
+11-25 00:48:35.787  9089  9089 D MainViewModel: 🔴 Connection cancelled, overlay dismissed
+11-25 00:49:09.925  9089  9089 D MainViewModel: MainViewModel.startScanning() called
+11-25 00:49:10.015  9089  9089 D MainViewModel: ViewModel received scan result: 80:64:6F:38:3D:96
+11-25 00:49:10.015  9089  9089 D MainViewModel: Added device to list: Vee_0000943D_386F6480 (80:64:6F:38:3D:96) - Total devices: 1
+11-25 00:49:10.025  9089  9089 D MainViewModel: ViewModel received scan result: 80:64:6F:38:3D:96
+11-25 00:49:10.025  9089  9089 D MainViewModel: Device already in list, skipping: 80:64:6F:38:3D:96
+11-25 00:49:19.083  9089  9089 D MainViewModel: MainViewModel.startScanning() called
+11-25 01:53:08.942  4490  4490 D MainViewModel: MainViewModel initialized
+11-25 01:53:08.942  4490  4490 D MainViewModel: Starting to collect monitor data...
+11-25 01:53:08.942  4490  4490 D MainViewModel: Starting to collect rep notifications...
+11-25 01:53:08.943  4490  4490 D MainViewModel: Handle state received in ViewModel: Released, useAutoStart=false, workoutState=com.example.vitruvianredux.domain.model.WorkoutState$Idle@6dbe2dc
