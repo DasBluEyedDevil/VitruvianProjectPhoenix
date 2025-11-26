@@ -118,13 +118,13 @@ class ProtocolTesterViewModel @Inject constructor(
                 // Use the existing BLE repository to scan
                 var deviceFound = false
                 val scanJob = launch {
-                    bleRepository.scannedDevices.collect { devices ->
-                        if (devices.isNotEmpty() && !deviceFound) {
+                    bleRepository.scannedDevices.collect { scanResult ->
+                        if (!deviceFound) {
                             deviceFound = true
-                            val device = devices.first()
-                            foundDevice = bluetoothAdapter.getRemoteDevice(device.address)
-                            _currentDeviceName.value = device.name ?: device.address
-                            Timber.d("PROTOCOL_TESTER: Found device: ${device.name}")
+                            foundDevice = bluetoothAdapter.getRemoteDevice(scanResult.device.address)
+                            @Suppress("MissingPermission")
+                            _currentDeviceName.value = scanResult.device.name ?: scanResult.device.address
+                            Timber.d("PROTOCOL_TESTER: Found device: ${scanResult.device.name}")
                         }
                     }
                 }
@@ -322,13 +322,13 @@ class ProtocolTesterViewModel @Inject constructor(
 
             var deviceFound = false
             val scanJob = viewModelScope.launch {
-                bleRepository.scannedDevices.collect { devices ->
-                    if (devices.isNotEmpty() && !deviceFound) {
+                bleRepository.scannedDevices.collect { scanResult ->
+                    if (!deviceFound) {
                         deviceFound = true
-                        val device = devices.first()
-                        foundDevice = bluetoothAdapter.getRemoteDevice(device.address)
-                        _currentDeviceName.value = device.name ?: device.address
-                        Timber.d("EXERCISE_CYCLE: Found device: ${device.name}")
+                        foundDevice = bluetoothAdapter.getRemoteDevice(scanResult.device.address)
+                        @Suppress("MissingPermission")
+                        _currentDeviceName.value = scanResult.device.name ?: scanResult.device.address
+                        Timber.d("EXERCISE_CYCLE: Found device: ${scanResult.device.name}")
                     }
                 }
             }
@@ -675,7 +675,7 @@ class ProtocolTesterViewModel @Inject constructor(
                 presetResult.isSuccess
             }
 
-            ProtocolTester.InitProtocol.DOUBLE_0x0A -> {
+            ProtocolTester.InitProtocol.INIT_DOUBLE_0x0A -> {
                 // Send init twice with delay
                 val cmd = ProtocolTester.buildInitCommandForProtocol(protocol) ?: return false
                 val result1 = manager.sendCommand(cmd)
@@ -697,7 +697,9 @@ class ProtocolTesterViewModel @Inject constructor(
         testJob?.cancel()
         testJob = null
         _testState.value = TestState.Idle
-        bleRepository.stopScanning()
+        viewModelScope.launch {
+            bleRepository.stopScanning()
+        }
     }
 
     /**
