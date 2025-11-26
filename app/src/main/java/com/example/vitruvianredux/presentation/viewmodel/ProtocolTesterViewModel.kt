@@ -61,7 +61,8 @@ class ProtocolTesterViewModel @Inject constructor(
     enum class TestMode(val displayName: String, val description: String) {
         QUICK("Quick Test", "Test the 3 most common configurations"),
         RECOMMENDED("Recommended", "Test 7 recommended configurations"),
-        COMPREHENSIVE("Comprehensive", "Test ALL protocol/delay combinations (35 tests)")
+        COMPREHENSIVE("Comprehensive", "Test ALL protocol/delay combinations (35 tests)"),
+        EXERCISE_CYCLE("Exercise Cycle", "Test full start/wait/stop sequence (15 sec)")
     }
 
     /**
