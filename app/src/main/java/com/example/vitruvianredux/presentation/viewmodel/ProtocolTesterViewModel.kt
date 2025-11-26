@@ -507,13 +507,39 @@ class ProtocolTesterViewModel @Inject constructor(
             Timber.d("EXERCISE_CYCLE: Phase 2 - Connecting...")
 
             try {
+                // Use enqueue() instead of await() to avoid blocking UI thread
                 testManager.connect(device)
                     ?.timeout(15000)
                     ?.retry(2, 200)
                     ?.useAutoConnect(false)
-                    ?.await()
+                    ?.enqueue()
+
+                // Wait for service discovery to complete (ConnectionStatus.Ready)
+                Timber.d("EXERCISE_CYCLE: GATT connection initiated, waiting for service discovery...")
+
+                val readyState = withTimeoutOrNull(15000L) {
+                    testManager.connectionState.first { status ->
+                        status is ConnectionStatus.Ready || status is ConnectionStatus.Error
+                    }
+                }
 
                 val connectDuration = System.currentTimeMillis() - connectStart
+
+                when (readyState) {
+                    null -> {
+                        throw Exception("Service discovery timeout (15s)")
+                    }
+                    is ConnectionStatus.Error -> {
+                        throw Exception("Connection error: ${readyState.message}")
+                    }
+                    is ConnectionStatus.Ready -> {
+                        Timber.d("EXERCISE_CYCLE: Service discovery complete in ${connectDuration}ms")
+                    }
+                    else -> {
+                        throw Exception("Unexpected state: $readyState")
+                    }
+                }
+
                 phaseResults.add(ProtocolTester.ExerciseCyclePhaseResult(
                     phase = ProtocolTester.ExerciseCyclePhase.CONNECT,
                     success = true,

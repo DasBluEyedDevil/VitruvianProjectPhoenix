@@ -14,8 +14,36 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep Room classes
+-keep class com.example.vitruvianredux.data.local.** { *; }
+-keep class com.example.vitruvianredux.data.local.entity.** { *; }
+-keep class * extends androidx.room.RoomDatabase
+-keep class * extends androidx.room.RoomDatabase {
+    public static <methods>;
+}
+-keep @androidx.room.Entity class *
+
+# Keep Hilt/Dagger
+-keep class com.example.vitruvianredux.di.** { *; }
+-keep class dagger.hilt.** { *; }
+-keep class javax.inject.** { *; }
+
+# Keep BLE classes
+-keep class com.example.vitruvianredux.data.ble.** { *; }
+-keep class no.nordicsemi.android.ble.** { *; }
+
+# Keep data models used in reflection or serialization
+-keep class com.example.vitruvianredux.domain.model.** { *; }
+
+# Keep Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler { *; }
+-keepclassmembers class kotlinx.coroutines.android.AndroidExceptionPreHandler {
+    <init>();
+}
