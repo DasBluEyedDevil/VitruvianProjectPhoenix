@@ -33,6 +33,7 @@ import com.example.vitruvianredux.presentation.viewmodel.ProtocolTesterViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ProtocolTesterViewModel.TestState
 import com.example.vitruvianredux.ui.theme.Spacing
 import com.example.vitruvianredux.util.ProtocolTester.TestResult
+import com.example.vitruvianredux.util.ProtocolTester.ExerciseCyclePhaseResult
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +45,7 @@ fun ProtocolTesterScreen(
     val results by viewModel.results.collectAsState()
     val currentDevice by viewModel.currentDeviceName.collectAsState()
     val testMode by viewModel.testMode.collectAsState()
+    val exerciseCycleResults by viewModel.exerciseCycleResults.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -71,10 +73,14 @@ fun ProtocolTesterScreen(
                     }
                 },
                 actions = {
-                    if (testState is TestState.Completed) {
+                    if (testState is TestState.Completed || testState is TestState.ExerciseCycleCompleted) {
                         IconButton(
                             onClick = {
-                                val report = viewModel.generateReport()
+                                val report = if (testState is TestState.ExerciseCycleCompleted) {
+                                    viewModel.generateExerciseCycleReport()
+                                } else {
+                                    viewModel.generateReport()
+                                }
                                 val sendIntent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     putExtra(Intent.EXTRA_TEXT, report)
@@ -220,6 +226,24 @@ fun ProtocolTesterScreen(
                 is TestState.Completed -> {
                     CompletedContent(
                         results = state.results,
+                        onReset = { viewModel.reset() }
+                    )
+                }
+
+                is TestState.ExerciseCycleTesting -> {
+                    ExerciseCycleTestingContent(
+                        currentPhase = state.currentPhase,
+                        phaseIndex = state.phaseIndex,
+                        totalPhases = state.totalPhases,
+                        elapsedWaitSeconds = state.elapsedWaitSeconds,
+                        phaseResults = exerciseCycleResults,
+                        onCancel = { viewModel.cancelTesting() }
+                    )
+                }
+
+                is TestState.ExerciseCycleCompleted -> {
+                    ExerciseCycleCompletedContent(
+                        phaseResults = state.phaseResults,
                         onReset = { viewModel.reset() }
                     )
                 }
@@ -409,6 +433,107 @@ private fun TestingContent(
 }
 
 @Composable
+private fun ExerciseCycleTestingContent(
+    currentPhase: com.example.vitruvianredux.util.ProtocolTester.ExerciseCyclePhase,
+    phaseIndex: Int,
+    totalPhases: Int,
+    elapsedWaitSeconds: Int,
+    phaseResults: List<ExerciseCyclePhaseResult>,
+    onCancel: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Progress header
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Phase ${phaseIndex + 1} of $totalPhases",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                LinearProgressIndicator(
+                    progress = { (phaseIndex + 1).toFloat() / totalPhases },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    trackColor = MaterialTheme.colorScheme.primaryContainer
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                Text(
+                    currentPhase.displayName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    currentPhase.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Show countdown during wait phase
+                if (currentPhase == com.example.vitruvianredux.util.ProtocolTester.ExerciseCyclePhase.WAIT) {
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    Text(
+                        "${15 - elapsedWaitSeconds}s remaining",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.medium))
+
+        // Results list
+        Text(
+            "Phase Results",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.small))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(phaseResults) { result ->
+                ExerciseCyclePhaseCard(result = result)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.medium))
+
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+        ) {
+            Icon(Icons.Default.Close, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Cancel Testing")
+        }
+    }
+}
+
+@Composable
 private fun CompletedContent(
     results: List<TestResult>,
     onReset: () -> Unit
@@ -497,6 +622,100 @@ private fun CompletedContent(
         ) {
             items(results.sortedBy { !it.success }) { result ->
                 ResultCard(result = result)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.medium))
+
+        Button(
+            onClick = onReset,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(Icons.Default.Refresh, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Run Again")
+        }
+    }
+}
+
+@Composable
+private fun ExerciseCycleCompletedContent(
+    phaseResults: List<ExerciseCyclePhaseResult>,
+    onReset: () -> Unit
+) {
+    val successCount = phaseResults.count { it.success }
+    val totalDuration = phaseResults.sumOf { it.durationMs }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Summary card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (successCount == phaseResults.size)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.errorContainer
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    if (successCount == phaseResults.size) Icons.Default.CheckCircle else Icons.Default.Error,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = if (successCount == phaseResults.size)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.error
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                Text(
+                    "Exercise Cycle Test Complete",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    "$successCount of ${phaseResults.size} phases passed",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                Text(
+                    "Total duration: ${totalDuration}ms",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.medium))
+
+        Text(
+            "Phase Results",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.small))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(phaseResults) { result ->
+                ExerciseCyclePhaseCard(result = result)
             }
         }
 
@@ -644,6 +863,87 @@ private fun ResultCard(result: TestResult) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseCyclePhaseCard(result: ExerciseCyclePhaseResult) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (result.success)
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            else
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.small)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    if (result.success) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (result.success)
+                        Color(0xFF22C55E)
+                    else
+                        MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(24.dp)
+                )
+
+                Spacer(modifier = Modifier.width(Spacing.small))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        result.phase.displayName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    result.notes?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    result.errorMessage?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "${result.durationMs}ms",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (result.success) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            // Show command hex if present
+            result.commandSent?.let { cmd ->
+                Spacer(modifier = Modifier.height(4.dp))
+                val hexStr = cmd.take(16).joinToString(" ") { "%02X".format(it) }
+                val displayStr = if (cmd.size > 16) "$hexStr... (${cmd.size} bytes)" else hexStr
+                Text(
+                    "Sent: $displayStr",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
             }
         }
     }
