@@ -330,6 +330,58 @@ class BleRepositoryImpl @Inject constructor(
                         Timber.d("DELOAD_EVENT: Deload occurred (safety holding state) - NOT sending stop, exercise can resume")
                     }
                 }
+
+                // AUTO-RECONNECT: Handle Android 16 Pixel BLE stack bug (onServicesInvalidated)
+                // When GATT services are invalidated, attempt automatic reconnection
+                scope.launch {
+                    reconnectionRequested.collect { request ->
+                        Timber.i("🔄 RECONNECT_REQUEST: ${request.reason} - device=${request.deviceName} (${request.deviceAddress})")
+                        connectionLogger.log(
+                            eventType = "RECONNECT_REQUESTED",
+                            level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.WARNING,
+                            deviceName = request.deviceName,
+                            deviceAddress = request.deviceAddress,
+                            message = "Auto-reconnect requested: ${request.reason}"
+                        )
+
+                        // Wait before reconnecting (allow BLE stack to settle)
+                        delay(1500L)
+
+                        // Attempt reconnection
+                        Timber.i("🔄 Attempting auto-reconnect to ${request.deviceAddress}...")
+                        try {
+                            val result = connectToDevice(request.deviceAddress)
+                            if (result.isSuccess) {
+                                Timber.i("✅ Auto-reconnect successful!")
+                                connectionLogger.log(
+                                    eventType = "RECONNECT_SUCCESS",
+                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                                    deviceName = request.deviceName,
+                                    deviceAddress = request.deviceAddress,
+                                    message = "Auto-reconnect succeeded"
+                                )
+                            } else {
+                                Timber.w("⚠️ Auto-reconnect failed: ${result.exceptionOrNull()?.message}")
+                                connectionLogger.log(
+                                    eventType = "RECONNECT_FAILED",
+                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.ERROR,
+                                    deviceName = request.deviceName,
+                                    deviceAddress = request.deviceAddress,
+                                    message = "Auto-reconnect failed: ${result.exceptionOrNull()?.message}"
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "❌ Auto-reconnect exception")
+                            connectionLogger.log(
+                                eventType = "RECONNECT_ERROR",
+                                level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.ERROR,
+                                deviceName = request.deviceName,
+                                deviceAddress = request.deviceAddress,
+                                message = "Auto-reconnect error: ${e.message}"
+                            )
+                        }
+                    }
+                }
             }
 
             // Store references to the new BLE manager

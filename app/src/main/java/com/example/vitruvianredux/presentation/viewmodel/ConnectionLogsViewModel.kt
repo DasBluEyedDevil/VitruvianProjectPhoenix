@@ -2,6 +2,7 @@ package com.example.vitruvianredux.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.vitruvianredux.BuildConfig
 import com.example.vitruvianredux.data.local.ConnectionLogDao
 import com.example.vitruvianredux.data.local.ConnectionLogEntity
 import com.example.vitruvianredux.data.logger.ConnectionLogger
@@ -123,12 +124,13 @@ class ConnectionLogsViewModel @Inject constructor(
         val logs = connectionLogDao.getAllLogsForExport()
 
         // Find system info and Vitruvian device info from logs
-        val systemInfo = logs.firstOrNull { it.eventType == "SYSTEM_INFO" }
-        val vitruvianInfo = logs.firstOrNull { it.eventType == "VITRUVIAN_DEVICE_INFO" }
+        val systemInfo = logs.lastOrNull { it.eventType == "SYSTEM_INFO" }
+        val vitruvianInfo = logs.lastOrNull { it.eventType == "VITRUVIAN_DEVICE_INFO" }
 
         return buildString {
             appendLine("═══════════════════════════════════════════════════════")
             appendLine("       VITRUVIAN CONNECTION DEBUG LOG EXPORT")
+            appendLine("       App Version: ${BuildConfig.VERSION_NAME}")
             appendLine("═══════════════════════════════════════════════════════")
             appendLine()
             appendLine("Generated: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")

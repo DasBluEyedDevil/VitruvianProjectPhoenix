@@ -133,6 +133,16 @@ class VitruvianBleManager(
     )
     val deloadOccurredEvents: SharedFlow<Unit> = _deloadOccurredEvents.asSharedFlow()
 
+    // Reconnection request flow - emitted when onServicesInvalidated() is called
+    // This handles the Android 16 Pixel BLE stack bug where GATT services get invalidated
+    // The repository should observe this and attempt to reconnect after a short delay
+    private val _reconnectionRequested = MutableSharedFlow<ReconnectionRequest>(
+        replay = 0,
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val reconnectionRequested: SharedFlow<ReconnectionRequest> = _reconnectionRequested.asSharedFlow()
+
     // Debounce for deload events - don't spam STOP commands
     private var lastDeloadEventTime = 0L
     private val DELOAD_EVENT_DEBOUNCE_MS = 2000L  // Only emit once per 2 seconds
@@ -462,18 +472,23 @@ class VitruvianBleManager(
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Timber.e("⚠️ onServicesInvalidated() CALLED! [$timestamp]")
             Timber.e("⚠️ This will NULL all characteristic references!")
+            Timber.e("⚠️ Android 16 Pixel BLE stack bug - attempting auto-reconnect")
             Timber.e("⚠️ Stack trace:")
             Thread.currentThread().stackTrace.take(10).forEach {
                 Timber.e("   at $it")
             }
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
+            // Capture device info BEFORE clearing state (needed for reconnection)
+            val deviceName = currentDeviceName
+            val deviceAddress = currentDeviceAddress
+
             // Log current connection state
             connectionLogger?.logError(
-                currentDeviceName ?: "Unknown",
-                currentDeviceAddress ?: "Unknown",
+                deviceName ?: "Unknown",
+                deviceAddress ?: "Unknown",
                 "CHARACTERISTICS_INVALIDATED",
-                "onServicesInvalidated() called - all characteristics will be nulled"
+                "onServicesInvalidated() called - requesting auto-reconnect"
             )
 
             // NULL all characteristics
@@ -493,6 +508,24 @@ class VitruvianBleManager(
 
             // Stop all polling since characteristics are now invalid
             stopPolling()
+
+            // REQUEST AUTO-RECONNECT: Emit event for repository to handle reconnection
+            // This addresses the Android 16 Pixel BLE stack bug (10s GATT cleanup)
+            if (deviceAddress != null) {
+                Timber.i("🔄 Requesting auto-reconnect to $deviceName ($deviceAddress)")
+                pollingScope.launch {
+                    _reconnectionRequested.emit(
+                        ReconnectionRequest(
+                            deviceName = deviceName,
+                            deviceAddress = deviceAddress,
+                            reason = "onServicesInvalidated",
+                            timestamp = timestamp
+                        )
+                    )
+                }
+            } else {
+                Timber.w("⚠️ Cannot request reconnect - device address is null")
+            }
         }
 
         @Deprecated("Using deprecated Nordic BLE API")
@@ -1517,3 +1550,14 @@ data class RepNotification(
         return result
     }
 }
+
+/**
+ * Request for auto-reconnection after BLE stack issues
+ * Emitted when onServicesInvalidated() is called (Android 16 Pixel BLE bug)
+ */
+data class ReconnectionRequest(
+    val deviceName: String?,
+    val deviceAddress: String,
+    val reason: String,
+    val timestamp: Long
+)
