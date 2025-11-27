@@ -40,7 +40,8 @@ object BleConstants {
         REPS_CHAR_UUID,
         HEURISTIC_CHAR_UUID,
         BLE_UPDATE_REQUEST_CHAR_UUID,
-        UNKNOWN_AUTH_CHAR_UUID  // Web apps subscribe to this
+        UNKNOWN_AUTH_CHAR_UUID,  // Web apps subscribe to this
+        SAMPLE_CHAR_UUID  // Monitor data - use notifications instead of read polling (fixes Android 16 Pixel disconnect)
     )
 
     // Official app workout command characteristics (discovered from HCI logs)
