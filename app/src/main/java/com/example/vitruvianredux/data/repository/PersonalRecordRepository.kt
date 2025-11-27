@@ -1,5 +1,6 @@
 package com.example.vitruvianredux.data.repository
 
+import com.example.vitruvianredux.data.local.PRType
 import com.example.vitruvianredux.data.local.PersonalRecordDao
 import com.example.vitruvianredux.data.local.PersonalRecordEntity
 import com.example.vitruvianredux.domain.model.PersonalRecord
@@ -11,6 +12,7 @@ import javax.inject.Singleton
 
 /**
  * Repository for managing personal records (PRs)
+ * Supports two PR types: MAX_WEIGHT and MAX_VOLUME
  */
 @Singleton
 class PersonalRecordRepository @Inject constructor(
@@ -18,7 +20,32 @@ class PersonalRecordRepository @Inject constructor(
 ) {
 
     /**
-     * Get the latest PR for an exercise in a specific workout mode
+     * Get the weight PR for an exercise in a specific workout mode
+     */
+    suspend fun getWeightPR(exerciseId: String, workoutMode: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getPR(exerciseId, workoutMode, PRType.MAX_WEIGHT.name)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get weight PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Get the volume PR for an exercise in a specific workout mode
+     */
+    suspend fun getVolumePR(exerciseId: String, workoutMode: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getPR(exerciseId, workoutMode, PRType.MAX_VOLUME.name)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get volume PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Legacy: Get the latest PR for an exercise in a specific workout mode
+     * Returns the MAX_WEIGHT PR for backwards compatibility
      */
     suspend fun getLatestPR(exerciseId: String, workoutMode: String): PersonalRecord? {
         return try {
@@ -39,7 +66,31 @@ class PersonalRecordRepository @Inject constructor(
     }
 
     /**
-     * Get the best PR for an exercise across all modes
+     * Get the best weight PR for an exercise across all modes
+     */
+    suspend fun getBestWeightPR(exerciseId: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getBestWeightPR(exerciseId)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get best weight PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Get the best volume PR for an exercise across all modes
+     */
+    suspend fun getBestVolumePR(exerciseId: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getBestVolumePR(exerciseId)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get best volume PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Legacy: Get the best PR for an exercise across all modes
      */
     suspend fun getBestPR(exerciseId: String): PersonalRecord? {
         return try {
@@ -69,8 +120,34 @@ class PersonalRecordRepository @Inject constructor(
     }
 
     /**
-     * Update PR if the new performance is better
-     * Returns Result.success(true) if a new PR was set, Result.success(false) otherwise
+     * Update PRs if the new performance is better
+     * Returns a list of PR types that were broken (can be empty, one, or both)
+     */
+    suspend fun updatePRsIfBetter(
+        exerciseId: String,
+        weightPerCableKg: Float,
+        reps: Int,
+        workoutMode: String,
+        timestamp: Long
+    ): Result<List<PRType>> {
+        return try {
+            val brokenPRs = personalRecordDao.updatePRsIfBetter(
+                exerciseId = exerciseId,
+                weightPerCableKg = weightPerCableKg,
+                reps = reps,
+                workoutMode = workoutMode,
+                timestamp = timestamp
+            )
+            Result.success(brokenPRs)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update PRs for exercise $exerciseId")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Legacy: Update PR if the new performance is better
+     * Returns Result.success(true) if any PR was set, Result.success(false) otherwise
      */
     suspend fun updatePRIfBetter(
         exerciseId: String,
@@ -102,5 +179,7 @@ private fun PersonalRecordEntity.toPersonalRecord() = PersonalRecord(
     weightPerCableKg = weightPerCableKg,
     reps = reps,
     timestamp = timestamp,
-    workoutMode = workoutMode
+    workoutMode = workoutMode,
+    prType = try { PRType.valueOf(prType) } catch (e: Exception) { PRType.MAX_WEIGHT },
+    volume = volume
 )
