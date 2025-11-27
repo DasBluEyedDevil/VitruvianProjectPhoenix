@@ -665,11 +665,24 @@ class ProtocolTesterViewModel @Inject constructor(
                 return
             }
 
+            // Start monitor polling to keep connection alive (Heartbeat)
+            // This is critical to prevent the 10-second watchdog disconnect
+            Timber.d("EXERCISE_CYCLE: Starting monitor polling (heartbeat)")
+            testManager.startMonitorPolling()
+
             // Phase 6: WAIT (15 seconds)
             Timber.d("EXERCISE_CYCLE: Phase 6 - Waiting 15 seconds...")
             val waitStart = System.currentTimeMillis()
+            var disconnected = false
 
             for (second in 0 until 15) {
+                // Check for early disconnection
+                if (testManager.connectionState.value !is ConnectionStatus.Ready) {
+                    Timber.e("EXERCISE_CYCLE: Disconnected during wait at second ${second + 1}")
+                    disconnected = true
+                    break
+                }
+
                 _testState.value = TestState.ExerciseCycleTesting(
                     currentPhase = ProtocolTester.ExerciseCyclePhase.WAIT,
                     phaseIndex = 5,
@@ -680,11 +693,25 @@ class ProtocolTesterViewModel @Inject constructor(
             }
 
             val waitDuration = System.currentTimeMillis() - waitStart
+
+            if (disconnected) {
+                phaseResults.add(ProtocolTester.ExerciseCyclePhaseResult(
+                    phase = ProtocolTester.ExerciseCyclePhase.WAIT,
+                    success = false,
+                    durationMs = waitDuration,
+                    errorMessage = "Disconnected during wait phase (Watchdog timeout?)"
+                ))
+                _exerciseCycleResults.value = phaseResults.toList()
+                cleanupTestManager(testManager)
+                _testState.value = TestState.ExerciseCycleCompleted(phaseResults)
+                return
+            }
+
             phaseResults.add(ProtocolTester.ExerciseCyclePhaseResult(
                 phase = ProtocolTester.ExerciseCyclePhase.WAIT,
                 success = true,
                 durationMs = waitDuration,
-                notes = "Waited 15 seconds"
+                notes = "Waited 15 seconds (Stable)"
             ))
             _exerciseCycleResults.value = phaseResults.toList()
 
