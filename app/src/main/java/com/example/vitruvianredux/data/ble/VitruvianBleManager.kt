@@ -186,13 +186,16 @@ class VitruvianBleManager(
         Timber.tag("VitruvianBLE").log(priority, message)
     }
 
-    @Deprecated("Override of deprecated base class method")
+    // Nordic BLE Library deprecated API overrides
+    // Migration: When Nordic releases a stable non-deprecated API (expected in future library versions),
+    // these methods should be migrated. Track: https://github.com/NordicSemiconductor/Android-BLE-Library
+    @Deprecated("Nordic BLE Library deprecated API - required override until library provides stable alternative")
     @Suppress("OVERRIDE_DEPRECATION")
     override fun getMinLogPriority(): Int {
         return android.util.Log.DEBUG  // Required by Nordic BLE library - maps to Timber via log() override
     }
 
-    @Deprecated("Override of deprecated base class method")
+    @Deprecated("Nordic BLE Library deprecated API - required override until library provides stable alternative")
     override fun getGattCallback(): BleManagerGattCallback {
         return VitruvianGattCallback()
     }
@@ -204,7 +207,7 @@ class VitruvianBleManager(
 
         private val notifyCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
 
-        @Deprecated("Using deprecated Nordic BLE API")
+        @Deprecated("Nordic BLE Library deprecated API - required override until library provides stable alternative")
         override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
             // Log all available services and characteristics for debugging
             Timber.d("=== Discovering BLE Services ===")
@@ -469,7 +472,7 @@ class VitruvianBleManager(
             }
         }
 
-        @Deprecated("Using deprecated Nordic BLE API")
+        @Deprecated("Nordic BLE Library deprecated API - required override until library provides stable alternative")
         override fun onServicesInvalidated() {
             val timestamp = System.currentTimeMillis()
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -531,7 +534,7 @@ class VitruvianBleManager(
             }
         }
 
-        @Deprecated("Using deprecated Nordic BLE API")
+        @Deprecated("Nordic BLE Library deprecated API - required override until library provides stable alternative")
         override fun onDeviceDisconnected() {
             val timestamp = System.currentTimeMillis()
             Timber.w("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -550,7 +553,7 @@ class VitruvianBleManager(
             stopPolling()
         }
 
-        @Deprecated("Using deprecated Nordic BLE API")
+        @Deprecated("Nordic BLE Library deprecated API - required override until library provides stable alternative")
         @Suppress("DEPRECATION")
         override fun initialize() {
             super.initialize()
