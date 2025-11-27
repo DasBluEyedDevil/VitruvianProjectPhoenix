@@ -114,7 +114,6 @@ dependencies {
     // BLE - Kable Library
     implementation(libs.kable.core)
     implementation(libs.kable.permissions)
-    implementation(libs.uuid)
 
     // Dependency Injection - Hilt
     implementation(libs.hilt.android)
