@@ -70,6 +70,25 @@ fun EnhancedMainScreen(
         }
     }
     
+    // Request BLE permissions
+    // NOTE: Must be declared BEFORE shouldShowBottomBar which depends on permissionState
+    // On Android 12+ (API 31+), location is NOT needed because manifest uses neverForLocation flag
+    // On older Android, location IS required for BLE scanning
+    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        listOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
+        )
+    } else {
+        listOf(
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+    }
+
+    val permissionState = rememberMultiplePermissionsState(permissions)
+
     // Helper function to determine if current route is a "Workouts" route
     val isWorkoutsRoute = remember(currentRoute) {
         currentRoute == NavigationRoutes.Home.route ||
@@ -88,13 +107,18 @@ fun EnhancedMainScreen(
     }
 
     // Determine if we should show the BottomBar
-    // Show only for main tabs
-    val shouldShowBottomBar = remember(currentRoute) {
-        currentRoute == NavigationRoutes.Home.route ||
-        currentRoute == NavigationRoutes.DailyRoutines.route ||
-        currentRoute == NavigationRoutes.WeeklyPrograms.route ||
-        currentRoute == NavigationRoutes.Analytics.route ||
-        currentRoute == NavigationRoutes.Settings.route
+    // Show only for main tabs AND when permissions are granted (NavGraph exists)
+    // Using derivedStateOf for proper reactivity when permission state changes
+    val shouldShowBottomBar by remember {
+        derivedStateOf {
+            permissionState.allPermissionsGranted && (
+                currentRoute == NavigationRoutes.Home.route ||
+                currentRoute == NavigationRoutes.DailyRoutines.route ||
+                currentRoute == NavigationRoutes.WeeklyPrograms.route ||
+                currentRoute == NavigationRoutes.Analytics.route ||
+                currentRoute == NavigationRoutes.Settings.route
+            )
+        }
     }
 
     // Determine if we should show the Back button
@@ -104,23 +128,6 @@ fun EnhancedMainScreen(
         currentRoute != NavigationRoutes.Analytics.route &&
         currentRoute != NavigationRoutes.Settings.route
     }
-
-    // Request BLE permissions (REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward notifications to BLE device!)
-    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        listOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-    } else {
-        listOf(
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-    }
-
-    val permissionState = rememberMultiplePermissionsState(permissions)
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0), // Let components handle their own insets
@@ -406,6 +413,17 @@ fun PermissionRequestScreen(
     permissionState: MultiplePermissionsState,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Track if we've already attempted to request permissions
+    var hasAttemptedRequest by remember { mutableStateOf(false) }
+
+    // Check if any permission was permanently denied:
+    // - We've attempted to request AND shouldShowRationale is false AND permissions still not granted
+    val permanentlyDenied = hasAttemptedRequest &&
+        permissionState.revokedPermissions.isNotEmpty() &&
+        !permissionState.shouldShowRationale
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -415,7 +433,7 @@ fun PermissionRequestScreen(
     ) {
         Icon(
             imageVector = Icons.Default.Info,
-            contentDescription = "Connection information",
+            contentDescription = "Permission information",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(64.dp)
         )
@@ -430,9 +448,13 @@ fun PermissionRequestScreen(
         Spacer(modifier = Modifier.height(Spacing.small))
         Text(
             buildString {
-                append("This app needs Bluetooth and Location permissions to connect to your Vitruvian machine.")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    append(" Notification permission is needed to keep workouts running in the background.")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    append("This app needs Bluetooth permissions to connect to your Vitruvian machine.")
+                } else {
+                    append("This app needs Bluetooth and Location permissions to connect to your Vitruvian machine.")
+                }
+                if (permanentlyDenied) {
+                    append("\n\nSome permissions were denied. Please grant them in Settings.")
                 }
             },
             style = MaterialTheme.typography.bodySmall,
@@ -440,10 +462,31 @@ fun PermissionRequestScreen(
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(Spacing.large))
-        Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
+
+        // Always show the Grant permissions button - it will request or show rationale
+        Button(onClick = {
+            hasAttemptedRequest = true
+            permissionState.launchMultiplePermissionRequest()
+        }) {
             Icon(Icons.Default.Check, contentDescription = "Confirm")
             Spacer(modifier = Modifier.width(Spacing.small))
             Text("Grant permissions")
+        }
+
+        // Also show Open Settings button if permissions were permanently denied
+        if (permanentlyDenied) {
+            Spacer(modifier = Modifier.height(Spacing.small))
+            OutlinedButton(onClick = {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.fromParts("package", context.packageName, null)
+                )
+                context.startActivity(intent)
+            }) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings")
+                Spacer(modifier = Modifier.width(Spacing.small))
+                Text("Open Settings")
+            }
         }
     }
 }
