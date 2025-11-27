@@ -147,6 +147,9 @@ class VitruvianBleManager(
     private var lastDeloadEventTime = 0L
     private val DELOAD_EVENT_DEBOUNCE_MS = 2000L  // Only emit once per 2 seconds
 
+    // Counter for monitor notifications (for diagnostic logging)
+    @Volatile private var monitorNotificationCount = 0L
+
     // Command response flow - captures opcodes from incoming notifications
     // Used to wait for specific responses during initialization handshake
     private val _commandResponses = MutableSharedFlow<UByte>(
@@ -639,6 +642,18 @@ class VitruvianBleManager(
                         Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
                         handleRepNotification(data)
                     }
+                } else if (characteristic.uuid == BleConstants.MONITOR_CHAR_UUID) {
+                    // CRITICAL FIX: Use notifications for monitor data instead of read polling
+                    // This fixes the Android 16 Pixel disconnect issue where readCharacteristic()
+                    // calls fail silently, jamming the BLE queue and causing supervision timeout
+                    setNotificationCallback(characteristic).with { _, data ->
+                        // Log at INFO level initially to verify notifications are working
+                        // Can reduce to VERBOSE once confirmed working on Pixel 7/Android 16
+                        if (monitorNotificationCount++ % 100 == 0L) {
+                            Timber.i("📊 MONITOR NOTIFICATION #$monitorNotificationCount (${data.value?.size ?: 0} bytes)")
+                        }
+                        handleMonitorData(data)
+                    }
                 } else if (characteristic.uuid == BleConstants.VERSION_CHAR_UUID) {
                     // Special handler for VERSION characteristic - log raw hex for reverse engineering
                     setNotificationCallback(characteristic).with { _, data ->
@@ -694,9 +709,15 @@ class VitruvianBleManager(
     }
     
     /**
-     * Start polling monitor characteristic every 100ms
-     * This is how the official app reads position/force data
-     * Called when workout starts
+     * Enable monitor data reception for workouts
+     *
+     * CRITICAL FIX (Android 16 Pixel disconnect issue):
+     * Monitor data now flows via BLE notifications (set up in initialize()) instead of
+     * readCharacteristic() polling. The old polling approach caused silent read failures
+     * on Pixel 7/Android 16, jamming the BLE queue and triggering 5-second supervision timeout.
+     *
+     * Notifications are already enabled during connection via NOTIFY_CHAR_UUIDS.
+     * This method just sets up the handle detection state for workout tracking.
      *
      * @param forAutoStart If true, enables handle detection with WaitingForRest state (for Just Lift auto-start).
      *                     If false, skips handle state initialization (for active workout monitoring).
@@ -706,41 +727,32 @@ class VitruvianBleManager(
         minPositionSeen = Double.MAX_VALUE
         maxPositionSeen = Double.MIN_VALUE
 
+        // Reset notification counter for this workout session
+        val previousCount = monitorNotificationCount
+        monitorNotificationCount = 0L
+        Timber.i("📊 Monitor notifications reset (previous session: $previousCount notifications)")
+
         if (forAutoStart) {
             // Start in WaitingForRest state - must see handles at rest (low position) before arming grab detection
             // This prevents immediate auto-start if cables already have tension
             _handleState.value = HandleState.WaitingForRest
             forceAboveGrabThresholdStart = null
             forceBelowReleaseThresholdStart = null
-            Timber.d("Starting monitor polling for AUTO-START - waiting for handles at rest (pos < ${HANDLE_REST_THRESHOLD})")
+            Timber.d("Monitor data enabled for AUTO-START - waiting for handles at rest (pos < ${HANDLE_REST_THRESHOLD})")
         } else {
             // Active workout - set to Grabbed since workout is already running
             _handleState.value = HandleState.Grabbed
-            Timber.d("Starting monitor polling for ACTIVE WORKOUT")
+            Timber.d("Monitor data enabled for ACTIVE WORKOUT")
         }
 
+        // Cancel any legacy polling job (should not be running, but clean up just in case)
         monitorPollingJob?.cancel()
-        monitorPollingJob = pollingScope.launch {
-            // WEB APP POLLING: 100ms (10Hz) - verified from exerciselibrary & workoutmachineappfree
-            // Previous 16ms (60Hz) was too aggressive and may have overwhelmed BLE queue
-            Timber.d("Starting monitor polling (100ms interval / 10Hz) - matches web app")
-            while (isActive) {
-                try {
-                    monitorCharacteristic?.let { char ->
-                        // MUST use .with() and .enqueue() together
-                        readCharacteristic(char)
-                            .with { _, data ->
-                                Timber.v("Monitor read callback fired!")
-                                handleMonitorData(data)
-                            }
-                            .enqueue()
-                    }
-                    delay(100) // Poll every 100ms (10Hz) - matches web app
-                } catch (e: Exception) {
-                    Timber.e(e, "Error in monitor polling")
-                }
-            }
-        }
+        monitorPollingJob = null
+
+        // NOTE: Monitor data now arrives via BLE notifications (configured in initialize()).
+        // No polling loop needed - handleMonitorData() is called directly by the notification callback.
+        // This prevents the BLE queue jamming that caused Android 16 Pixel disconnects.
+        Timber.i("✅ Monitor data reception active (via notifications, not polling)")
     }
     
     /**
