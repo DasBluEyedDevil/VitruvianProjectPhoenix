@@ -35,14 +35,15 @@ fun HapticFeedbackEffect(
     val context = LocalContext.current
 
     // Create SoundPool for audio cues
+    // Uses USAGE_MEDIA to tie sounds to media volume (not notification volume)
     val soundPool = remember {
         try {
             SoundPool.Builder()
                 .setMaxStreams(2)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build()
                 )
                 .build()

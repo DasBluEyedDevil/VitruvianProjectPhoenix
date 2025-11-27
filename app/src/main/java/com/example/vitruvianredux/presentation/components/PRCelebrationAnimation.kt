@@ -23,6 +23,15 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
+ * Type of Personal Record achieved
+ */
+enum class PRDisplayType {
+    WEIGHT,     // Heaviest single rep
+    VOLUME,     // Highest weight × reps
+    BOTH        // Both PRs achieved simultaneously
+}
+
+/**
  * Confetti particle for celebration animation
  */
 data class ConfettiParticle(
@@ -40,13 +49,15 @@ data class ConfettiParticle(
  *
  * Features:
  * - Confetti explosion animation
- * - Pulsing "NEW PR!" text
+ * - Pulsing "NEW PR!" text with PR type indicator
  * - Star icons with scale animation
  * - Auto-dismisses after celebration
  *
  * @param show Whether to show the celebration
  * @param exerciseName Name of the exercise for the PR
  * @param weight Weight achieved (formatted string)
+ * @param prType Type of PR achieved (WEIGHT, VOLUME, or BOTH)
+ * @param volume Volume achieved (weight × reps) for volume PRs
  * @param onDismiss Callback when celebration is complete
  */
 @Composable
@@ -54,13 +65,16 @@ fun PRCelebrationDialog(
     show: Boolean,
     exerciseName: String,
     weight: String,
+    prType: PRDisplayType = PRDisplayType.WEIGHT,
+    volume: String? = null,
     onDismiss: () -> Unit
 ) {
     if (!show) return
 
-    // Auto-dismiss after 3 seconds
+    // Auto-dismiss after 3.5 seconds (slightly longer for BOTH to read both stats)
+    val dismissDelay = if (prType == PRDisplayType.BOTH) 4000L else 3000L
     LaunchedEffect(show) {
-        kotlinx.coroutines.delay(3000)
+        kotlinx.coroutines.delay(dismissDelay)
         onDismiss()
     }
 
@@ -73,7 +87,9 @@ fun PRCelebrationDialog(
     ) {
         PRCelebrationContent(
             exerciseName = exerciseName,
-            weight = weight
+            weight = weight,
+            prType = prType,
+            volume = volume
         )
     }
 }
@@ -81,7 +97,9 @@ fun PRCelebrationDialog(
 @Composable
 private fun PRCelebrationContent(
     exerciseName: String,
-    weight: String
+    weight: String,
+    prType: PRDisplayType,
+    volume: String?
 ) {
     // Animation states
     val infiniteTransition = rememberInfiniteTransition(label = "celebration")
@@ -206,14 +224,33 @@ private fun PRCelebrationContent(
                 }
             }
 
-            // "NEW PR!" text
+            // PR type header text
+            val headerText = when (prType) {
+                PRDisplayType.WEIGHT -> "NEW WEIGHT PR!"
+                PRDisplayType.VOLUME -> "NEW VOLUME PR!"
+                PRDisplayType.BOTH -> "DOUBLE PR!"
+            }
+
             Text(
-                "NEW PR!",
+                headerText,
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier.scale(pulseScale)
             )
+
+            // PR type subtitle for clarity
+            if (prType != PRDisplayType.BOTH) {
+                Text(
+                    when (prType) {
+                        PRDisplayType.WEIGHT -> "Heaviest Single Rep"
+                        PRDisplayType.VOLUME -> "Best Set Volume"
+                        else -> ""
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             // Exercise name
             Text(
@@ -223,18 +260,95 @@ private fun PRCelebrationContent(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            // Weight achieved
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    weight,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-                )
+            // Stats display - show weight for WEIGHT PR, volume for VOLUME PR, both for BOTH
+            when (prType) {
+                PRDisplayType.WEIGHT -> {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(
+                            weight,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        )
+                    }
+                }
+                PRDisplayType.VOLUME -> {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                volume ?: weight,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                weight,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+                PRDisplayType.BOTH -> {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Weight PR chip
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    "💪 Weight",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    weight,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        // Volume PR chip
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    "📊 Volume",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Text(
+                                    volume ?: "",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

@@ -205,10 +205,23 @@ fun ActiveWorkoutScreen(
 
     // PR Celebration Dialog
     prCelebrationEvent?.let { event ->
+        // Convert PRType list to PRDisplayType
+        val prDisplayType = when {
+            event.isBothPRs -> com.example.vitruvianredux.presentation.components.PRDisplayType.BOTH
+            event.isVolumePR -> com.example.vitruvianredux.presentation.components.PRDisplayType.VOLUME
+            else -> com.example.vitruvianredux.presentation.components.PRDisplayType.WEIGHT
+        }
+
+        // Calculate volume (weight per cable × reps × 2 cables)
+        val totalVolume = event.weightPerCableKg * event.reps * 2
+        val volumeFormatted = "${viewModel.formatWeight(totalVolume, weightUnit)} total"
+
         com.example.vitruvianredux.presentation.components.PRCelebrationDialog(
             show = true,
             exerciseName = event.exerciseName,
             weight = "${viewModel.formatWeight(event.weightPerCableKg, weightUnit)}/cable × ${event.reps} reps",
+            prType = prDisplayType,
+            volume = volumeFormatted,
             onDismiss = { prCelebrationEvent = null }
         )
     }

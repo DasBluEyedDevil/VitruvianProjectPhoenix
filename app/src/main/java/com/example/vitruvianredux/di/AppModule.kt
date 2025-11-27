@@ -699,6 +699,33 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 24 to 25: Add dual PR tracking
+     * - Add prType column (MAX_WEIGHT or MAX_VOLUME)
+     * - Add volume column (weight × reps for easy querying)
+     * - Update unique index to include prType
+     */
+    internal val MIGRATION_24_25 = object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // 1. Add new columns
+            db.execSQL("ALTER TABLE personal_records ADD COLUMN prType TEXT NOT NULL DEFAULT 'MAX_WEIGHT'")
+            db.execSQL("ALTER TABLE personal_records ADD COLUMN volume REAL NOT NULL DEFAULT 0")
+
+            // 2. Populate volume for existing records
+            db.execSQL("UPDATE personal_records SET volume = weightPerCableKg * reps")
+
+            // 3. Drop old unique index and create new one
+            // Note: SQLite doesn't support DROP INDEX IF EXISTS, so we use a try-catch approach
+            // The old index was on (exerciseId, workoutMode), new one includes prType
+            try {
+                db.execSQL("DROP INDEX IF EXISTS index_personal_records_exerciseId_workoutMode")
+            } catch (e: Exception) {
+                // Index might not exist or have a different name, continue
+            }
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_personal_records_exerciseId_workoutMode_prType ON personal_records (exerciseId, workoutMode, prType)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideConnectionLogDao(database: WorkoutDatabase): ConnectionLogDao {
@@ -736,7 +763,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
         // MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19 removed - use destructive migration for v16-18 users
         .fallbackToDestructiveMigration(dropAllTables = true)  // Allow destructive migration for beta (will delete and recreate DB if migration missing)
         .build()
