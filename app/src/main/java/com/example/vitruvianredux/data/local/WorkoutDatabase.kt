@@ -42,7 +42,7 @@ import androidx.room.TypeConverters
         com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity::class,
         com.example.vitruvianredux.data.local.entity.DiagnosticsEntity::class
     ],
-    version = 24,  // Added status to workout_metrics
+    version = 25,  // Added dual PR tracking (prType, volume columns)
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -28,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import android.view.ViewGroup
 import androidx.core.net.toUri
 import android.widget.VideoView
+import com.example.vitruvianredux.presentation.components.EnhancedCablePositionBar
 import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
@@ -107,15 +108,16 @@ fun WorkoutTab(
 
         // Left edge bar (Cable A / Left hand) - positioned absolutely at left edge
         if (showPositionBars) {
-            VerticalCablePositionBar(
+            EnhancedCablePositionBar(
                 label = "L",
                 currentPosition = currentMetric.positionA,
+                velocity = currentMetric.velocityA,
                 minPosition = repRanges?.minPosA,
                 maxPosition = repRanges?.maxPosA,
                 isActive = currentMetric.positionA > 0,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .width(40.dp)
+                    .width(44.dp)
                     .fillMaxHeight()
                     .padding(vertical = 8.dp, horizontal = 4.dp)
             )
@@ -123,15 +125,16 @@ fun WorkoutTab(
 
         // Right edge bar (Cable B / Right hand) - positioned absolutely at right edge
         if (showPositionBars) {
-            VerticalCablePositionBar(
+            EnhancedCablePositionBar(
                 label = "R",
                 currentPosition = currentMetric.positionB,
+                velocity = currentMetric.velocityB,
                 minPosition = repRanges?.minPosB,
                 maxPosition = repRanges?.maxPosB,
                 isActive = currentMetric.positionB > 0,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .width(40.dp)
+                    .width(44.dp)
                     .fillMaxHeight()
                     .padding(vertical = 8.dp, horizontal = 4.dp)
             )
@@ -142,8 +145,8 @@ fun WorkoutTab(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    start = if (showPositionBars) 56.dp else 20.dp, // 40dp bar + 4dp padding + 12dp spacing
-                    end = if (showPositionBars) 56.dp else 20.dp,   // 40dp bar + 4dp padding + 12dp spacing
+                    start = if (showPositionBars) 60.dp else 20.dp, // 44dp bar + 4dp padding + 12dp spacing
+                    end = if (showPositionBars) 60.dp else 20.dp,   // 44dp bar + 4dp padding + 12dp spacing
                     top = 0.dp,
                     bottom = 0.dp
                 )

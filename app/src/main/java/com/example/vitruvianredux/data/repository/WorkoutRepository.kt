@@ -1,5 +1,6 @@
 package com.example.vitruvianredux.data.repository
 
+import com.example.vitruvianredux.data.local.PRType
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.PersonalRecordDao
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
@@ -360,7 +361,36 @@ class WorkoutRepository @Inject constructor(
         personalRecordDao.getAllPRs()
 
     /**
-     * Update personal record if the new performance is better
+     * Update personal records if the new performance is better
+     * Returns list of PR types that were broken (MAX_WEIGHT, MAX_VOLUME, or both)
+     */
+    suspend fun updatePersonalRecordsIfNeeded(
+        exerciseId: String,
+        weightPerCableKg: Float,
+        reps: Int,
+        workoutMode: String
+    ): List<PRType> {
+        return try {
+            val brokenPRs = personalRecordDao.updatePRsIfBetter(
+                exerciseId = exerciseId,
+                weightPerCableKg = weightPerCableKg,
+                reps = reps,
+                workoutMode = workoutMode,
+                timestamp = System.currentTimeMillis()
+            )
+            if (brokenPRs.isNotEmpty()) {
+                Timber.d("New PRs set for exercise $exerciseId: ${weightPerCableKg}kg x $reps reps ($workoutMode) - Types: $brokenPRs")
+            }
+            brokenPRs
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update personal records")
+            emptyList()
+        }
+    }
+
+    /**
+     * Legacy: Update personal record if the new performance is better
+     * Returns true if any PR was set
      */
     suspend fun updatePersonalRecordIfNeeded(
         exerciseId: String,
@@ -368,22 +398,7 @@ class WorkoutRepository @Inject constructor(
         reps: Int,
         workoutMode: String
     ): Boolean {
-        return try {
-            val isNewPR = personalRecordDao.updatePRIfBetter(
-                exerciseId = exerciseId,
-                weightPerCableKg = weightPerCableKg,
-                reps = reps,
-                workoutMode = workoutMode,
-                timestamp = System.currentTimeMillis()
-            )
-            if (isNewPR) {
-                Timber.d("New PR set for exercise $exerciseId: ${weightPerCableKg}kg x $reps reps ($workoutMode)")
-            }
-            isNewPR
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to update personal record")
-            false
-        }
+        return updatePersonalRecordsIfNeeded(exerciseId, weightPerCableKg, reps, workoutMode).isNotEmpty()
     }
 }
 

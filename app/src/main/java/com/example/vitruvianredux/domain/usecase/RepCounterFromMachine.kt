@@ -194,7 +194,12 @@ class RepCounterFromMachine {
         posA: Int = 0,
         posB: Int = 0
     ) {
+        // DIAGNOSTIC: Log full state for debugging rep counting issues
+        // The "warmup gate" (warmupReps >= warmupTarget) MUST pass for working reps to count
+        val warmupGateOpen = warmupReps >= warmupTarget
         Timber.d("Rep process: ROM=$repsRomCount, Set=$repsSetCount, up=$up, down=$down, pending=$hasPendingRep")
+        Timber.d("  Warmup gate: warmupReps=$warmupReps, warmupTarget=$warmupTarget, gate=${if (warmupGateOpen) "OPEN" else "BLOCKED"}")
+        Timber.d("  Working: workingReps=$workingReps, workingTarget=$workingTarget")
 
         // Track UP movement - for working reps, show PENDING (grey) at TOP
         if (lastTopCounter != null) {
@@ -262,7 +267,24 @@ class RepCounterFromMachine {
         }
 
         // Track working reps using Set counter - this confirms the rep (colored)
-        if (warmupReps >= warmupTarget && repsSetCount > workingReps) {
+        // NOTE: The machine handles warmup/working distinction internally.
+        // repsSetCount increments for WORKING reps only - trust the machine!
+        // We still track warmupReps for UI display, but don't gate on it.
+        // The machine won't increment repsSetCount until warmup is complete.
+        if (repsSetCount > workingReps) {
+            // If machine is reporting working reps but we haven't seen warmup complete,
+            // force our warmup tracking to match (machine knows best)
+            if (warmupReps < warmupTarget) {
+                Timber.d("Machine reports working reps (repsSetCount=$repsSetCount) - warmup must be complete")
+                warmupReps = warmupTarget
+                onRepEvent?.invoke(
+                    RepEvent(
+                        type = RepType.WARMUP_COMPLETE,
+                        warmupCount = warmupReps,
+                        workingCount = workingReps
+                    )
+                )
+            }
             workingReps = repsSetCount
             Timber.d("💪 WORKING_COMPLETED: rep $workingReps confirmed (colored)")
 

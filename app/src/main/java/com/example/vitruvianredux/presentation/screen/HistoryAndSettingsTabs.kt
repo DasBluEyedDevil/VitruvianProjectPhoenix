@@ -32,6 +32,7 @@ import com.example.vitruvianredux.util.ColorScheme
 import com.example.vitruvianredux.util.ColorSchemes
 import kotlinx.coroutines.launch
 import com.example.vitruvianredux.presentation.components.EmptyState
+import com.example.vitruvianredux.presentation.components.LedColorSchemeCard
 import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -791,6 +792,8 @@ fun SettingsTab(
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     // Optimistic UI state for immediate visual feedback
     var localWeightUnit by remember(weightUnit) { mutableStateOf(weightUnit) }
+    // Track selected LED color scheme (defaults to Blue = 0)
+    var selectedColorSchemeIndex by remember { mutableStateOf(0) }
 
     // Set global title
     LaunchedEffect(Unit) {
@@ -1024,70 +1027,14 @@ fun SettingsTab(
             }
         }
 
-    // Color Scheme Section - Compact with visual previews
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.medium)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .shadow(8.dp, RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1))
-                            ),
-                            RoundedCornerShape(20.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) { 
-                    Icon(
-                        Icons.Default.ColorLens,
-                        contentDescription = "LED color scheme",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    ) 
-                }
-                Spacer(modifier = Modifier.width(Spacing.medium))
-                Text(
-                    "LED Color Scheme",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.medium))
-            
-            // Compact horizontal scrollable color chips
-            val colorSchemes = ColorSchemes.ALL
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                colorSchemes.forEachIndexed { index, scheme ->
-                    ColorSchemeChip(
-                        scheme = scheme,
-                        isSelected = false, // TODO: Add selected state tracking if needed
-                        onClick = { onColorSchemeChange(index) }
-                    )
-                }
-            }
+    // LED Color Scheme Section - Enhanced with animated preview
+    LedColorSchemeCard(
+        selectedSchemeIndex = selectedColorSchemeIndex,
+        onSchemeSelected = { index ->
+            selectedColorSchemeIndex = index
+            onColorSchemeChange(index)
         }
-    }
+    )
 
     // Data Management Section - Material 3 Expressive
     Card(
