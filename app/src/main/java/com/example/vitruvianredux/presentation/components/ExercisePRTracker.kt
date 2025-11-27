@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.vitruvianredux.data.local.PRType
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -32,6 +35,7 @@ import java.util.*
 /**
  * Exercise-specific PR tracking component
  * Shows progression over time for a selected exercise with detailed PR history
+ * Supports dual PR types: MAX_WEIGHT (strength) and MAX_VOLUME (work capacity)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +46,7 @@ fun ExercisePRTracker(
     formatWeight: (Float, WeightUnit) -> String,
     modifier: Modifier = Modifier
 ) {
-    // Group PRs by exercise (don't filter by exerciseNames - they load async!)
+    // Group PRs by exercise
     val prsByExercise = remember(personalRecords) {
         personalRecords.groupBy { it.exerciseId }
     }
@@ -53,9 +57,28 @@ fun ExercisePRTracker(
     }
     var showExerciseSelector by remember { mutableStateOf(false) }
 
-    // Get PRs for selected exercise, sorted by date
-    val selectedExercisePRs = remember(selectedExerciseId, personalRecords) {
-        prsByExercise[selectedExerciseId]?.sortedBy { it.timestamp } ?: emptyList()
+    // PR type filter (0 = Weight PRs, 1 = Volume PRs)
+    var selectedPRTypeIndex by remember { mutableStateOf(0) }
+    val selectedPRType = if (selectedPRTypeIndex == 0) PRType.MAX_WEIGHT else PRType.MAX_VOLUME
+
+    // Get PRs for selected exercise, filtered by type and sorted by date
+    val selectedExercisePRs = remember(selectedExerciseId, personalRecords, selectedPRType) {
+        prsByExercise[selectedExerciseId]
+            ?.filter { it.prType == selectedPRType }
+            ?.sortedBy { it.timestamp } ?: emptyList()
+    }
+
+    // Get all PRs for selected exercise (for stats)
+    val allPRsForExercise = remember(selectedExerciseId, personalRecords) {
+        prsByExercise[selectedExerciseId] ?: emptyList()
+    }
+
+    // Best weight and volume for this exercise
+    val bestWeightPR = remember(allPRsForExercise) {
+        allPRsForExercise.filter { it.prType == PRType.MAX_WEIGHT }.maxByOrNull { it.weightPerCableKg }
+    }
+    val bestVolumePR = remember(allPRsForExercise) {
+        allPRsForExercise.filter { it.prType == PRType.MAX_VOLUME }.maxByOrNull { it.volume }
     }
 
     Column(
@@ -124,6 +147,9 @@ fun ExercisePRTracker(
                         onDismissRequest = { showExerciseSelector = false }
                     ) {
                         prsByExercise.keys.sortedBy { exerciseNames[it] }.forEach { exerciseId ->
+                            val exercisePRs = prsByExercise[exerciseId] ?: emptyList()
+                            val weightPRCount = exercisePRs.count { it.prType == PRType.MAX_WEIGHT }
+                            val volumePRCount = exercisePRs.count { it.prType == PRType.MAX_VOLUME }
                             DropdownMenuItem(
                                 text = {
                                     Column {
@@ -132,7 +158,7 @@ fun ExercisePRTracker(
                                             style = MaterialTheme.typography.bodyLarge
                                         )
                                         Text(
-                                            text = "${prsByExercise[exerciseId]?.size} PRs",
+                                            text = "$weightPRCount weight PRs · $volumePRCount volume PRs",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -149,7 +175,125 @@ fun ExercisePRTracker(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // PR Type Tabs
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = selectedPRTypeIndex == 0,
+                onClick = { selectedPRTypeIndex = 0 },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.FitnessCenter,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            ) {
+                Text("Weight PRs")
+            }
+            SegmentedButton(
+                selected = selectedPRTypeIndex == 1,
+                onClick = { selectedPRTypeIndex = 1 },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Speed,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            ) {
+                Text("Volume PRs")
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Best PRs summary card
+        if (bestWeightPR != null || bestVolumePR != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    // Best Weight
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.FitnessCenter,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Best Weight",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = bestWeightPR?.let { formatWeight(it.weightPerCableKg, weightUnit) } ?: "-",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (bestWeightPR != null) {
+                            Text(
+                                text = "${bestWeightPR.reps} reps",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+
+                    // Divider
+                    VerticalDivider(
+                        modifier = Modifier.height(60.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    )
+
+                    // Best Volume
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Best Volume",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = bestVolumePR?.let { "${formatWeight(it.volume, weightUnit)}" } ?: "-",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                        if (bestVolumePR != null) {
+                            Text(
+                                text = "${formatWeight(bestVolumePR.weightPerCableKg, weightUnit)} × ${bestVolumePR.reps}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         if (selectedExercisePRs.isEmpty()) {
             // No data state
@@ -166,7 +310,7 @@ fun ExercisePRTracker(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "No PRs Yet",
+                        text = "No ${if (selectedPRType == PRType.MAX_WEIGHT) "Weight" else "Volume"} PRs Yet",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -182,6 +326,7 @@ fun ExercisePRTracker(
             // PR Chart
             ExercisePRChart(
                 prs = selectedExercisePRs,
+                prType = selectedPRType,
                 exerciseName = exerciseNames[selectedExerciseId] ?: "",
                 weightUnit = weightUnit,
                 formatWeight = formatWeight
@@ -192,6 +337,7 @@ fun ExercisePRTracker(
             // PR History List
             ExercisePRHistory(
                 prs = selectedExercisePRs,
+                prType = selectedPRType,
                 weightUnit = weightUnit,
                 formatWeight = formatWeight
             )
@@ -205,6 +351,7 @@ fun ExercisePRTracker(
 @Composable
 private fun ExercisePRChart(
     prs: List<PersonalRecord>,
+    prType: PRType,
     exerciseName: String,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
@@ -216,7 +363,13 @@ private fun ExercisePRChart(
         if (prs.isNotEmpty()) {
             modelProducer.runTransaction {
                 lineSeries {
-                    series(prs.map { it.weightPerCableKg.toDouble() })
+                    // Use weight for MAX_WEIGHT, volume for MAX_VOLUME
+                    val values = if (prType == PRType.MAX_WEIGHT) {
+                        prs.map { it.weightPerCableKg.toDouble() }
+                    } else {
+                        prs.map { it.volume.toDouble() }
+                    }
+                    series(values)
                 }
             }
         }
@@ -237,12 +390,17 @@ private fun ExercisePRChart(
             ) {
                 Column {
                     Text(
-                        text = "Latest PR",
+                        text = "Latest",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    val latestValue = if (prType == PRType.MAX_WEIGHT) {
+                        formatWeight(prs.last().weightPerCableKg, weightUnit)
+                    } else {
+                        formatWeight(prs.last().volume, weightUnit)
+                    }
                     Text(
-                        text = formatWeight(prs.last().weightPerCableKg, weightUnit),
+                        text = latestValue,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -251,13 +409,22 @@ private fun ExercisePRChart(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "All-Time Best",
+                        text = "Best",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    val best = prs.maxByOrNull { it.weightPerCableKg }
+                    val best = if (prType == PRType.MAX_WEIGHT) {
+                        prs.maxByOrNull { it.weightPerCableKg }
+                    } else {
+                        prs.maxByOrNull { it.volume }
+                    }
+                    val bestValue = if (prType == PRType.MAX_WEIGHT) {
+                        formatWeight(best?.weightPerCableKg ?: 0f, weightUnit)
+                    } else {
+                        formatWeight(best?.volume ?: 0f, weightUnit)
+                    }
                     Text(
-                        text = formatWeight(best?.weightPerCableKg ?: 0f, weightUnit),
+                        text = bestValue,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.tertiary
@@ -266,7 +433,7 @@ private fun ExercisePRChart(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "Total PRs",
+                        text = "Records",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -314,6 +481,7 @@ private fun ExercisePRChart(
 @Composable
 private fun ExercisePRHistory(
     prs: List<PersonalRecord>,
+    prType: PRType,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
 ) {
@@ -326,7 +494,7 @@ private fun ExercisePRHistory(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "PR History",
+                text = "${if (prType == PRType.MAX_WEIGHT) "Weight" else "Volume"} PR History",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -339,10 +507,15 @@ private fun ExercisePRHistory(
                 items(prs.reversed()) { pr ->
                     PRHistoryItem(
                         pr = pr,
+                        prType = prType,
                         weightUnit = weightUnit,
                         formatWeight = formatWeight,
                         isLatest = pr == prs.last(),
-                        isBest = pr.weightPerCableKg == prs.maxOf { it.weightPerCableKg }
+                        isBest = if (prType == PRType.MAX_WEIGHT) {
+                            pr.weightPerCableKg == prs.maxOf { it.weightPerCableKg }
+                        } else {
+                            pr.volume == prs.maxOf { it.volume }
+                        }
                     )
                 }
             }
@@ -353,6 +526,7 @@ private fun ExercisePRHistory(
 @Composable
 private fun PRHistoryItem(
     pr: PersonalRecord,
+    prType: PRType,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
     isLatest: Boolean,
@@ -378,13 +552,25 @@ private fun PRHistoryItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
+                // Primary value based on PR type
+                val primaryValue = if (prType == PRType.MAX_WEIGHT) {
+                    formatWeight(pr.weightPerCableKg, weightUnit)
+                } else {
+                    "${formatWeight(pr.volume, weightUnit)} total"
+                }
                 Text(
-                    text = formatWeight(pr.weightPerCableKg, weightUnit),
+                    text = primaryValue,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                // Secondary info
+                val secondaryInfo = if (prType == PRType.MAX_WEIGHT) {
+                    "${pr.reps} reps · ${pr.workoutMode}"
+                } else {
+                    "${formatWeight(pr.weightPerCableKg, weightUnit)} × ${pr.reps} reps · ${pr.workoutMode}"
+                }
                 Text(
-                    text = "${pr.reps} reps · ${pr.workoutMode}",
+                    text = secondaryInfo,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -415,4 +601,3 @@ private fun PRHistoryItem(
         }
     }
 }
-
