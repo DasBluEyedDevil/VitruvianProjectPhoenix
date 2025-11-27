@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.ConnectionPriorityRequest
@@ -37,6 +38,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
 
 /**
  * Vitruvian BLE Manager - Handles BLE communication with Vitruvian device
@@ -72,6 +74,11 @@ class VitruvianBleManager(
     private var monitorPollingJob: Job? = null
     private var propertyPollingJob: Job? = null
     private var heuristicPollingJob: Job? = null
+    private var heartbeatJob: Job? = null
+
+    private val HEARTBEAT_INTERVAL_MS = 2000L
+    private val HEARTBEAT_READ_TIMEOUT_MS = 1500L
+    private val HEARTBEAT_NO_OP = byteArrayOf(0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte())
 
     // Last good positions for filtering spikes (volatile for thread safety)
     @Volatile private var lastGoodPosA = 0
@@ -528,6 +535,8 @@ class VitruvianBleManager(
                     // Monitor polling (100ms) only starts when workout begins
                     Timber.d("Starting keep-alive diagnostic polling (500ms - official app interval)...")
                     startDiagnosticPolling()
+                    Timber.d("Starting BLE heartbeat (RX read with no-op fallback)...")
+                    startHeartbeat()
                 }
             }
 
@@ -723,6 +732,82 @@ class VitruvianBleManager(
     }
 
     /**
+     * Heartbeat to satisfy the device watchdog: attempt an RX read, fall back to a benign no-op write.
+     */
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = pollingScope.launch {
+            Timber.d("Starting BLE heartbeat (interval=${HEARTBEAT_INTERVAL_MS}ms, read timeout=${HEARTBEAT_READ_TIMEOUT_MS}ms)")
+            while (isActive) {
+                val readSucceeded = try {
+                    withTimeoutOrNull(HEARTBEAT_READ_TIMEOUT_MS) {
+                        performHeartbeatRead()
+                    } ?: false
+                } catch (e: Exception) {
+                    Timber.e(e, "Heartbeat read attempt crashed")
+                    false
+                }
+
+                if (!readSucceeded) {
+                    sendHeartbeatNoOp()
+                }
+
+                delay(HEARTBEAT_INTERVAL_MS)
+            }
+        }
+    }
+
+    private suspend fun performHeartbeatRead(): Boolean {
+        val rxChar = nusRxCharacteristic
+        if (rxChar == null) {
+            Timber.w("Heartbeat read skipped - RX characteristic unavailable")
+            return false
+        }
+
+        return suspendCancellableCoroutine { cont ->
+            var resumed = false
+            fun resumeOnce(result: Boolean) {
+                if (!resumed && cont.isActive) {
+                    resumed = true
+                    cont.resume(result)
+                }
+            }
+
+            try {
+                readCharacteristic(rxChar)
+                    .with { _, _ ->
+                        Timber.v("Heartbeat read callback fired")
+                        resumeOnce(true)
+                    }
+                    .fail { _, status ->
+                        Timber.w("Heartbeat read failed (status: $status)")
+                        resumeOnce(false)
+                    }
+                    .enqueue()
+            } catch (e: Exception) {
+                Timber.e(e, "Heartbeat read enqueue failed")
+                resumeOnce(false)
+            }
+        }
+    }
+
+    private fun sendHeartbeatNoOp() {
+        val rxChar = nusRxCharacteristic
+        if (rxChar == null) {
+            Timber.w("Heartbeat write skipped - RX characteristic unavailable")
+            return
+        }
+
+        try {
+            writeCharacteristic(rxChar, HEARTBEAT_NO_OP, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+                .fail { _, status -> Timber.w("Heartbeat no-op write failed (status: $status)") }
+                .enqueue()
+        } catch (e: Exception) {
+            Timber.e(e, "Heartbeat no-op write enqueue failed")
+        }
+    }
+
+    /**
      * Start polling heuristic characteristic every 250ms (4Hz) - matching official app.
      * Provides phase statistics for concentric/eccentric analysis.
      */
@@ -828,18 +913,22 @@ class VitruvianBleManager(
         val monitorJobState = monitorPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
         val propertyJobState = propertyPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
         val heuristicJobState = heuristicPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+        val heartbeatJobState = heartbeatJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
 
         Timber.d("STOP_DEBUG: Monitor polling job state BEFORE cancel: $monitorJobState")
         Timber.d("STOP_DEBUG: Property polling job state BEFORE cancel: $propertyJobState")
         Timber.d("STOP_DEBUG: Heuristic polling job state BEFORE cancel: $heuristicJobState")
+        Timber.d("STOP_DEBUG: Heartbeat job state BEFORE cancel: $heartbeatJobState")
 
         monitorPollingJob?.cancel()
         propertyPollingJob?.cancel()
         heuristicPollingJob?.cancel()
+        heartbeatJob?.cancel()
 
         monitorPollingJob = null
         propertyPollingJob = null
         heuristicPollingJob = null
+        heartbeatJob = null
 
         // NOTE: Do NOT reset handle state here - it breaks Just Lift auto-start
         // Handle state should only be reset by enableJustLiftWaitingMode() or startMonitorPolling()
