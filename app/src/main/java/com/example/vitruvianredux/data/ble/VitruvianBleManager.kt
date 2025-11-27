@@ -147,6 +147,9 @@ class VitruvianBleManager(
     private var lastDeloadEventTime = 0L
     private val DELOAD_EVENT_DEBOUNCE_MS = 2000L  // Only emit once per 2 seconds
 
+    // Counter for monitor notifications (for diagnostic logging)
+    @Volatile private var monitorNotificationCount = 0L
+
     // Command response flow - captures opcodes from incoming notifications
     // Used to wait for specific responses during initialization handshake
     private val _commandResponses = MutableSharedFlow<UByte>(
@@ -621,7 +624,11 @@ class VitruvianBleManager(
                     // This fixes the Android 16 Pixel disconnect issue where readCharacteristic()
                     // calls fail silently, jamming the BLE queue and causing supervision timeout
                     setNotificationCallback(characteristic).with { _, data ->
-                        Timber.v("📊 MONITOR NOTIFICATION RECEIVED! Data size: ${data.value?.size ?: 0} bytes")
+                        // Log at INFO level initially to verify notifications are working
+                        // Can reduce to VERBOSE once confirmed working on Pixel 7/Android 16
+                        if (monitorNotificationCount++ % 100 == 0L) {
+                            Timber.i("📊 MONITOR NOTIFICATION #$monitorNotificationCount (${data.value?.size ?: 0} bytes)")
+                        }
                         handleMonitorData(data)
                     }
                 } else if (characteristic.uuid == BleConstants.VERSION_CHAR_UUID) {
@@ -696,6 +703,11 @@ class VitruvianBleManager(
         // Reset position tracking for new workout
         minPositionSeen = Double.MAX_VALUE
         maxPositionSeen = Double.MIN_VALUE
+
+        // Reset notification counter for this workout session
+        val previousCount = monitorNotificationCount
+        monitorNotificationCount = 0L
+        Timber.i("📊 Monitor notifications reset (previous session: $previousCount notifications)")
 
         if (forAutoStart) {
             // Start in WaitingForRest state - must see handles at rest (low position) before arming grab detection
