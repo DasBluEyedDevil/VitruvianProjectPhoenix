@@ -748,14 +748,53 @@ class VitruvianBleManager(
             Timber.d("Monitor data enabled for ACTIVE WORKOUT")
         }
 
-        // Cancel any legacy polling job (should not be running, but clean up just in case)
+        // Cancel any existing polling job before starting new one
         monitorPollingJob?.cancel()
-        monitorPollingJob = null
 
-        // NOTE: Monitor data now arrives via BLE notifications (configured in initialize()).
-        // No polling loop needed - handleMonitorData() is called directly by the notification callback.
-        // This prevents the BLE queue jamming that caused Android 16 Pixel disconnects.
-        Timber.i("✅ Monitor data reception active (via notifications, not polling)")
+        // Start polling the monitor characteristic at 100ms intervals
+        // NOTE: The device may not support notifications for the monitor characteristic,
+        // so we poll instead. If notifications are working, the notification callback will
+        // also process data, which is fine (duplicate processing is filtered by timestamp).
+        monitorPollingJob = pollingScope.launch {
+            Timber.i("📊 Starting monitor polling (100ms interval for handle detection)")
+            var successfulReads = 0L
+            var failedReads = 0L
+
+            while (isActive) {
+                try {
+                    val char = monitorCharacteristic
+                    if (char == null) {
+                        Timber.w("⚠️ Monitor characteristic is null - cannot poll!")
+                        delay(100)
+                        continue
+                    }
+
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            successfulReads++
+                            handleMonitorData(data)
+                            // Log periodically to show polling is working
+                            if (successfulReads % 100 == 0L) {
+                                Timber.d("📊 Monitor poll #$successfulReads (failed: $failedReads)")
+                            }
+                        }
+                        .fail { _, status ->
+                            failedReads++
+                            if (failedReads % 10 == 0L) {
+                                Timber.w("⚠️ Monitor read failed (status: $status, failures: $failedReads)")
+                            }
+                        }
+                        .enqueue()
+
+                    delay(100) // Poll every 100ms for responsive handle detection
+                } catch (e: Exception) {
+                    failedReads++
+                    Timber.e(e, "❌ Exception in monitor polling")
+                    delay(100)
+                }
+            }
+            Timber.i("📊 Monitor polling stopped (reads: $successfulReads, failures: $failedReads)")
+        }
     }
     
     /**
