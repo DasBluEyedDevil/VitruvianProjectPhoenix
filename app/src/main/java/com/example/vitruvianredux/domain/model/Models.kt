@@ -1,7 +1,10 @@
 package com.example.vitruvianredux.domain.model
 
+import com.example.vitruvianredux.data.local.PRType
+
 /**
  * Personal record for an exercise
+ * Supports two types: MAX_WEIGHT (heaviest lift) and MAX_VOLUME (weight × reps)
  */
 data class PersonalRecord(
     val id: Long = 0,
@@ -9,7 +12,9 @@ data class PersonalRecord(
     val weightPerCableKg: Float,
     val reps: Int,
     val timestamp: Long,
-    val workoutMode: String
+    val workoutMode: String,
+    val prType: PRType = PRType.MAX_WEIGHT,
+    val volume: Float = weightPerCableKg * reps  // weight × reps
 )
 
 /**
@@ -297,11 +302,17 @@ sealed class ChartEvent(val timestamp: Long, val label: String) {
 
 /**
  * PR Celebration Event - Triggered when user achieves a new Personal Record
+ * Can indicate one or both PR types were broken
  */
 data class PRCelebrationEvent(
     val exerciseName: String,
     val weightPerCableKg: Float,
     val reps: Int,
-    val workoutMode: String
-)
+    val workoutMode: String,
+    val brokenPRTypes: List<PRType> = listOf(PRType.MAX_WEIGHT)  // Which PR types were broken
+) {
+    val isWeightPR: Boolean get() = PRType.MAX_WEIGHT in brokenPRTypes
+    val isVolumePR: Boolean get() = PRType.MAX_VOLUME in brokenPRTypes
+    val isBothPRs: Boolean get() = brokenPRTypes.size == 2
+}
 

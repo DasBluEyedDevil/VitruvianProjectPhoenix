@@ -469,10 +469,35 @@ class VitruvianBleManager(
         @Deprecated("Using deprecated Nordic BLE API")
         override fun onServicesInvalidated() {
             val timestamp = System.currentTimeMillis()
-            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            Timber.e("⚠️ onServicesInvalidated() CALLED! [$timestamp]")
-            Timber.e("⚠️ This will NULL all characteristic references!")
-            Timber.e("⚠️ Android 16 Pixel BLE stack bug - attempting auto-reconnect")
+            Timber.w("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.w("⚠️ onServicesInvalidated() CALLED! [$timestamp]")
+
+            // CRITICAL FIX for Android 16 Pixel BLE stack bug:
+            // The trainer uses raw Android BLE and never gets this callback.
+            // It just keeps using existing characteristic references and works fine.
+            // If we're still connected at the BLE level, we should do the same - ignore this
+            // callback and keep our existing references instead of triggering a disconnect loop.
+            // See: https://github.com/NordicSemiconductor/Kotlin-BLE-Library/issues/122
+
+            if (isConnected) {
+                Timber.w("⚠️ BLE connection is STILL ACTIVE (isConnected=true)")
+                Timber.w("⚠️ IGNORING service invalidation - keeping existing characteristic references")
+                Timber.w("⚠️ This mimics trainer behavior (raw BLE has no such callback)")
+                Timber.w("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+                // Log but DON'T disconnect - keep existing references like trainer does
+                connectionLogger?.log(
+                    eventType = "SERVICES_INVALIDATED_IGNORED",
+                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.WARNING,
+                    deviceName = currentDeviceName,
+                    deviceAddress = currentDeviceAddress,
+                    message = "onServicesInvalidated() called but isConnected=true - ignoring (Android 16 Pixel bug workaround)"
+                )
+                return  // Keep existing references, don't disconnect
+            }
+
+            // Only if we're actually disconnected at the BLE level, clean up
+            Timber.e("⚠️ BLE connection is DEAD (isConnected=false) - cleaning up")
             Timber.e("⚠️ Stack trace:")
             Thread.currentThread().stackTrace.take(10).forEach {
                 Timber.e("   at $it")
@@ -488,7 +513,7 @@ class VitruvianBleManager(
                 deviceName ?: "Unknown",
                 deviceAddress ?: "Unknown",
                 "CHARACTERISTICS_INVALIDATED",
-                "onServicesInvalidated() called - requesting auto-reconnect"
+                "onServicesInvalidated() called with isConnected=false - cleaning up"
             )
 
             // NULL all characteristics
@@ -501,8 +526,7 @@ class VitruvianBleManager(
             workoutCmdCharacteristics.clear()
             notifyCharacteristics.clear()
 
-            // CRITICAL FIX: Update connection state to reflect that characteristics are invalid
-            // This prevents the app from trying to send commands with null characteristics
+            // Update connection state to reflect that characteristics are invalid
             Timber.e("⚠️ Updating connection state to Disconnected due to service invalidation")
             _connectionState.value = ConnectionStatus.Disconnected
 
@@ -510,7 +534,6 @@ class VitruvianBleManager(
             stopPolling()
 
             // REQUEST AUTO-RECONNECT: Emit event for repository to handle reconnection
-            // This addresses the Android 16 Pixel BLE stack bug (10s GATT cleanup)
             if (deviceAddress != null) {
                 Timber.i("🔄 Requesting auto-reconnect to $deviceName ($deviceAddress)")
                 pollingScope.launch {

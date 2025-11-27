@@ -1882,6 +1882,12 @@ class MainViewModel @Inject constructor(
                 ?: params.selectedExerciseId?.let { exerciseRepository.getExerciseById(it)?.name }
         }
 
+        // For Single Exercise mode, don't save routineSessionId - these should appear as single sessions in history
+        // Regular routines (Daily Routines) should be grouped together
+        val isSingleExercise = isSingleExerciseMode() && !params.isJustLift
+        val savedRoutineSessionId = if (isSingleExercise) null else currentRoutineSessionId
+        val savedRoutineName = if (isSingleExercise) null else currentRoutineName
+
         val session = WorkoutSession(
             id = sessionId,
             timestamp = workoutStartTime,
@@ -1899,8 +1905,8 @@ class MainViewModel @Inject constructor(
             echoLevel = echoLevel,
             exerciseId = params.selectedExerciseId,
             exerciseName = exerciseName,
-            routineSessionId = currentRoutineSessionId,
-            routineName = currentRoutineName
+            routineSessionId = savedRoutineSessionId,
+            routineName = savedRoutineName
         )
 
         // Check if this is a bodyweight exercise (for logging purposes)
@@ -1915,8 +1921,9 @@ class MainViewModel @Inject constructor(
         Timber.d("  isAMRAP: ${params.isAMRAP}")
         Timber.d("  isBodyweight: $isBodyweight")
         Timber.d("  exerciseId: ${params.selectedExerciseId}")
-        Timber.d("  routineSessionId: $currentRoutineSessionId")
-        Timber.d("  routineName: $currentRoutineName")
+        Timber.d("  isSingleExercise: $isSingleExercise (routineSessionId will be null for history)")
+        Timber.d("  savedRoutineSessionId: $savedRoutineSessionId")
+        Timber.d("  savedRoutineName: $savedRoutineName")
         Timber.d("  _loadedRoutine.value: ${_loadedRoutine.value?.name}")
         Timber.d("  _loadedRoutine.value.id: ${_loadedRoutine.value?.id}")
         Timber.d("  maxConcentricPerCableKgThisSession=$maxConcentricPerCableKgThisSession, maxEccentricPerCableKgThisSession=$maxEccentricPerCableKgThisSession")
@@ -1944,14 +1951,14 @@ class MainViewModel @Inject constructor(
             // Echo mode is excluded because it uses adaptive weight (machine calculates)
             val isEchoMode = params.workoutType is WorkoutType.Echo
             if (working > 0 && !params.isJustLift && !isEchoMode) {
-                val isNewPR = workoutRepository.updatePersonalRecordIfNeeded(
+                val brokenPRs = workoutRepository.updatePersonalRecordsIfNeeded(
                     exerciseId = exerciseId,
                     weightPerCableKg = measuredPerCableKg,
                     reps = working,
                     workoutMode = params.workoutType.displayName
                 )
-                if (isNewPR) {
-                    Timber.d("NEW PERSONAL RECORD! Exercise: $exerciseId, Weight: ${measuredPerCableKg}kg, Reps: $working")
+                if (brokenPRs.isNotEmpty()) {
+                    Timber.d("NEW PERSONAL RECORD(S)! Exercise: $exerciseId, Weight: ${measuredPerCableKg}kg, Reps: $working, Types: $brokenPRs")
                     // Trigger PR celebration
                     viewModelScope.launch {
                         try {
@@ -1961,7 +1968,8 @@ class MainViewModel @Inject constructor(
                                     exerciseName = exercise?.name ?: "Unknown Exercise",
                                     weightPerCableKg = measuredPerCableKg,
                                     reps = working,
-                                    workoutMode = params.workoutType.displayName
+                                    workoutMode = params.workoutType.displayName,
+                                    brokenPRTypes = brokenPRs
                                 )
                             )
                         } catch (e: Exception) {
