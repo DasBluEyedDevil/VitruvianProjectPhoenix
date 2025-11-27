@@ -15,6 +15,7 @@ coroutines = "1.10.2"
 room = "2.8.3"
 datastore = "1.1.7"
 nordicBle = "2.11.0"
+kable = "0.40.0"
 mpAndroidChart = "v3.1.0"
 timber = "5.0.1"
 navigationCompose = "2.9.6"
@@ -73,6 +74,10 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 # Nordic BLE Library
 nordic-ble = { group = "no.nordicsemi.android", name = "ble", version.ref = "nordicBle" }
 nordic-ble-ktx = { group = "no.nordicsemi.android", name = "ble-ktx", version.ref = "nordicBle" }
+
+# Kable BLE Library
+kable-core = { group = "com.juul.kable", name = "kable-core", version.ref = "kable" }
+kable-permissions = { group = "com.juul.kable", name = "kable-default-permissions", version.ref = "kable" }
 
 # MPAndroidChart
 mpandroidchart = { group = "com.github.PhilJay", name = "MPAndroidChart", version.ref = "mpAndroidChart" }

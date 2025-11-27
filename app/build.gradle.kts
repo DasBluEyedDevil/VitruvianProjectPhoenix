@@ -111,6 +111,10 @@ dependencies {
     implementation(libs.nordic.ble)
     implementation(libs.nordic.ble.ktx)
 
+    // BLE - Kable Library
+    implementation(libs.kable.core)
+    implementation(libs.kable.permissions)
+
     // Dependency Injection - Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
