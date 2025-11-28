@@ -1255,8 +1255,8 @@ fun SettingsTab(
                 )
             }
                 Spacer(modifier = Modifier.height(Spacing.small))
-                Text("Version: 0.6.1-beta", color = MaterialTheme.colorScheme.onSurface)
-                Text("Build: Beta 6.1", color = MaterialTheme.colorScheme.onSurface)
+                Text("Version: 0.6.2-beta", color = MaterialTheme.colorScheme.onSurface)
+                Text("Build: Beta 6.2", color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(Spacing.small))
                 Text(
                     "Open source community project to control Vitruvian Trainer machines locally.",
