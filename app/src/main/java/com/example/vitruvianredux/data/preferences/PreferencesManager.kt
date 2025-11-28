@@ -191,6 +191,7 @@ class PreferencesManager @Inject constructor(
     private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
     private val STOP_AT_TOP_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("stop_at_top")
     private val ENABLE_VIDEO_PLAYBACK_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("enable_video_playback")
+    private val BEEPS_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("beeps_enabled")
 
     /**
      * Flow of user preferences
@@ -207,12 +208,14 @@ class PreferencesManager @Inject constructor(
             val autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true
             val stopAtTop = preferences[STOP_AT_TOP_KEY] ?: false
             val enableVideoPlayback = preferences[ENABLE_VIDEO_PLAYBACK_KEY] ?: true
+            val beepsEnabled = preferences[BEEPS_ENABLED_KEY] ?: true
 
             UserPreferences(
                 weightUnit = weightUnit,
                 autoplayEnabled = autoplayEnabled,
                 stopAtTop = stopAtTop,
-                enableVideoPlayback = enableVideoPlayback
+                enableVideoPlayback = enableVideoPlayback,
+                beepsEnabled = beepsEnabled
             )
         }
 
@@ -254,6 +257,16 @@ class PreferencesManager @Inject constructor(
             preferences[ENABLE_VIDEO_PLAYBACK_KEY] = enabled
         }
         Timber.d("Enable video playback preference set to: $enabled")
+    }
+
+    /**
+     * Set the beeps enabled preference (workout audio cues)
+     */
+    suspend fun setBeepsEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[BEEPS_ENABLED_KEY] = enabled
+        }
+        Timber.d("Beeps enabled preference set to: $enabled")
     }
 
     // ========== Just Lift Defaults ==========

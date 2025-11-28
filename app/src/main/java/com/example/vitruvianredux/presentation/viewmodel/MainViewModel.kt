@@ -2040,6 +2040,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun setBeepsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setBeepsEnabled(enabled)
+        }
+    }
+
     // ========== Just Lift & Single Exercise Defaults ==========
 
     /**
