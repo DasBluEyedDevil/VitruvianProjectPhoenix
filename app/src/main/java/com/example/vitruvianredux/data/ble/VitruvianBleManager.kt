@@ -645,18 +645,9 @@ class VitruvianBleManager(
                         Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
                         handleRepNotification(data)
                     }
-                } else if (characteristic.uuid == BleConstants.MONITOR_CHAR_UUID) {
-                    // CRITICAL FIX: Use notifications for monitor data instead of read polling
-                    // This fixes the Android 16 Pixel disconnect issue where readCharacteristic()
-                    // calls fail silently, jamming the BLE queue and causing supervision timeout
-                    setNotificationCallback(characteristic).with { _, data ->
-                        // Log at INFO level initially to verify notifications are working
-                        // Can reduce to VERBOSE once confirmed working on Pixel 7/Android 16
-                        if (monitorNotificationCount++ % 100 == 0L) {
-                            Timber.i("📊 MONITOR NOTIFICATION #$monitorNotificationCount (${data.value?.size ?: 0} bytes)")
-                        }
-                        handleMonitorData(data)
-                    }
+                // NOTE: MONITOR_CHAR_UUID (SAMPLE_CHAR) is NOT a NotifiableCharacteristic!
+                // Per trainer analysis, Sample data MUST be polled via readCharacteristic().
+                // Attempting to enable notifications on it caused issues on Android 16 Pixel devices.
                 } else if (characteristic.uuid == BleConstants.VERSION_CHAR_UUID) {
                     // Special handler for VERSION characteristic - log raw hex for debugging
                     setNotificationCallback(characteristic).with { _, data ->
@@ -720,11 +711,17 @@ class VitruvianBleManager(
      * The trainer uses Kotlin coroutines with suspend functions that
      * naturally serialize BLE operations - each read waits for callback before next.
      *
-     * @return true if read succeeded, false if failed or characteristic unavailable
+     * ANDROID 16 FIX: Added timeout to prevent hanging if BLE stack doesn't call back.
+     * On Android 16 (Pixel 7), reads can fail silently without calling .with or .fail,
+     * causing the coroutine to hang forever and blocking all BLE traffic.
+     *
+     * @return true if read succeeded, false if failed, timed out, or characteristic unavailable
      */
     private suspend fun readMonitorCharacteristicSuspend(): Boolean {
         val char = monitorCharacteristic ?: return false
 
+        // Single-shot read: wait for callback before issuing the next read.
+        // Mirrors trainer behavior and prevents queue flooding.
         return suspendCancellableCoroutine { cont ->
             var resumed = false
             fun resumeOnce(result: Boolean) {
@@ -741,12 +738,12 @@ class VitruvianBleManager(
                         resumeOnce(true)
                     }
                     .fail { _, status ->
-                        Timber.w("⚠️ Monitor read failed (status: $status)")
+                        Timber.w("?? Monitor read failed (status: $status)")
                         resumeOnce(false)
                     }
                     .enqueue()
             } catch (e: Exception) {
-                Timber.e(e, "❌ Exception enqueueing monitor read")
+                Timber.e(e, "? Exception enqueueing monitor read")
                 resumeOnce(false)
             }
         }
@@ -761,12 +758,12 @@ class VitruvianBleManager(
      * OLD APPROACH (BROKEN on Android 16):
      *   readCharacteristic().enqueue()  // Fire and forget!
      *   delay(100)                       // Next read regardless of completion
-     *   → Floods BLE queue → supervision timeout → disconnect
+     *   Floods BLE queue -> supervision timeout -> disconnect
      *
      * NEW APPROACH (matches trainer):
      *   val success = readMonitorCharacteristicSuspend()  // WAITS for completion
      *   // Next read only after this one finishes
-     *   → Natural rate limiting → no queue flooding → stable connection
+     *   Natural rate limiting -> no queue flooding -> stable connection
      *
      * @param forAutoStart If true, enables handle detection with WaitingForRest state (for Just Lift auto-start).
      *                     If false, skips handle state initialization (for active workout monitoring).
@@ -779,7 +776,7 @@ class VitruvianBleManager(
         // Reset notification counter for this workout session
         val previousCount = monitorNotificationCount
         monitorNotificationCount = 0L
-        Timber.i("📊 Monitor notifications reset (previous session: $previousCount notifications)")
+        Timber.i("?? Monitor notifications reset (previous session: $previousCount notifications)")
 
         if (forAutoStart) {
             // Start in WaitingForRest state - must see handles at rest (low position) before arming grab detection
@@ -801,7 +798,7 @@ class VitruvianBleManager(
         // Each read WAITS for completion before starting the next one.
         // This prevents BLE queue flooding that caused Android 16 disconnects.
         monitorPollingJob = pollingScope.launch {
-            Timber.i("📊 Starting SEQUENTIAL monitor polling (suspend-based, matches trainer)")
+            Timber.i("?? Starting SEQUENTIAL monitor polling (suspend-based, matches trainer)")
             var successfulReads = 0L
             var failedReads = 0L
             var consecutiveFailures = 0
@@ -810,7 +807,7 @@ class VitruvianBleManager(
                 try {
                     val char = monitorCharacteristic
                     if (char == null) {
-                        Timber.w("⚠️ Monitor characteristic is null - cannot poll!")
+                        Timber.w("?? Monitor characteristic is null - cannot poll!")
                         delay(100)
                         continue
                     }
@@ -824,13 +821,13 @@ class VitruvianBleManager(
                         consecutiveFailures = 0
                         // Log periodically to show polling is working
                         if (successfulReads % 100 == 0L) {
-                            Timber.d("📊 Monitor poll #$successfulReads (failed: $failedReads)")
+                            Timber.d("?? Monitor poll #$successfulReads (failed: $failedReads)")
                         }
                     } else {
                         failedReads++
                         consecutiveFailures++
                         if (consecutiveFailures % 10 == 0) {
-                            Timber.w("⚠️ $consecutiveFailures consecutive monitor read failures")
+                            Timber.w("?? $consecutiveFailures consecutive monitor read failures")
                         }
                         // Small delay on failure to avoid tight error loop
                         delay(50)
@@ -843,50 +840,50 @@ class VitruvianBleManager(
                 } catch (e: Exception) {
                     failedReads++
                     consecutiveFailures++
-                    Timber.e(e, "❌ Exception in monitor polling")
+                    Timber.e(e, "? Exception in monitor polling")
                     delay(100)
                 }
             }
-            Timber.i("📊 Monitor polling stopped (reads: $successfulReads, failures: $failedReads)")
+            Timber.i("?? Monitor polling stopped (reads: $successfulReads, failures: $failedReads)")
         }
     }
-    
-    /**
-     * Suspend function to read diagnostic characteristic and wait for completion.
-     * Used for keep-alive and health monitoring.
-     *
-     * @return true if read succeeded, false if failed or characteristic unavailable
-     */
+
     private suspend fun readDiagnosticCharacteristicSuspend(): Boolean {
         val char = propertyCharacteristic ?: return false
 
-        return suspendCancellableCoroutine { cont ->
-            var resumed = false
-            fun resumeOnce(result: Boolean) {
-                if (!resumed && cont.isActive) {
-                    resumed = true
-                    cont.resume(result)
+        // CRITICAL: Timeout prevents hanging on Android 16 where BLE callbacks may not fire
+        return withTimeoutOrNull(HEARTBEAT_READ_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                var resumed = false
+                fun resumeOnce(result: Boolean) {
+                    if (!resumed && cont.isActive) {
+                        resumed = true
+                        cont.resume(result)
+                    }
+                }
+
+                try {
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            val bytes = data.value
+                            if (bytes != null) {
+                                parseDiagnosticData(bytes)
+                            }
+                            resumeOnce(true)
+                        }
+                        .fail { _, status ->
+                            Timber.w("⚠️ Diagnostic read failed (status: $status)")
+                            resumeOnce(false)
+                        }
+                        .enqueue()
+                } catch (e: Exception) {
+                    Timber.e(e, "❌ Exception enqueueing diagnostic read")
+                    resumeOnce(false)
                 }
             }
-
-            try {
-                readCharacteristic(char)
-                    .with { _, data ->
-                        val bytes = data.value
-                        if (bytes != null) {
-                            parseDiagnosticData(bytes)
-                        }
-                        resumeOnce(true)
-                    }
-                    .fail { _, status ->
-                        Timber.w("⚠️ Diagnostic read failed (status: $status)")
-                        resumeOnce(false)
-                    }
-                    .enqueue()
-            } catch (e: Exception) {
-                Timber.e(e, "❌ Exception enqueueing diagnostic read")
-                resumeOnce(false)
-            }
+        } ?: run {
+            Timber.w("⚠️ Diagnostic read timed out (${HEARTBEAT_READ_TIMEOUT_MS}ms) - Android 16 BLE issue?")
+            false
         }
     }
 
