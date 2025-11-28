@@ -1,11 +1,11 @@
 package com.example.vitruvianredux.presentation.screen
 
-import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -26,13 +26,20 @@ import timber.log.Timber
  * - WORKOUT_START: Light click + chirpchirp.ogg
  * - WORKOUT_END: Light click + chirpchirp.ogg
  * - ERROR: Long press (haptic only, no sound)
+ *
+ * @param hapticEvents Flow of haptic events to respond to
+ * @param beepsEnabled Whether to play audio cues (haptic feedback is always enabled)
  */
 @Composable
 fun HapticFeedbackEffect(
-    hapticEvents: SharedFlow<HapticEvent>
+    hapticEvents: SharedFlow<HapticEvent>,
+    beepsEnabled: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
+
+    // Track which sounds have finished loading (SoundPool.load is async!)
+    val loadedSounds = remember { mutableStateOf(setOf<Int>()) }
 
     // Create SoundPool for audio cues
     // Uses USAGE_ASSISTANCE_SONIFICATION for short UI feedback sounds
@@ -47,7 +54,17 @@ fun HapticFeedbackEffect(
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
-                .build()
+                .build().also { pool ->
+                    // Track when sounds finish loading - SoundPool.load() is async!
+                    pool.setOnLoadCompleteListener { _, sampleId, status ->
+                        if (status == 0) {
+                            loadedSounds.value = loadedSounds.value + sampleId
+                            Timber.d("Sound $sampleId loaded successfully (${loadedSounds.value.size} total)")
+                        } else {
+                            Timber.w("Sound $sampleId failed to load with status $status")
+                        }
+                    }
+                }
         } catch (e: Exception) {
             Timber.w(e, "Failed to create SoundPool")
             null
@@ -55,6 +72,7 @@ fun HapticFeedbackEffect(
     }
 
     // Load sounds into memory, mapping each HapticEvent to its sound ID
+    // Note: load() returns immediately but actual loading is async - tracked via OnLoadCompleteListener
     val soundIds = remember(soundPool) {
         soundPool?.let { pool ->
             try {
@@ -66,7 +84,9 @@ fun HapticFeedbackEffect(
                     HapticEvent.WORKOUT_END to pool.load(context, R.raw.chirpchirp, 1),
                     HapticEvent.REST_ENDING to pool.load(context, R.raw.restover, 1)
                     // ERROR: no sound (haptic only)
-                )
+                ).also { ids ->
+                    Timber.d("Queued ${ids.size} sounds for loading: $ids")
+                }
             } catch (e: Exception) {
                 Timber.w(e, "Failed to load sounds")
                 null
@@ -86,10 +106,12 @@ fun HapticFeedbackEffect(
         }
     }
 
-    LaunchedEffect(hapticEvents) {
+    LaunchedEffect(hapticEvents, beepsEnabled) {
         hapticEvents.collect { event ->
             performHapticFeedback(haptic, event)
-            performAudioCue(soundPool, soundIds, event)
+            if (beepsEnabled) {
+                performAudioCue(soundPool, soundIds, loadedSounds.value, event)
+            }
         }
     }
 }
@@ -139,11 +161,13 @@ private fun performHapticFeedback(haptic: HapticFeedback, event: HapticEvent) {
  *
  * @param soundPool SoundPool instance for playing sounds
  * @param soundIds Map of HapticEvent to loaded sound IDs
+ * @param loadedSounds Set of sound IDs that have finished async loading
  * @param event The haptic event to play audio for
  */
 private fun performAudioCue(
     soundPool: SoundPool?,
     soundIds: Map<HapticEvent, Int>?,
+    loadedSounds: Set<Int>,
     event: HapticEvent
 ) {
     if (soundPool == null || soundIds == null) return
@@ -156,12 +180,18 @@ private fun performAudioCue(
 
     val soundId = soundIds[event]
     if (soundId == null || soundId == 0) {
-        Timber.w("No sound loaded for event: $event")
+        Timber.w("No sound mapped for event: $event")
+        return
+    }
+
+    // Check if sound has finished async loading
+    if (soundId !in loadedSounds) {
+        Timber.w("Sound $soundId for $event not yet loaded (loaded: ${loadedSounds.size}/${soundIds.size})")
         return
     }
 
     try {
-        soundPool.play(
+        val streamId = soundPool.play(
             soundId,
             0.8f,  // left volume (80%)
             0.8f,  // right volume (80%)
@@ -169,7 +199,11 @@ private fun performAudioCue(
             0,     // no loop
             1.0f   // normal playback rate
         )
-        Timber.v("Audio cue: $event")
+        if (streamId == 0) {
+            Timber.w("SoundPool.play() returned 0 for $event - sound may have been unloaded")
+        } else {
+            Timber.d("Audio cue: $event (soundId=$soundId, streamId=$streamId)")
+        }
     } catch (e: Exception) {
         Timber.w(e, "Failed to play sound for $event")
     }
