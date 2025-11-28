@@ -720,32 +720,38 @@ class VitruvianBleManager(
     private suspend fun readMonitorCharacteristicSuspend(): Boolean {
         val char = monitorCharacteristic ?: return false
 
-        // Single-shot read: wait for callback before issuing the next read.
-        // Mirrors trainer behavior and prevents queue flooding.
-        return suspendCancellableCoroutine { cont ->
-            var resumed = false
-            fun resumeOnce(result: Boolean) {
-                if (!resumed && cont.isActive) {
-                    resumed = true
-                    cont.resume(result)
+        // CRITICAL: Timeout prevents hanging on Android 16 where BLE callbacks may not fire
+        return withTimeoutOrNull(HEARTBEAT_READ_TIMEOUT_MS) {
+            // Single-shot read: wait for callback before issuing the next read.
+            // Mirrors trainer behavior and prevents queue flooding.
+            suspendCancellableCoroutine { cont ->
+                var resumed = false
+                fun resumeOnce(result: Boolean) {
+                    if (!resumed && cont.isActive) {
+                        resumed = true
+                        cont.resume(result)
+                    }
+                }
+
+                try {
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            handleMonitorData(data)
+                            resumeOnce(true)
+                        }
+                        .fail { _, status ->
+                            Timber.w("⚠️ Monitor read failed (status: $status)")
+                            resumeOnce(false)
+                        }
+                        .enqueue()
+                } catch (e: Exception) {
+                    Timber.e(e, "❌ Exception enqueueing monitor read")
+                    resumeOnce(false)
                 }
             }
-
-            try {
-                readCharacteristic(char)
-                    .with { _, data ->
-                        handleMonitorData(data)
-                        resumeOnce(true)
-                    }
-                    .fail { _, status ->
-                        Timber.w("?? Monitor read failed (status: $status)")
-                        resumeOnce(false)
-                    }
-                    .enqueue()
-            } catch (e: Exception) {
-                Timber.e(e, "? Exception enqueueing monitor read")
-                resumeOnce(false)
-            }
+        } ?: run {
+            Timber.w("⚠️ Monitor read timed out (${HEARTBEAT_READ_TIMEOUT_MS}ms) - Android 16 BLE issue?")
+            false
         }
     }
 
@@ -776,7 +782,7 @@ class VitruvianBleManager(
         // Reset notification counter for this workout session
         val previousCount = monitorNotificationCount
         monitorNotificationCount = 0L
-        Timber.i("?? Monitor notifications reset (previous session: $previousCount notifications)")
+        Timber.i("📊 Monitor notifications reset (previous session: $previousCount notifications)")
 
         if (forAutoStart) {
             // Start in WaitingForRest state - must see handles at rest (low position) before arming grab detection
@@ -798,7 +804,7 @@ class VitruvianBleManager(
         // Each read WAITS for completion before starting the next one.
         // This prevents BLE queue flooding that caused Android 16 disconnects.
         monitorPollingJob = pollingScope.launch {
-            Timber.i("?? Starting SEQUENTIAL monitor polling (suspend-based, matches trainer)")
+            Timber.i("🔄 Starting SEQUENTIAL monitor polling (suspend-based, matches trainer)")
             var successfulReads = 0L
             var failedReads = 0L
             var consecutiveFailures = 0
@@ -807,7 +813,7 @@ class VitruvianBleManager(
                 try {
                     val char = monitorCharacteristic
                     if (char == null) {
-                        Timber.w("?? Monitor characteristic is null - cannot poll!")
+                        Timber.w("⚠️ Monitor characteristic is null - cannot poll!")
                         delay(100)
                         continue
                     }
@@ -821,13 +827,13 @@ class VitruvianBleManager(
                         consecutiveFailures = 0
                         // Log periodically to show polling is working
                         if (successfulReads % 100 == 0L) {
-                            Timber.d("?? Monitor poll #$successfulReads (failed: $failedReads)")
+                            Timber.d("📊 Monitor poll #$successfulReads (failed: $failedReads)")
                         }
                     } else {
                         failedReads++
                         consecutiveFailures++
                         if (consecutiveFailures % 10 == 0) {
-                            Timber.w("?? $consecutiveFailures consecutive monitor read failures")
+                            Timber.w("⚠️ $consecutiveFailures consecutive monitor read failures")
                         }
                         // Small delay on failure to avoid tight error loop
                         delay(50)
@@ -840,11 +846,11 @@ class VitruvianBleManager(
                 } catch (e: Exception) {
                     failedReads++
                     consecutiveFailures++
-                    Timber.e(e, "? Exception in monitor polling")
+                    Timber.e(e, "❌ Exception in monitor polling")
                     delay(100)
                 }
             }
-            Timber.i("?? Monitor polling stopped (reads: $successfulReads, failures: $failedReads)")
+            Timber.i("📊 Monitor polling stopped (reads: $successfulReads, failures: $failedReads)")
         }
     }
 
