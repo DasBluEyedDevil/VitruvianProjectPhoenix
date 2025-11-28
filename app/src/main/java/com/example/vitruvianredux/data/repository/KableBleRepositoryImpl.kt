@@ -83,6 +83,10 @@ class KableBleRepositoryImpl @Inject constructor(
     private val _handleState = MutableStateFlow(HandleState.Released)
     override val handleState: StateFlow<HandleState> = _handleState.asStateFlow()
 
+    // Heuristic data (force telemetry) - critical for Echo mode measured force
+    private val _heuristicData = MutableStateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>(null)
+    override val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?> = _heuristicData.asStateFlow()
+
     // Scanning state
     private var scanningJob: kotlinx.coroutines.Job? = null
 
@@ -202,6 +206,13 @@ class KableBleRepositoryImpl @Inject constructor(
             scope.launch {
                 manager.handleState.collect { state ->
                     _handleState.value = state
+                }
+            }
+
+            // Forward heuristic data (force telemetry for Echo mode)
+            scope.launch {
+                manager.heuristicData.collect { stats ->
+                    _heuristicData.value = stats
                 }
             }
 
