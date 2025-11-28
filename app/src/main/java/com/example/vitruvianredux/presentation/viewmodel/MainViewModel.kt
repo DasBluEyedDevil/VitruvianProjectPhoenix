@@ -655,20 +655,24 @@ class MainViewModel @Inject constructor(
     /**
      * Handle rep notifications provided by the machine.
      *
-     * CRITICAL: Uses device-provided repsRomCount and repsSetCount directly (official app method).
-     * This ensures rep counting matches exactly what the firmware reports.
+     * Supports TWO modes (Issue #187):
+     * - MODERN: Uses repsRomCount/repsSetCount from 24-byte packets
+     * - LEGACY: Uses topCounter increments from 6-byte packets (Beta 4 method)
+     *
+     * The isLegacyFormat flag determines which counting method to use.
      */
     private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
         val currentPositions = _currentMetric.value
-        // Use machine's ROM and Set counters directly (official app method)
-        // This prevents "getting ready" pull from being counted as a rep
+
+        // Issue #187: Pass legacy flag to enable Beta 4 counting for Samsung devices
         repCounter.process(
-            repsRomCount = notification.repsRomCount,   // Machine's warmup rep count
-            repsSetCount = notification.repsSetCount,   // Machine's working rep count
-            up = notification.topCounter,               // For position calibration
+            repsRomCount = notification.repsRomCount,   // Machine's warmup rep count (0 for legacy)
+            repsSetCount = notification.repsSetCount,   // Machine's working rep count (0 for legacy)
+            up = notification.topCounter,               // For position calibration / legacy counting
             down = notification.completeCounter,        // For position calibration
             posA = currentPositions?.positionA ?: 0,
-            posB = currentPositions?.positionB ?: 0
+            posB = currentPositions?.positionB ?: 0,
+            isLegacyFormat = notification.isLegacyFormat  // Use Beta 4 counting if legacy packet
         )
         // Update rep ranges for position bars visualization
         _repRanges.value = repCounter.getRepRanges()
