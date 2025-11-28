@@ -42,9 +42,11 @@ fun CompactNumberPicker(
         }
     }
 
-    // Find current index
+    // Find current index - use closest value instead of exact match to handle
+    // floating point precision issues (e.g., 44.09 lbs from kg conversion)
     val currentIndex = remember(value, values) {
-        values.indexOfFirst { kotlin.math.abs(it - value) < 0.001f }.coerceAtLeast(0)
+        if (values.isEmpty()) 0
+        else values.indices.minByOrNull { kotlin.math.abs(values[it] - value) } ?: 0
     }
 
     Column(
