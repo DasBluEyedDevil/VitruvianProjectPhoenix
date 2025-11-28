@@ -712,15 +712,61 @@ class VitruvianBleManager(
     }
     
     /**
+     * Suspend function to read monitor characteristic and wait for completion.
+     *
+     * CRITICAL: This function WAITS for the BLE read to complete before returning.
+     * This prevents queue flooding that caused Android 16 Pixel disconnects.
+     *
+     * The official Vitruvian app uses Kotlin coroutines with suspend functions that
+     * naturally serialize BLE operations - each read waits for callback before next.
+     *
+     * @return true if read succeeded, false if failed or characteristic unavailable
+     */
+    private suspend fun readMonitorCharacteristicSuspend(): Boolean {
+        val char = monitorCharacteristic ?: return false
+
+        return suspendCancellableCoroutine { cont ->
+            var resumed = false
+            fun resumeOnce(result: Boolean) {
+                if (!resumed && cont.isActive) {
+                    resumed = true
+                    cont.resume(result)
+                }
+            }
+
+            try {
+                readCharacteristic(char)
+                    .with { _, data ->
+                        handleMonitorData(data)
+                        resumeOnce(true)
+                    }
+                    .fail { _, status ->
+                        Timber.w("⚠️ Monitor read failed (status: $status)")
+                        resumeOnce(false)
+                    }
+                    .enqueue()
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Exception enqueueing monitor read")
+                resumeOnce(false)
+            }
+        }
+    }
+
+    /**
      * Enable monitor data reception for workouts
      *
      * CRITICAL FIX (Android 16 Pixel disconnect issue):
-     * Monitor data now flows via BLE notifications (set up in initialize()) instead of
-     * readCharacteristic() polling. The old polling approach caused silent read failures
-     * on Pixel 7/Android 16, jamming the BLE queue and triggering 5-second supervision timeout.
+     * Uses SUSPEND-BASED SEQUENTIAL READS matching the official Vitruvian app approach.
      *
-     * Notifications are already enabled during connection via NOTIFY_CHAR_UUIDS.
-     * This method just sets up the handle detection state for workout tracking.
+     * OLD APPROACH (BROKEN on Android 16):
+     *   readCharacteristic().enqueue()  // Fire and forget!
+     *   delay(100)                       // Next read regardless of completion
+     *   → Floods BLE queue → supervision timeout → disconnect
+     *
+     * NEW APPROACH (matches official app):
+     *   val success = readMonitorCharacteristicSuspend()  // WAITS for completion
+     *   // Next read only after this one finishes
+     *   → Natural rate limiting → no queue flooding → stable connection
      *
      * @param forAutoStart If true, enables handle detection with WaitingForRest state (for Just Lift auto-start).
      *                     If false, skips handle state initialization (for active workout monitoring).
@@ -751,14 +797,14 @@ class VitruvianBleManager(
         // Cancel any existing polling job before starting new one
         monitorPollingJob?.cancel()
 
-        // Start polling the monitor characteristic at 100ms intervals
-        // NOTE: The device may not support notifications for the monitor characteristic,
-        // so we poll instead. If notifications are working, the notification callback will
-        // also process data, which is fine (duplicate processing is filtered by timestamp).
+        // Start sequential polling using suspend-based reads (official app approach)
+        // Each read WAITS for completion before starting the next one.
+        // This prevents BLE queue flooding that caused Android 16 disconnects.
         monitorPollingJob = pollingScope.launch {
-            Timber.i("📊 Starting monitor polling (100ms interval for handle detection)")
+            Timber.i("📊 Starting SEQUENTIAL monitor polling (suspend-based, matches official app)")
             var successfulReads = 0L
             var failedReads = 0L
+            var consecutiveFailures = 0
 
             while (isActive) {
                 try {
@@ -769,26 +815,34 @@ class VitruvianBleManager(
                         continue
                     }
 
-                    readCharacteristic(char)
-                        .with { _, data ->
-                            successfulReads++
-                            handleMonitorData(data)
-                            // Log periodically to show polling is working
-                            if (successfulReads % 100 == 0L) {
-                                Timber.d("📊 Monitor poll #$successfulReads (failed: $failedReads)")
-                            }
-                        }
-                        .fail { _, status ->
-                            failedReads++
-                            if (failedReads % 10 == 0L) {
-                                Timber.w("⚠️ Monitor read failed (status: $status, failures: $failedReads)")
-                            }
-                        }
-                        .enqueue()
+                    // CRITICAL: This SUSPENDS until the read completes (or fails)
+                    // No more fire-and-forget that floods the BLE queue!
+                    val success = readMonitorCharacteristicSuspend()
 
-                    delay(100) // Poll every 100ms for responsive handle detection
+                    if (success) {
+                        successfulReads++
+                        consecutiveFailures = 0
+                        // Log periodically to show polling is working
+                        if (successfulReads % 100 == 0L) {
+                            Timber.d("📊 Monitor poll #$successfulReads (failed: $failedReads)")
+                        }
+                    } else {
+                        failedReads++
+                        consecutiveFailures++
+                        if (consecutiveFailures % 10 == 0) {
+                            Timber.w("⚠️ $consecutiveFailures consecutive monitor read failures")
+                        }
+                        // Small delay on failure to avoid tight error loop
+                        delay(50)
+                    }
+
+                    // Natural rate limiting: next read only starts after this one completes
+                    // The actual polling rate depends on BLE response time (~10-20ms typically)
+                    // This matches official app behavior - no fixed timer, callback-driven
+
                 } catch (e: Exception) {
                     failedReads++
+                    consecutiveFailures++
                     Timber.e(e, "❌ Exception in monitor polling")
                     delay(100)
                 }
@@ -798,13 +852,52 @@ class VitruvianBleManager(
     }
     
     /**
+     * Suspend function to read diagnostic characteristic and wait for completion.
+     * Used for keep-alive and health monitoring.
+     *
+     * @return true if read succeeded, false if failed or characteristic unavailable
+     */
+    private suspend fun readDiagnosticCharacteristicSuspend(): Boolean {
+        val char = propertyCharacteristic ?: return false
+
+        return suspendCancellableCoroutine { cont ->
+            var resumed = false
+            fun resumeOnce(result: Boolean) {
+                if (!resumed && cont.isActive) {
+                    resumed = true
+                    cont.resume(result)
+                }
+            }
+
+            try {
+                readCharacteristic(char)
+                    .with { _, data ->
+                        val bytes = data.value
+                        if (bytes != null) {
+                            parseDiagnosticData(bytes)
+                        }
+                        resumeOnce(true)
+                    }
+                    .fail { _, status ->
+                        Timber.w("⚠️ Diagnostic read failed (status: $status)")
+                        resumeOnce(false)
+                    }
+                    .enqueue()
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Exception enqueueing diagnostic read")
+                resumeOnce(false)
+            }
+        }
+    }
+
+    /**
      * Start polling diagnostic characteristic every 500ms (keep-alive + health monitoring)
-     * Matches official app interval - Renamed from startPropertyPolling
+     * Matches official app interval - Uses suspend-based reads like official app
      */
     fun startDiagnosticPolling() {
         propertyPollingJob?.cancel()
         propertyPollingJob = pollingScope.launch {
-            Timber.d("🔄 Starting diagnostic polling (500ms interval - matches official app)")
+            Timber.d("🔄 Starting SEQUENTIAL diagnostic polling (500ms interval - matches official app)")
             var successfulReads = 0
             var failedReads = 0
 
@@ -817,21 +910,19 @@ class VitruvianBleManager(
                         continue
                     }
 
-                    readCharacteristic(char)
-                        .with { _, data ->
-                            successfulReads++
-                            val bytes = data.value
-                            if (bytes != null) {
-                                parseDiagnosticData(bytes)
-                            }
-                        }
-                        .fail { _, status ->
-                            failedReads++
-                            Timber.w("⚠️ Diagnostic read failed (status: $status)")
-                        }
-                        .enqueue()
+                    // CRITICAL: Suspend until read completes (matches official app)
+                    val success = readDiagnosticCharacteristicSuspend()
 
+                    if (success) {
+                        successfulReads++
+                    } else {
+                        failedReads++
+                    }
+
+                    // Diagnostic polling has a fixed interval for keep-alive purposes
+                    // But we still wait for completion before scheduling next read
                     delay(500) // Poll every 500ms (Official app interval - verified)
+
                 } catch (e: Exception) {
                     failedReads++
                     Timber.e(e, "❌ Exception in diagnostic polling")
@@ -918,27 +1009,66 @@ class VitruvianBleManager(
     }
 
     /**
+     * Suspend function to read heuristic characteristic and wait for completion.
+     *
+     * @return true if read succeeded, false if failed or characteristic unavailable
+     */
+    private suspend fun readHeuristicCharacteristicSuspend(): Boolean {
+        val char = heuristicCharacteristic ?: return false
+
+        return suspendCancellableCoroutine { cont ->
+            var resumed = false
+            fun resumeOnce(result: Boolean) {
+                if (!resumed && cont.isActive) {
+                    resumed = true
+                    cont.resume(result)
+                }
+            }
+
+            try {
+                readCharacteristic(char)
+                    .with { _, data ->
+                        Timber.v("Heuristic data received: ${data.value?.size ?: 0} bytes")
+                        // TODO: Parse heuristic data if needed for phase statistics
+                        resumeOnce(true)
+                    }
+                    .fail { _, status ->
+                        Timber.w("⚠️ Heuristic read failed (status: $status)")
+                        resumeOnce(false)
+                    }
+                    .enqueue()
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Exception enqueueing heuristic read")
+                resumeOnce(false)
+            }
+        }
+    }
+
+    /**
      * Start polling heuristic characteristic every 250ms (4Hz) - matching official app.
      * Provides phase statistics for concentric/eccentric analysis.
+     * Uses suspend-based reads to prevent BLE queue flooding.
      */
     fun startHeuristicPolling() {
         if (heuristicPollingJob?.isActive == true) return
 
         heuristicPollingJob = pollingScope.launch {
-            Timber.d("Starting heuristic polling (250ms interval / 4Hz - matching official app)")
+            Timber.d("Starting SEQUENTIAL heuristic polling (250ms interval / 4Hz - matching official app)")
             while (isActive) {
                 try {
-                    heuristicCharacteristic?.let { char ->
-                        readCharacteristic(char)
-                            .with { _, data ->
-                                Timber.v("Heuristic data received: ${data.value?.size ?: 0} bytes")
-                                // TODO: Parse heuristic data if needed for phase statistics
-                            }
-                            .enqueue()
+                    val char = heuristicCharacteristic
+                    if (char == null) {
+                        delay(250)
+                        continue
                     }
+
+                    // CRITICAL: Suspend until read completes (matches official app)
+                    readHeuristicCharacteristicSuspend()
+
                     delay(250) // Poll every 250ms (4Hz) - matching official app
                 } catch (e: Exception) {
                     Timber.e(e, "Error in heuristic polling")
+                    delay(250)
                 }
             }
         }
