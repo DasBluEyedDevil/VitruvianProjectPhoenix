@@ -90,6 +90,11 @@ class MainViewModel @Inject constructor(
     private val _currentMetric = MutableStateFlow<WorkoutMetric?>(null)
     val currentMetric: StateFlow<WorkoutMetric?> = _currentMetric.asStateFlow()
 
+    // Current heuristic force (kgMax per cable) for Echo mode live display
+    // This is the actual measured force from the device's force telemetry
+    private val _currentHeuristicKgMax = MutableStateFlow(0f)
+    val currentHeuristicKgMax: StateFlow<Float> = _currentHeuristicKgMax.asStateFlow()
+
     private val _workoutParameters = MutableStateFlow(
         WorkoutParameters(
             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
@@ -350,6 +355,8 @@ class MainViewModel @Inject constructor(
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
     private val collectedMetrics = mutableListOf<WorkoutMetric>()
+    // Track max heuristic force (kgMax) for Echo mode - this is the actual measured force
+    private var maxHeuristicKgMax: Float = 0f
 
     // Routine tracking (for grouping sets from the same routine)
     private var currentRoutineSessionId: String? = null
@@ -453,6 +460,29 @@ class MainViewModel @Inject constructor(
                 Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
                 _currentMetric.value = metric
                 handleMonitorMetric(metric)
+            }
+        }
+
+        // Collect heuristic data (force telemetry for Echo mode)
+        // Echo mode uses velocity-based resistance, and kgMax is the actual measured force
+        viewModelScope.launch {
+            bleRepository.heuristicData.collect { stats ->
+                if (stats != null && _workoutState.value is WorkoutState.Active) {
+                    // Track maximum force (kgMax) across both phases for Echo mode
+                    // kgMax is per-cable force in kg
+                    val concentricMax = stats.concentric.kgMax
+                    val eccentricMax = stats.eccentric.kgMax
+                    val currentMax = maxOf(concentricMax, eccentricMax)
+
+                    // Update live display value for Echo mode
+                    _currentHeuristicKgMax.value = currentMax
+
+                    // Track session maximum for history recording
+                    if (currentMax > maxHeuristicKgMax) {
+                        maxHeuristicKgMax = currentMax
+                        Timber.v("Echo force telemetry: kgMax=$currentMax (concentric=$concentricMax, eccentric=$eccentricMax)")
+                    }
+                }
             }
         }
 
@@ -1109,6 +1139,8 @@ class MainViewModel @Inject constructor(
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
+            maxHeuristicKgMax = 0f // Reset Echo mode force tracking (for history)
+            _currentHeuristicKgMax.value = 0f // Reset Echo mode live display
 
             // Countdown (optional) - Skip countdown for Just Lift mode or if explicitly requested
             if (!skipCountdown && !params.isJustLift) {
@@ -1870,8 +1902,15 @@ class MainViewModel @Inject constructor(
         val duration = System.currentTimeMillis() - workoutStartTime
 
         // Store per-cable weight for history/PRs.
-        // measuredPerCableKg is derived from device output (totalLoad / 2).
-        val measuredPerCableKg = if (collectedMetrics.isNotEmpty()) {
+        // For Echo mode: use heuristic data (kgMax) which is the actual measured force
+        // For other modes: use totalLoad / 2 from workout metrics
+        val isEchoMode = params.workoutType is WorkoutType.Echo
+        val measuredPerCableKg = if (isEchoMode && maxHeuristicKgMax > 0f) {
+            // Echo mode: kgMax from heuristic data is already per-cable force in kg
+            Timber.d("Echo mode: using heuristic kgMax=$maxHeuristicKgMax kg for measured weight")
+            maxHeuristicKgMax
+        } else if (collectedMetrics.isNotEmpty()) {
+            // Other modes: derive from device output (totalLoad / 2)
             collectedMetrics.maxOf { it.totalLoad } / 2f
         } else {
             params.weightPerCableKg // Fallback to configured if no metrics
@@ -1962,7 +2001,6 @@ class MainViewModel @Inject constructor(
         params.selectedExerciseId?.let { exerciseId ->
             // Only track PRs for completed working sets (not warmups, not just lift, not echo mode)
             // Echo mode is excluded because it uses adaptive weight (machine calculates)
-            val isEchoMode = params.workoutType is WorkoutType.Echo
             if (working > 0 && !params.isJustLift && !isEchoMode) {
                 val brokenPRs = workoutRepository.updatePersonalRecordsIfNeeded(
                     exerciseId = exerciseId,
