@@ -50,6 +50,7 @@ fun WorkoutTab(
     autoStopState: AutoStopUiState,
     weightUnit: WeightUnit,
     enableVideoPlayback: Boolean,
+    beepsEnabled: Boolean = true,
     exerciseRepository: ExerciseRepository,
     isWorkoutSetupDialogVisible: Boolean = false,
     hapticEvents: kotlinx.coroutines.flow.SharedFlow<HapticEvent>? = null,
@@ -76,7 +77,7 @@ fun WorkoutTab(
 ) {
     // Haptic feedback effect
     hapticEvents?.let {
-        HapticFeedbackEffect(hapticEvents = it)
+        HapticFeedbackEffect(hapticEvents = it, beepsEnabled = beepsEnabled)
     }
 
     // Gradient backgrounds (light and dark)

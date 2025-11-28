@@ -101,7 +101,7 @@ fun ActiveWorkoutScreen(
     }
 
     // Haptic and audio feedback effect
-    HapticFeedbackEffect(hapticEvents = hapticEvents)
+    HapticFeedbackEffect(hapticEvents = hapticEvents, beepsEnabled = userPreferences.beepsEnabled)
 
     // Watch for workout completion and navigate back
     // For Just Lift, navigate back when state becomes Idle (after auto-reset)
@@ -133,6 +133,7 @@ fun ActiveWorkoutScreen(
         autoStopState = autoStopState,
         weightUnit = weightUnit,
         enableVideoPlayback = enableVideoPlayback,
+        beepsEnabled = userPreferences.beepsEnabled,
         exerciseRepository = exerciseRepository,
         isWorkoutSetupDialogVisible = false,
         hapticEvents = hapticEvents,
