@@ -33,6 +33,10 @@ object BleConstants {
     // Purpose unclear but may be needed for proper device communication
     val UNKNOWN_AUTH_CHAR_UUID: UUID = UUID.fromString("36e6c2ee-21c7-404e-aa9b-f74ca4728ad4")
 
+    // NOTE: SAMPLE_CHAR_UUID is NOT in this list because it's a ReadableCharacteristic,
+    // NOT a NotifiableCharacteristic per official Vitruvian app analysis.
+    // Attempting to enable notifications on it can cause issues on some Android versions.
+    // Monitor data MUST be polled via readCharacteristic(), not notifications.
     val NOTIFY_CHAR_UUIDS = listOf(
         UPDATE_STATE_CHAR_UUID,
         VERSION_CHAR_UUID,
@@ -40,8 +44,7 @@ object BleConstants {
         REPS_CHAR_UUID,
         HEURISTIC_CHAR_UUID,
         BLE_UPDATE_REQUEST_CHAR_UUID,
-        UNKNOWN_AUTH_CHAR_UUID,  // Web apps subscribe to this
-        SAMPLE_CHAR_UUID  // Monitor data - use notifications instead of read polling (fixes Android 16 Pixel disconnect)
+        UNKNOWN_AUTH_CHAR_UUID  // Web apps subscribe to this
     )
 
     // Official app workout command characteristics (discovered from HCI logs)
