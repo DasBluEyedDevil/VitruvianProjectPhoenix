@@ -419,6 +419,9 @@ class BleRepositoryImpl @Inject constructor(
             connectingBleManager = newBleManager
 
             // Connect to device
+            // NOTE: Nordic BLE Library automatically uses TRANSPORT_LE on Android 6.0+ (API 23+)
+            // This matches the trainer which uses:
+            // connectGatt(context, false, callback, TRANSPORT_LE, PHY_LE_1M, handler)
             Timber.d("Initiating connection to device...")
             newBleManager.connect(device)
                 ?.timeout(BleConstants.CONNECTION_TIMEOUT_MS)
