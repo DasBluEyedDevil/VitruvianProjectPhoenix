@@ -256,6 +256,36 @@ class BleRepositoryImpl @Inject constructor(
             _connectionState.value = ConnectionState.Connecting
             Timber.d("Connection state set to Connecting")
 
+            // CRITICAL FIX: Close existing BLE manager before creating a new one
+            // This prevents dangling GATT connections that cause onServicesInvalidated loops
+            // on Pixel 7/Android 16 devices
+            bleManager?.let { oldManager ->
+                Timber.w("⚠️ Closing existing BLE manager before reconnection")
+                try {
+                    oldManager.stopPolling()
+                    oldManager.cleanup()
+                    oldManager.close()
+                    Timber.d("Old BLE manager closed successfully")
+                } catch (e: Exception) {
+                    Timber.w(e, "Error closing old BLE manager (continuing anyway)")
+                }
+                bleManager = null
+            }
+            connectingBleManager?.let { oldConnecting ->
+                if (oldConnecting !== bleManager) {
+                    Timber.w("⚠️ Closing connecting BLE manager")
+                    try {
+                        oldConnecting.close()
+                    } catch (e: Exception) {
+                        Timber.w(e, "Error closing connecting BLE manager")
+                    }
+                    connectingBleManager = null
+                }
+            }
+
+            // Small delay to let BLE stack settle after closing old connection
+            delay(100)
+
             // Create BLE manager and track it for potential cancellation
             val newBleManager = VitruvianBleManager(context, connectionLogger).apply {
                 setDeviceInfo(device.name, device.address)
