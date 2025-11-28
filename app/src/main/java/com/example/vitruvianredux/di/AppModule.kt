@@ -16,7 +16,7 @@ import com.example.vitruvianredux.data.ble.VitruvianBleManager
 import com.example.vitruvianredux.data.logger.ConnectionLogger
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
-import com.example.vitruvianredux.data.repository.BleRepositoryImpl
+import com.example.vitruvianredux.data.repository.KableBleRepositoryImpl
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepositoryImpl
@@ -741,17 +741,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideBleRepository(
-        impl: BleRepositoryImpl // Hilt will provide BleRepositoryImpl
+        impl: KableBleRepositoryImpl // Hilt will provide KableBleRepositoryImpl
     ): BleRepository = impl
-    
-    @Provides
-    @Singleton
-    fun provideVitruvianBleManager(
-        @ApplicationContext context: Context,
-        connectionLogger: ConnectionLogger
-    ): VitruvianBleManager {
-        return VitruvianBleManager(context, connectionLogger)
-    }
 
     @Provides
     @Singleton

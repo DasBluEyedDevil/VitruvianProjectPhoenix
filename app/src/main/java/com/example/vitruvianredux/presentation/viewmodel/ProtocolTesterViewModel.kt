@@ -121,14 +121,14 @@ class ProtocolTesterViewModel @Inject constructor(
                 // Use the existing BLE repository to scan
                 var deviceFound = false
                 val scanJob = launch {
-                    // scannedDevices emits individual ScanResult items
-                    bleRepository.scannedDevices.collect { scanResult ->
+                    // scannedDevices emits individual ScannedDevice items (domain model)
+                    bleRepository.scannedDevices.collect { scannedDevice ->
                         if (!deviceFound) {
                             deviceFound = true
-                            foundDevice = bluetoothAdapter.getRemoteDevice(scanResult.device.address)
+                            foundDevice = bluetoothAdapter.getRemoteDevice(scannedDevice.address)
                             @Suppress("MissingPermission")
-                            _currentDeviceName.value = scanResult.device.name ?: scanResult.device.address
-                            Timber.d("PROTOCOL_TESTER: Found device: ${scanResult.device.name}")
+                            _currentDeviceName.value = scannedDevice.name
+                            Timber.d("PROTOCOL_TESTER: Found device: ${scannedDevice.name}")
                         }
                     }
                 }
@@ -448,13 +448,13 @@ class ProtocolTesterViewModel @Inject constructor(
 
             var deviceFound = false
             val scanJob = viewModelScope.launch {
-                bleRepository.scannedDevices.collect { scanResult ->
+                bleRepository.scannedDevices.collect { scannedDevice ->
                     if (!deviceFound) {
                         deviceFound = true
-                        foundDevice = bluetoothAdapter.getRemoteDevice(scanResult.device.address)
+                        foundDevice = bluetoothAdapter.getRemoteDevice(scannedDevice.address)
                         @Suppress("MissingPermission")
-                        _currentDeviceName.value = scanResult.device.name ?: scanResult.device.address
-                        Timber.d("EXERCISE_CYCLE: Found device: ${scanResult.device.name}")
+                        _currentDeviceName.value = scannedDevice.name
+                        Timber.d("EXERCISE_CYCLE: Found device: ${scannedDevice.name}")
                     }
                 }
             }

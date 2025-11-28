@@ -4,6 +4,7 @@ import com.juul.kable.Advertisement
 import kotlin.uuid.ExperimentalUuidApi
 import com.juul.kable.Characteristic
 import com.juul.kable.Peripheral
+import com.juul.kable.Priority
 import com.juul.kable.State
 import com.juul.kable.WriteType
 import com.juul.kable.characteristicOf
@@ -196,6 +197,20 @@ class KableVitruvianPeripheral(
         // Kable 0.40.0 handles MTU negotiation automatically
         // Return the target MTU to satisfy the interface
         TARGET_MTU
+    }
+
+    /**
+     * Request connection priority.
+     * @param priority 0=Balanced, 1=High, 2=LowPower
+     */
+    suspend fun requestConnectionPriority(priority: Int): Result<Unit> = runCatching {
+        val kablePriority = when (priority) {
+            1 -> Priority.High
+            2 -> Priority.LowPower
+            else -> Priority.Balanced
+        }
+        Timber.tag(TAG).d("Requesting connection priority: $kablePriority")
+        peripheral.requestConnectionPriority(kablePriority)
     }
 
     override fun isConnected(): Boolean {

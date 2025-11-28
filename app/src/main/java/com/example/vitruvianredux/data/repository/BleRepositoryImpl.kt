@@ -1,6 +1,5 @@
 package com.example.vitruvianredux.data.repository
 
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
@@ -9,6 +8,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import com.example.vitruvianredux.data.ble.VitruvianBleManager
 import com.example.vitruvianredux.domain.model.ConnectionState
+import com.example.vitruvianredux.domain.model.ScannedDevice
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.domain.model.WorkoutParameters
 import com.example.vitruvianredux.util.BleConstants
@@ -39,7 +39,7 @@ interface BleRepository {
     val connectionState: StateFlow<ConnectionState>
     val monitorData: Flow<WorkoutMetric>
     val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
-    val scannedDevices: Flow<ScanResult>
+    val scannedDevices: Flow<ScannedDevice>
     val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
 
     suspend fun startScanning(): Result<Unit>
@@ -107,8 +107,8 @@ class BleRepositoryImpl @Inject constructor(
     )
     override val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification> = _repEvents.asSharedFlow()
 
-    private val _scannedDevices = MutableSharedFlow<ScanResult>(replay = 10)
-    override val scannedDevices: Flow<ScanResult> = _scannedDevices.asSharedFlow()
+    private val _scannedDevices = MutableSharedFlow<ScannedDevice>(replay = 10)
+    override val scannedDevices: Flow<ScannedDevice> = _scannedDevices.asSharedFlow()
 
     private val _handleState = MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
     override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
@@ -211,7 +211,15 @@ class BleRepositoryImpl @Inject constructor(
             if (deviceName.startsWith(BleConstants.DEVICE_NAME_PREFIX)) {
                 connectionLogger.logDeviceFound(deviceName, deviceAddress)
                 Timber.d("Device matches filter, adding to list")
-                val emitted = _scannedDevices.tryEmit(result)
+
+                // Convert Android ScanResult to domain ScannedDevice
+                val scannedDevice = ScannedDevice(
+                    name = deviceName,
+                    address = deviceAddress,
+                    rssi = result.rssi
+                )
+
+                val emitted = _scannedDevices.tryEmit(scannedDevice)
                 Timber.d("tryEmit result: $emitted (subscribers: ${_scannedDevices.subscriptionCount.value})")
             }
         }
@@ -825,4 +833,3 @@ class BleRepositoryImpl @Inject constructor(
         }
     }
 }
-

@@ -316,3 +316,11 @@ data class PRCelebrationEvent(
     val isBothPRs: Boolean get() = brokenPRTypes.size == 2
 }
 
+/**
+ * Scanned device data class for UI
+ */
+data class ScannedDevice(
+    val name: String,
+    val address: String,
+    val rssi: Int = 0
+)

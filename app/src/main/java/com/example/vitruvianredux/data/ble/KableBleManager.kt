@@ -4,11 +4,11 @@ import com.example.vitruvianredux.domain.model.DiagnosticDetails
 import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
 import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.domain.model.WorkoutMetric
+import com.example.vitruvianredux.util.WorkoutConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -22,9 +22,12 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * Kable-based BLE Manager for Vitruvian Trainer.
@@ -39,7 +42,7 @@ class KableBleManager {
         private const val DIAGNOSTIC_POLL_INTERVAL_MS = 500L
         private const val HEURISTIC_POLL_INTERVAL_MS = 250L
         private const val HEARTBEAT_INTERVAL_MS = 2000L
-        private const val HEARTBEAT_NO_OP = 0x00.toByte()
+        private val HEARTBEAT_NO_OP = byteArrayOf(0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte())
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -57,10 +60,10 @@ class KableBleManager {
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
 
-    // Monitor data (64-entry buffer for workout metrics)
+    // Monitor data (64-entry buffer for high-frequency emissions)
     private val _monitorData = MutableSharedFlow<WorkoutMetric>(
         replay = 0,
-        extraBufferCapacity = 64,
+        extraBufferCapacity = 64, // Buffer up to 64 emissions (640ms of data)
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val monitorData: SharedFlow<WorkoutMetric> = _monitorData.asSharedFlow()
@@ -68,7 +71,7 @@ class KableBleManager {
     // Rep events
     private val _repEvents = MutableSharedFlow<RepNotification>(
         replay = 0,
-        extraBufferCapacity = 64,
+        extraBufferCapacity = 64,  // Buffer for rep notifications
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val repEvents: SharedFlow<RepNotification> = _repEvents.asSharedFlow()
@@ -84,6 +87,60 @@ class KableBleManager {
     // Handle state
     private val _handleState = MutableStateFlow(HandleState.Released)
     val handleState: StateFlow<HandleState> = _handleState.asStateFlow()
+
+    // Deload event flow - emitted when DELOAD_OCCURRED flag is detected
+    private val _deloadOccurredEvents = MutableSharedFlow<Unit>(
+        replay = 0,
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val deloadOccurredEvents: SharedFlow<Unit> = _deloadOccurredEvents.asSharedFlow()
+
+    // Reconnection request flow - emitted when Kable detects an issue
+    // This allows the repository to handle reconnection logic
+    private val _reconnectionRequested = MutableSharedFlow<ReconnectionRequest>(
+        replay = 0,
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val reconnectionRequested: SharedFlow<ReconnectionRequest> = _reconnectionRequested.asSharedFlow()
+
+    // Debounce for deload events
+    private var lastDeloadEventTime = 0L
+    private val DELOAD_EVENT_DEBOUNCE_MS = 2000L
+
+    // Counter for monitor notifications
+    @Volatile private var monitorNotificationCount = 0L
+
+    // Command response flow
+    private val _commandResponses = MutableSharedFlow<UByte>(
+        replay = 0,
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
+    // Just Lift detection parameters - v0.5.1-beta values (PROVEN WORKING)
+    private val HANDLE_GRABBED_THRESHOLD = 8.0   // Position > 8.0 = handles grabbed
+    private val HANDLE_REST_THRESHOLD = 5.0      // Position < 5.0 = handles at rest
+    private val VELOCITY_THRESHOLD = 100.0       // Velocity > 100 units/s = significant movement
+
+    // Last good positions for filtering spikes (volatile for thread safety)
+    @Volatile private var lastGoodPosA = 0
+    @Volatile private var lastGoodPosB = 0
+
+    // Position tracking for validation and velocity (volatile for thread safety)
+    @Volatile private var lastPositionA = 0
+    @Volatile private var lastPositionB = 0
+    @Volatile private var lastTimestamp = 0L
+    @Volatile private var strictValidationEnabled = false
+
+    // Track position range for tuning (logged at workout end)
+    private var minPositionSeen = Double.MAX_VALUE
+    private var maxPositionSeen = Double.MIN_VALUE
+
+    // Force-based grab/release timing
+    private var forceAboveGrabThresholdStart: Long? = null
+    private var forceBelowReleaseThresholdStart: Long? = null
 
     /**
      * Connect to a discovered device.
@@ -104,7 +161,7 @@ class KableBleManager {
             .onEach { state ->
                 _connectionState.value = when (state) {
                     is BleConnectionState.Disconnected -> ConnectionStatus.Disconnected
-                    is BleConnectionState.Connecting -> ConnectionStatus.Disconnected // No "connecting" in ConnectionStatus
+                    is BleConnectionState.Connecting -> ConnectionStatus.Disconnected // Kable uses connecting states, but we map to Disconnected until Ready
                     is BleConnectionState.Connected -> ConnectionStatus.Ready
                     is BleConnectionState.Disconnecting -> ConnectionStatus.Disconnected
                     is BleConnectionState.Error -> ConnectionStatus.Error(state.message)
@@ -116,10 +173,16 @@ class KableBleManager {
         val result = newPeripheral.connect()
 
         if (result.isSuccess) {
+            // Request high connection priority for stability (matching VitruvianBleManager)
+            newPeripheral.requestConnectionPriority(1) // HIGH = 1 (SCAN_BALANCED=0, LOW_POWER=2)
+
+            // Kable handles MTU negotiation automatically
+
             // Start observing data streams
             startDataObservation(newPeripheral)
-            // Start polling jobs
-            startPolling()
+            // Start polling jobs (Diagnostic & Heuristic)
+            startDiagnosticPolling()
+            startHeuristicPolling()
             // Start heartbeat
             startHeartbeat()
         }
@@ -131,9 +194,11 @@ class KableBleManager {
         // Observe monitor data
         peripheral.monitorData
             .onEach { bytes ->
-                parseMonitorData(bytes)?.let { metric ->
-                    _monitorData.emit(metric)
+                // Log at INFO level initially to verify notifications are working
+                if (monitorNotificationCount++ % 100 == 0L) {
+                     Timber.tag(TAG).i("📊 MONITOR NOTIFICATION #$monitorNotificationCount (${bytes.size} bytes)")
                 }
+                handleMonitorData(bytes)
             }
             .catch { e -> Timber.tag(TAG).e(e, "Monitor data error") }
             .launchIn(scope)
@@ -141,34 +206,39 @@ class KableBleManager {
         // Observe rep notifications
         peripheral.repNotifications
             .onEach { bytes ->
-                parseRepData(bytes)?.let { rep ->
-                    _repEvents.emit(rep)
-                }
+                Timber.tag(TAG).d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${bytes.size} bytes")
+                handleRepNotification(bytes)
             }
             .catch { e -> Timber.tag(TAG).e(e, "Rep notification error") }
             .launchIn(scope)
     }
 
-    private fun startPolling() {
-        // Diagnostic polling (500ms - matches official app)
+    /**
+     * Start polling diagnostic characteristic (keep-alive + health monitoring)
+     */
+    fun startDiagnosticPolling() {
+        diagnosticPollingJob?.cancel()
         diagnosticPollingJob = scope.launch {
+            Timber.tag(TAG).d("🔄 Starting diagnostic polling (500ms interval - matches official app)")
             while (isActive) {
                 peripheral?.readDiagnostic()?.onSuccess { bytes ->
-                    parseDiagnosticData(bytes)?.let { diagnostic ->
-                        _diagnosticData.value = diagnostic
-                    }
+                    parseDiagnosticData(bytes)
                 }
                 delay(DIAGNOSTIC_POLL_INTERVAL_MS)
             }
         }
+    }
 
-        // Heuristic polling (250ms / 4Hz - matches official app)
+    /**
+     * Start polling heuristic characteristic
+     */
+    fun startHeuristicPolling() {
+        heuristicPollingJob?.cancel()
         heuristicPollingJob = scope.launch {
+            Timber.tag(TAG).d("Starting heuristic polling (250ms interval / 4Hz - matching official app)")
             while (isActive) {
                 peripheral?.readHeuristic()?.onSuccess { bytes ->
-                    parseHeuristicData(bytes)?.let { heuristic ->
-                        _heuristicData.value = heuristic
-                    }
+                    parseHeuristicData(bytes)
                 }
                 delay(HEURISTIC_POLL_INTERVAL_MS)
             }
@@ -176,17 +246,63 @@ class KableBleManager {
     }
 
     private fun startHeartbeat() {
+        heartbeatJob?.cancel()
         heartbeatJob = scope.launch {
+            Timber.tag(TAG).d("Starting BLE heartbeat (interval=${HEARTBEAT_INTERVAL_MS}ms)")
             while (isActive) {
+                // Heartbeat logic from VitruvianBleManager: attempt RX read, fall back to benign no-op write.
+                // Kable doesn't support reading from NUS RX (it's write-only usually, but Nordic allowed trying).
+                // If the characteristic properties don't support read, Kable will fail.
+                // For now, we'll stick to the write heartbeat which is the fallback.
+
                 delay(HEARTBEAT_INTERVAL_MS)
+
                 // Send no-op heartbeat to keep connection alive
-                peripheral?.sendCommand(byteArrayOf(HEARTBEAT_NO_OP, 0x00, 0x00, 0x00))
+                peripheral?.sendCommand(HEARTBEAT_NO_OP)
+                    ?.onFailure { e -> Timber.tag(TAG).w("Heartbeat no-op write failed: ${e.message}") }
             }
         }
     }
 
+    /**
+     * Enable monitor data reception/handle detection for workouts.
+     * Note: Monitor data flows via notifications observed in connect().
+     * This method resets state and configured handle detection mode.
+     */
+    fun startMonitorPolling(forAutoStart: Boolean = false) {
+        // Reset position tracking for new workout
+        minPositionSeen = Double.MAX_VALUE
+        maxPositionSeen = Double.MIN_VALUE
+
+        // Reset notification counter for this workout session
+        val previousCount = monitorNotificationCount
+        monitorNotificationCount = 0L
+        Timber.tag(TAG).i("📊 Monitor notifications reset (previous session: $previousCount notifications)")
+
+        if (forAutoStart) {
+            // Start in WaitingForRest state
+            _handleState.value = HandleState.WaitingForRest
+            forceAboveGrabThresholdStart = null
+            forceBelowReleaseThresholdStart = null
+            Timber.tag(TAG).d("Monitor data enabled for AUTO-START - waiting for handles at rest (pos < ${HANDLE_REST_THRESHOLD})")
+        } else {
+            // Active workout - set to Grabbed since workout is already running
+            _handleState.value = HandleState.Grabbed
+            Timber.tag(TAG).d("Monitor data enabled for ACTIVE WORKOUT")
+        }
+    }
+
     private fun stopPolling() {
-        Timber.tag(TAG).d("Stopping polling jobs...")
+        val timestamp = System.currentTimeMillis()
+        Timber.tag(TAG).d("STOP_DEBUG: [$timestamp] stopPolling() called")
+
+        // Log analysis from workout
+        if (minPositionSeen != Double.MAX_VALUE && maxPositionSeen != Double.MIN_VALUE) {
+            Timber.tag(TAG).i("========== WORKOUT ANALYSIS ==========")
+            Timber.tag(TAG).i("Position range: min=$minPositionSeen, max=$maxPositionSeen")
+            Timber.tag(TAG).i("======================================")
+        }
+
         diagnosticPollingJob?.cancel()
         heuristicPollingJob?.cancel()
         heartbeatJob?.cancel()
@@ -196,11 +312,95 @@ class KableBleManager {
     }
 
     /**
+     * Enable Just Lift waiting mode.
+     */
+    fun enableJustLiftWaitingMode() {
+        Timber.tag(TAG).i("Enabling Just Lift waiting mode")
+        // Reset position tracking
+        minPositionSeen = Double.MAX_VALUE
+        maxPositionSeen = Double.MIN_VALUE
+        // Reset grab/release timers
+        forceAboveGrabThresholdStart = null
+        forceBelowReleaseThresholdStart = null
+        // Start in WaitingForRest state
+        _handleState.value = HandleState.WaitingForRest
+    }
+
+    /**
+     * Enable or disable strict validation mode.
+     */
+    fun setStrictValidationEnabled(enabled: Boolean) {
+        strictValidationEnabled = enabled
+        Timber.tag(TAG).d("Strict validation enabled: $enabled")
+    }
+
+    /**
      * Send a command to the device.
      */
     suspend fun sendCommand(data: ByteArray): Result<Unit> {
         val p = peripheral ?: return Result.failure(Exception("Not connected"))
+
+        // Log detailed hex dump for debugging (matching VitruvianBleManager)
+        Timber.tag(TAG).d("STOP_DEBUG: Command size: ${data.size} bytes")
+        Timber.tag(TAG).d("STOP_DEBUG: Hex string: ${data.joinToString(" ") { "%02X".format(it) }}")
+
         return p.sendCommand(data)
+    }
+
+    /**
+     * Test PROGRAM frame on all workout characteristics
+     */
+    suspend fun testOfficialAppProtocol(): Result<Unit> = withContext(Dispatchers.Main) {
+        // Since we are using Kable, we need to adapt this logic.
+        // VitruvianBleManager iterates over WORKOUT_CMD_CHAR_UUIDS and writes to each.
+        // We will need to implement a way to write to arbitrary UUIDs in KableVitruvianPeripheral
+        // or add a method to test these.
+        // For strict 1:1 migration, I will implement the logic here, assuming peripheral can write to arbitrary chars.
+
+        try {
+            val p = peripheral ?: return@withContext Result.failure(Exception("Not connected"))
+
+            Timber.tag(TAG).d("=== TESTING PROGRAM FRAME ON ALL CHARACTERISTICS ===")
+            val workoutCmdUuids = com.example.vitruvianredux.util.BleConstants.WORKOUT_CMD_CHAR_UUIDS
+            Timber.tag(TAG).d("Found ${workoutCmdUuids.size} workout command characteristics to test")
+
+            if (workoutCmdUuids.isEmpty()) {
+                Timber.tag(TAG).e("No workout command characteristics found!")
+                return@withContext Result.failure(Exception("No workout command characteristics available"))
+            }
+
+            // Build PROGRAM frame
+            val programFrame = com.example.vitruvianredux.util.ProtocolBuilder.buildProgramParams(
+                com.example.vitruvianredux.domain.model.WorkoutParameters(
+                    workoutType = com.example.vitruvianredux.domain.model.WorkoutType.Program(
+                        com.example.vitruvianredux.domain.model.ProgramMode.OldSchool
+                    ),
+                    weightPerCableKg = 20f,
+                    reps = 5
+                )
+            )
+
+            workoutCmdUuids.forEachIndexed { index, uuid ->
+                Timber.tag(TAG).d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Timber.tag(TAG).d("Testing characteristic ${index + 1}/${workoutCmdUuids.size}")
+                Timber.tag(TAG).d("UUID: $uuid")
+
+                // Kable write
+                p.write(uuid, programFrame)
+                    .onSuccess {
+                        Timber.tag(TAG).d("✓ PROGRAM frame sent to $uuid")
+                    }
+                    .onFailure {
+                        Timber.tag(TAG).w("Failed to write to $uuid: ${it.message}")
+                    }
+
+                delay(10000)
+            }
+             Result.success(Unit)
+        } catch (e: Exception) {
+             Timber.tag(TAG).e(e, "Failed to test PROGRAM frame")
+             Result.failure(e)
+        }
     }
 
     /**
@@ -231,42 +431,119 @@ class KableBleManager {
      */
     fun isConnected(): Boolean = peripheral?.isConnected() == true
 
-    // ==================== Data Parsing ====================
+    // ==================== Data Parsing & Logic ====================
 
     /**
-     * Parse monitor data (16+ bytes).
-     * Format (from VitruvianBleManager):
-     * - u16[0-1]: ticks (low 16 bits)
-     * - u16[2]: ticks (high 16 bits)
-     * - u16[4]: positionA
-     * - u16[8]: loadA * 100
-     * - u16[10]: positionB
-     * - u16[14]: loadB * 100
-     * - u16[16-17]: status flags (optional)
+     * Validate a monitor sample.
      */
-    private fun parseMonitorData(bytes: ByteArray): WorkoutMetric? {
-        if (bytes.size < 16) {
-            Timber.tag(TAG).w("Monitor data too short: ${bytes.size} bytes")
-            return null
+    private fun validateSample(posA: Int, loadA: Float, posB: Int, loadB: Float): Boolean {
+        // Official app range: -1000 to +1000 mm
+        if ((posA < WorkoutConstants.MIN_POSITION || posA > WorkoutConstants.MAX_POSITION) ||
+            (posB < WorkoutConstants.MIN_POSITION || posB > WorkoutConstants.MAX_POSITION)) {
+            Timber.tag(TAG).w("Position out of range: posA=$posA, posB=$posB (valid: ${WorkoutConstants.MIN_POSITION} to ${WorkoutConstants.MAX_POSITION})")
+            return false
         }
 
-        return try {
+        // Strict validation checks position jumps (when enabled)
+        if (strictValidationEnabled) {
+            val deltaA = kotlin.math.abs(posA - lastPositionA)
+            val deltaB = kotlin.math.abs(posB - lastPositionB)
+            if (deltaA > 200 || deltaB > 200) {
+                Timber.tag(TAG).w("Position jump detected: deltaA=$deltaA, deltaB=$deltaB")
+                return false
+            }
+        }
+
+        return true
+    }
+
+    /**
+     * Analyze handle state using v0.5.1-beta POSITION+VELOCITY detection.
+     */
+    private fun analyzeHandleState(metric: WorkoutMetric): HandleState {
+        val posA = metric.positionA.toDouble()
+        val posB = metric.positionB.toDouble()
+        val velocityA = metric.velocityA
+        val velocityB = metric.velocityB
+
+        // Track position range for post-workout tuning (use max of both handles)
+        minPositionSeen = min(minPositionSeen, min(posA, posB))
+        maxPositionSeen = max(maxPositionSeen, max(posA, posB))
+
+        val currentState = _handleState.value
+
+        // Check both handles - support single-handle exercises
+        val handleAGrabbed = posA > HANDLE_GRABBED_THRESHOLD
+        val handleBGrabbed = posB > HANDLE_GRABBED_THRESHOLD
+        val handleAMoving = velocityA > VELOCITY_THRESHOLD
+        val handleBMoving = velocityB > VELOCITY_THRESHOLD
+
+        // Simple hysteresis with velocity check
+        return when (currentState) {
+            HandleState.WaitingForRest -> {
+                // Must see handles at rest before arming grab detection
+                if (posA < HANDLE_REST_THRESHOLD && posB < HANDLE_REST_THRESHOLD) {
+                    Timber.tag(TAG).d("Handles at REST (posA=$posA, posB=$posB < $HANDLE_REST_THRESHOLD) - auto-start now ARMED")
+                    HandleState.Released
+                } else {
+                    HandleState.WaitingForRest
+                }
+            }
+            HandleState.Released, HandleState.Moving -> {
+                // Check if EITHER handle is grabbed and moving
+                val aActive = handleAGrabbed && handleAMoving
+                val bActive = handleBGrabbed && handleBMoving
+
+                if (aActive || bActive) {
+                    HandleState.Grabbed
+                } else if (handleAGrabbed || handleBGrabbed) {
+                    HandleState.Moving
+                } else {
+                    HandleState.Released
+                }
+            }
+
+            HandleState.Grabbed -> {
+                // Consider released only if BOTH handles are at rest
+                val aReleased = posA < HANDLE_REST_THRESHOLD
+                val bReleased = posB < HANDLE_REST_THRESHOLD
+
+                if (aReleased && bReleased) {
+                    HandleState.Released
+                } else {
+                    HandleState.Grabbed
+                }
+            }
+        }
+    }
+
+    private fun handleMonitorData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 16) {
+                Timber.tag(TAG).w("Monitor data too short: ${bytes.size} bytes")
+                return
+            }
+
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
-            // Parse according to VitruvianBleManager format
-            val f0 = buffer.getShort(0).toInt() and 0xFFFF      // Offset 0-1
-            val f1 = buffer.getShort(2).toInt() and 0xFFFF      // Offset 2-3
-            val f2 = buffer.getShort(4).toInt() and 0xFFFF      // Offset 4-5 (posA)
-            val f4 = buffer.getShort(8).toInt() and 0xFFFF      // Offset 8-9 (loadA*100)
-            val f5 = buffer.getShort(10).toInt() and 0xFFFF     // Offset 10-11 (posB)
-            val f7 = buffer.getShort(14).toInt() and 0xFFFF     // Offset 14-15 (loadB*100)
+            // v0.5.1-beta parsing
+            val f0 = buffer.getShort(0).toInt() and 0xFFFF
+            val f1 = buffer.getShort(2).toInt() and 0xFFFF
+            val f2 = buffer.getShort(4).toInt() and 0xFFFF      // posA
+            val f4 = buffer.getShort(8).toInt() and 0xFFFF      // loadA*100
+            val f5 = buffer.getShort(10).toInt() and 0xFFFF     // posB
+            val f7 = buffer.getShort(14).toInt() and 0xFFFF     // loadB*100
 
             // Reconstruct 32-bit tick counter
             val ticks = f0 + (f1 shl 16)
 
             // Position values
-            val positionA = f2
-            val positionB = f5
+            var positionA = f2
+            var positionB = f5
+
+            // Spike filtering - BLE transmission errors produce values > 50000
+            if (positionA > WorkoutConstants.POSITION_SPIKE_THRESHOLD) positionA = lastGoodPosA else lastGoodPosA = positionA
+            if (positionB > WorkoutConstants.POSITION_SPIKE_THRESHOLD) positionB = lastGoodPosB else lastGoodPosB = positionB
 
             // Load in kg (device sends kg * 100)
             val loadA = f4 / 100.0f
@@ -278,42 +555,84 @@ class KableBleManager {
                 status = buffer.getShort(16).toInt() and 0xFFFF
             }
 
-            WorkoutMetric(
-                timestamp = System.currentTimeMillis(),
+            // Status flags logic
+            if (status != 0) {
+                val isDeloadOccurred = (status and 0x8000) != 0
+
+                if (isDeloadOccurred) {
+                    // Emit deload event so repository can send STOP to clear fault state
+                    val now = System.currentTimeMillis()
+                    if (now - lastDeloadEventTime > DELOAD_EVENT_DEBOUNCE_MS) {
+                        lastDeloadEventTime = now
+                        scope.launch {
+                            Timber.tag(TAG).d("DELOAD_OCCURRED: Emitting event for repository to send STOP")
+                            _deloadOccurredEvents.emit(Unit)
+                        }
+                    }
+                }
+            }
+
+            // Validate sample
+            if (!validateSample(positionA, loadA, positionB, loadB)) {
+                return
+            }
+
+            // Update last good positions
+            lastGoodPosA = positionA
+            lastGoodPosB = positionB
+
+            // Calculate velocity
+            val currentTime = System.currentTimeMillis()
+            val velocityA = if (lastTimestamp > 0L) {
+                val deltaTime = (currentTime - lastTimestamp) / 1000.0
+                val deltaPos = positionA - lastPositionA
+                if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
+            } else 0.0
+
+            val velocityB = if (lastTimestamp > 0L) {
+                val deltaTime = (currentTime - lastTimestamp) / 1000.0
+                val deltaPos = positionB - lastPositionB
+                if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
+            } else 0.0
+
+            lastPositionA = positionA
+            lastPositionB = positionB
+            lastTimestamp = currentTime
+
+            val metric = WorkoutMetric(
+                timestamp = currentTime,
                 loadA = loadA,
                 loadB = loadB,
                 positionA = positionA,
                 positionB = positionB,
                 ticks = ticks,
-                velocityA = 0.0,  // Calculated by repository/ViewModel if needed
-                velocityB = 0.0,
+                velocityA = velocityA,
+                velocityB = velocityB,
                 status = status
             )
+
+            // Emit to flow
+            _monitorData.tryEmit(metric)
+
+            // Analyze handle state
+            val newHandleState = analyzeHandleState(metric)
+            if (newHandleState != _handleState.value) {
+                _handleState.value = newHandleState
+                Timber.tag(TAG).d("Handle state changed: $newHandleState")
+            }
+
         } catch (e: Exception) {
-            Timber.tag(TAG).w(e, "Failed to parse monitor data")
-            null
+            Timber.tag(TAG).e(e, "Error parsing monitor data")
         }
     }
 
-    /**
-     * Parse rep notification (24 bytes).
-     * Official App Reps Packet Structure:
-     * - Bytes 0-3:   up (Int/u32) - up counter (concentric completions)
-     * - Bytes 4-7:   down (Int/u32) - down counter (eccentric completions)
-     * - Bytes 8-11:  rangeTop (Float) - maximum ROM boundary
-     * - Bytes 12-15: rangeBottom (Float) - minimum ROM boundary
-     * - Bytes 16-17: repsRomCount (Short/u16) - Warmup reps with proper ROM
-     * - Bytes 18-19: repsRomTotal (Short/u16) - Total reps regardless of ROM
-     * - Bytes 20-21: repsSetCount (Short/u16) - Working set rep count
-     * - Bytes 22-23: repsSetTotal (Short/u16) - Total reps in set
-     */
-    private fun parseRepData(bytes: ByteArray): RepNotification? {
-        if (bytes.size < 24) {
-            Timber.tag(TAG).w("Rep notification too short: ${bytes.size} bytes (expected 24)")
-            return null
-        }
+    private fun handleRepNotification(bytes: ByteArray) {
+        try {
+            if (bytes.size < 24) {
+                Timber.tag(TAG).w("Rep notification too short: ${bytes.size} bytes (expected 24)")
+                return
+            }
 
-        return try {
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
             // u32 counters at offsets 0 and 4
@@ -324,45 +643,34 @@ class KableBleManager {
             val rangeTop = buffer.getFloat(8)
             val rangeBottom = buffer.getFloat(12)
 
-            // u16 rep counts at offsets 16, 18, 20, 22
-            val repsRomCount = buffer.getShort(16).toInt() and 0xFFFF   // Warmup reps (proper ROM)
-            val repsRomTotal = buffer.getShort(18).toInt() and 0xFFFF  // Total reps (any ROM)
-            val repsSetCount = buffer.getShort(20).toInt() and 0xFFFF  // Working set reps
-            val repsSetTotal = buffer.getShort(22).toInt() and 0xFFFF  // Total set reps
+            // u16 rep counts
+            val repsRomCount = buffer.getShort(16).toInt() and 0xFFFF
+            val repsRomTotal = buffer.getShort(18).toInt() and 0xFFFF
+            val repsSetCount = buffer.getShort(20).toInt() and 0xFFFF
+            val repsSetTotal = buffer.getShort(22).toInt() and 0xFFFF
 
-            Timber.tag(TAG).d("Rep notification: up=$upCounter, down=$downCounter, " +
-                    "repsRomCount=$repsRomCount, repsSetCount=$repsSetCount")
-
-            RepNotification(
-                topCounter = upCounter,          // Use full u32 up counter
-                completeCounter = downCounter,   // Use full u32 down counter
-                repsRomCount = repsRomCount,     // Warmup reps (proper ROM)
-                repsSetCount = repsSetCount,     // Working set reps
+            val repData = RepNotification(
+                topCounter = upCounter,
+                completeCounter = downCounter,
+                repsRomCount = repsRomCount,
+                repsSetCount = repsSetCount,
                 rangeTop = rangeTop,
                 rangeBottom = rangeBottom,
                 rawData = bytes,
                 timestamp = System.currentTimeMillis()
             )
+
+            _repEvents.tryEmit(repData)
+
         } catch (e: Exception) {
-            Timber.tag(TAG).w(e, "Failed to parse rep data")
-            null
+            Timber.tag(TAG).e(e, "Error parsing rep notification")
         }
     }
 
-    /**
-     * Parse diagnostic data (20+ bytes).
-     * Format (from VitruvianBleManager):
-     * - Int (4 bytes): seconds
-     * - Short[4] (8 bytes): faults
-     * - Byte[8] (8 bytes): temps
-     */
-    private fun parseDiagnosticData(bytes: ByteArray): DiagnosticDetails? {
-        if (bytes.size < 20) {
-            Timber.tag(TAG).w("Diagnostic data too short: ${bytes.size} bytes")
-            return null
-        }
+    private fun parseDiagnosticData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 20) return
 
-        return try {
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
             val seconds = buffer.getInt()
 
@@ -374,7 +682,7 @@ class KableBleManager {
 
             val containsFaults = faults.any { it != 0.toShort() }
 
-            DiagnosticDetails(
+            _diagnosticData.value = DiagnosticDetails(
                 seconds = seconds,
                 faults = faults,
                 temps = temps,
@@ -382,27 +690,17 @@ class KableBleManager {
                 timestamp = System.currentTimeMillis()
             )
         } catch (e: Exception) {
-            Timber.tag(TAG).w(e, "Failed to parse diagnostic data")
-            null
+            Timber.tag(TAG).e(e, "Failed to parse diagnostic data")
         }
     }
 
-    /**
-     * Parse heuristic data (48 bytes).
-     * Format (from VitruvianBleManager):
-     * - Concentric phase (6 floats = 24 bytes): kgAvg, kgMax, velAvg, velMax, wattAvg, wattMax
-     * - Eccentric phase (6 floats = 24 bytes): kgAvg, kgMax, velAvg, velMax, wattAvg, wattMax
-     */
-    private fun parseHeuristicData(bytes: ByteArray): HeuristicStatistics? {
-        if (bytes.size < 48) {
-            Timber.tag(TAG).w("Heuristic data too short: ${bytes.size} bytes")
-            return null
-        }
+    private fun parseHeuristicData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 48) return
 
-        return try {
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
-            // Concentric phase (first 6 floats)
+            // Concentric
             val concentric = HeuristicPhaseStatistics(
                 kgAvg = buffer.getFloat(),
                 kgMax = buffer.getFloat(),
@@ -412,7 +710,7 @@ class KableBleManager {
                 wattMax = buffer.getFloat()
             )
 
-            // Eccentric phase (next 6 floats)
+            // Eccentric
             val eccentric = HeuristicPhaseStatistics(
                 kgAvg = buffer.getFloat(),
                 kgMax = buffer.getFloat(),
@@ -422,14 +720,9 @@ class KableBleManager {
                 wattMax = buffer.getFloat()
             )
 
-            HeuristicStatistics(
-                concentric = concentric,
-                eccentric = eccentric,
-                timestamp = System.currentTimeMillis()
-            )
+            _heuristicData.value = HeuristicStatistics(concentric, eccentric, System.currentTimeMillis())
         } catch (e: Exception) {
-            Timber.tag(TAG).w(e, "Failed to parse heuristic data")
-            null
+            Timber.tag(TAG).e(e, "Failed to parse heuristic data")
         }
     }
 }

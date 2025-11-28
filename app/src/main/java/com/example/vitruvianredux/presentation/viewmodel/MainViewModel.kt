@@ -487,22 +487,16 @@ class MainViewModel @Inject constructor(
 
         // Collect scanned devices
         viewModelScope.launch {
-            bleRepository.scannedDevices.collect { scanResult ->
-                Timber.d("ViewModel received scan result: ${scanResult.device.address}")
+            bleRepository.scannedDevices.collect { scannedDevice ->
+                Timber.d("ViewModel received scan result: ${scannedDevice.address}")
                 val currentDevices = _scannedDevices.value.toMutableList()
-                val existingDevice = currentDevices.find { it.address == scanResult.device.address }
+                val existingDevice = currentDevices.find { it.address == scannedDevice.address }
                 if (existingDevice == null) {
-                    @SuppressLint("MissingPermission")
-                    val scannedDevice = ScannedDevice(
-                        name = scanResult.device.name ?: "Unknown",
-                        address = scanResult.device.address,
-                        rssi = scanResult.rssi
-                    )
                     currentDevices.add(scannedDevice)
                     _scannedDevices.value = currentDevices
                     Timber.d("Added device to list: ${scannedDevice.name} (${scannedDevice.address}) - Total devices: ${currentDevices.size}")
                 } else {
-                    Timber.d("Device already in list, skipping: ${scanResult.device.address}")
+                    Timber.d("Device already in list, skipping: ${scannedDevice.address}")
                 }
             }
         }
@@ -2482,12 +2476,4 @@ data class AutoStopUiState(
     val secondsRemaining: Int = 3  // Official app: 3 seconds
 )
 
-/**
- * Scanned device data class
- */
-data class ScannedDevice(
-    val name: String,
-    val address: String,
-    val rssi: Int = 0
-)
 

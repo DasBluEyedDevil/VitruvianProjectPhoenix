@@ -49,7 +49,9 @@ class KableBleRepositoryImpl @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var bleManager: KableBleManager? = null
-    private var currentDevice: DiscoveredDevice? = null
+
+    // Store discovered devices to enable connection by address
+    private val discoveredDevices = mutableMapOf<String, DiscoveredDevice>()
 
     // Connection state
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -107,11 +109,12 @@ class KableBleRepositoryImpl @Inject constructor(
             scanningJob = scanner.advertisements
                 .onEach { device ->
                     Timber.d("Kable found device: ${device.name} (${device.address})")
+                    // Store device for later connection
+                    discoveredDevices[device.address] = device
+
                     // Convert DiscoveredDevice to ScanResult equivalent
-                    // NOTE: We can't create real ScanResult objects, so we emit synthetic ones
-                    // The ViewModel/UI should be updated to work with DiscoveredDevice directly
-                    // For now, we'll just log and skip ScanResult emission
-                    // TODO: Update BleRepository interface to use DiscoveredDevice instead of ScanResult
+                    // NOTE: We can't create real ScanResult objects easily, so we skip emission for now.
+                    // The UI must be updated to use DiscoveredDevice or we need a wrapper.
                 }
                 .catch { e ->
                     Timber.e(e, "Scan error")
@@ -149,10 +152,13 @@ class KableBleRepositoryImpl @Inject constructor(
             Timber.d("Connecting to device: $deviceAddress")
             stopScanning()
 
-            // Find the device from scanner (we need the DiscoveredDevice)
-            // Since we can't look it up easily, we'll need to wait for it to be scanned
-            // For now, create a temporary implementation
-            // TODO: Cache discovered devices in a map for lookup by address
+            // Find the device from cached scan results
+            val device = discoveredDevices[deviceAddress]
+
+            if (device == null) {
+                 Timber.e("Device not found in scan results: $deviceAddress")
+                 return@withContext Result.failure(Exception("Device not found. Please scan first."))
+            }
 
             _connectionState.value = ConnectionState.Connecting
 
@@ -165,10 +171,9 @@ class KableBleRepositoryImpl @Inject constructor(
                     Timber.d("Manager connection state: $state")
                     when (state) {
                         is com.example.vitruvianredux.data.ble.ConnectionStatus.Ready -> {
-                            val device = currentDevice
                             _connectionState.value = ConnectionState.Connected(
-                                deviceName = device?.name ?: "Vitruvian",
-                                deviceAddress = device?.address ?: deviceAddress
+                                deviceName = device.name ?: "Vitruvian",
+                                deviceAddress = device.address
                             )
                             Timber.d("Device connected and ready")
                         }
@@ -181,6 +186,15 @@ class KableBleRepositoryImpl @Inject constructor(
                             Timber.e("Connection error: ${state.message}")
                         }
                     }
+                }
+            }
+
+            // Observe deload events
+            scope.launch {
+                manager.deloadOccurredEvents.collect {
+                    Timber.d("DELOAD_EVENT: Deload occurred (safety holding state) - NOT sending stop, exercise can resume")
+                    // Note: We deliberately DO NOT send stop command here to match VitruvianBleManager behavior.
+                    // The machine handles safety state; app should just monitor.
                 }
             }
 
@@ -206,11 +220,7 @@ class KableBleRepositoryImpl @Inject constructor(
             }
 
             bleManager = manager
-
-            // NOTE: Connection is deferred until we have the actual DiscoveredDevice
-            // This is a limitation of the current implementation - we need to refactor
-            // to cache discovered devices or change the interface
-            Timber.w("Connection initiated but device lookup needed - scan first!")
+            manager.connect(device)
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -225,7 +235,6 @@ class KableBleRepositoryImpl @Inject constructor(
             Timber.d("Cancelling connection...")
             bleManager?.disconnect()
             bleManager = null
-            currentDevice = null
 
             if (_connectionState.value is ConnectionState.Connecting) {
                 _connectionState.value = ConnectionState.Disconnected
@@ -241,13 +250,11 @@ class KableBleRepositoryImpl @Inject constructor(
             bleManager?.disconnect()
             bleManager?.close()
             bleManager = null
-            currentDevice = null
             _connectionState.value = ConnectionState.Disconnected
             Timber.d("Disconnected successfully")
         } catch (e: Exception) {
             Timber.e(e, "Error during disconnect")
             bleManager = null
-            currentDevice = null
             _connectionState.value = ConnectionState.Disconnected
         }
     }
@@ -298,6 +305,10 @@ class KableBleRepositoryImpl @Inject constructor(
             }
 
             delay(100)
+
+            // Start monitor polling
+            Timber.d("Starting monitor polling for workout...")
+            manager.startMonitorPolling()
 
             Timber.d("Workout started successfully")
             Result.success(Unit)
@@ -364,8 +375,8 @@ class KableBleRepositoryImpl @Inject constructor(
 
     override suspend fun testOfficialAppProtocol(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            Timber.d("Testing official app protocol (not implemented in Kable version)")
-            // This method is specific to Nordic implementation
+            Timber.d("Testing official app protocol")
+            bleManager?.testOfficialAppProtocol()?.getOrThrow()
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to test official app protocol")
@@ -374,18 +385,18 @@ class KableBleRepositoryImpl @Inject constructor(
     }
 
     override fun enableHandleDetection() {
-        Timber.d("Enable handle detection - Kable implementation uses continuous monitor polling")
-        // KableBleManager starts monitor polling automatically on connection
+        Timber.d("Enable handle detection - starting monitor polling for auto-start")
+        bleManager?.startMonitorPolling(forAutoStart = true)
     }
 
     override fun enableJustLiftWaitingMode() {
-        Timber.d("Enable Just Lift waiting mode - Kable implementation uses position-based detection")
-        // This would need to be implemented in KableBleManager if needed
+        Timber.d("Enable Just Lift waiting mode - position-based handle detection")
+        bleManager?.enableJustLiftWaitingMode()
     }
 
     override fun restartMonitorPolling() {
-        Timber.d("Restart monitor polling - Kable implementation polls continuously")
-        // KableBleManager polling is continuous, no restart needed
+        Timber.d("Restart monitor polling - clearing danger zone alarm state on machine")
+        bleManager?.startMonitorPolling()
     }
 
     /**
@@ -396,6 +407,6 @@ class KableBleRepositoryImpl @Inject constructor(
         scope.cancel()
         bleManager?.close()
         bleManager = null
-        currentDevice = null
+        discoveredDevices.clear()
     }
 }
