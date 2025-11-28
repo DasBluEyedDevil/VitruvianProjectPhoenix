@@ -595,17 +595,16 @@ class BleRepositoryImpl @Inject constructor(
             val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
             val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
 
-            // WEB APP STARTUP SEQUENCE (verified from exerciselibrary & workoutmachineappfree):
-            // 1. Send INIT command (0x0A) - same command used for stop, resets machine state
-            // 2. Wait 50ms
-            // 3. (Optional: Send INIT preset - we skip this as program params contain full config)
-            // Previous 0x50 approach did NOT match web app behavior and caused delayed starts
-
-            Timber.d("WORKOUT_START: Sending INIT command (0x0A) to reset machine state...")
-            val initCommand = ProtocolBuilder.buildInitCommand()
-            connectionLogger.logCommandSent("INIT_RESET", deviceName, deviceAddress, initCommand, "INIT 0x0A to reset before workout")
-            bleManager?.sendCommand(initCommand)?.getOrThrow()
-            delay(50) // Web app uses 50ms between init and program commands
+            // Optional INIT reset before workout (web app style). Default OFF to mirror the mobile app flow.
+            if (USE_INIT_RESET_BEFORE_START) {
+                Timber.d("WORKOUT_START: Sending INIT command (0x0A) to reset machine state...")
+                val initCommand = ProtocolBuilder.buildInitCommand()
+                connectionLogger.logCommandSent("INIT_RESET", deviceName, deviceAddress, initCommand, "INIT 0x0A to reset before workout")
+                bleManager?.sendCommand(initCommand)?.getOrThrow()
+                delay(50) // Web app uses 50ms between init and program commands
+            } else {
+                Timber.d("WORKOUT_START: Skipping INIT reset before workout (mobile-aligned flow)")
+            }
 
             // MATCH WEB APP EXACTLY:
             // - Program modes (Old School, Pump, TUT): Send ONLY program params (96 bytes)
@@ -826,6 +825,14 @@ class BleRepositoryImpl @Inject constructor(
             Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
             bleManager?.startMonitorPolling()
         }
+    }
+
+    companion object {
+        /**
+         * Experimental flag: send INIT (0x0A) before each workout start.
+         * Default false to mirror the mobile app flow and reduce GATT churn on Android 16.
+         */
+        private const val USE_INIT_RESET_BEFORE_START = false
     }
 }
 
