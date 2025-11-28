@@ -427,7 +427,7 @@ fun GroupedRoutineCard(
             .map { (exerciseId, sessions) ->
                 val totalReps = sessions.sumOf { it.totalReps }
                 val totalSets = sessions.size
-                val weightPerCableKg = sessions.firstOrNull()?.weightPerCableKg ?: 0f
+                val weightPerCableKg = sessions.maxOfOrNull { it.weightPerCableKg } ?: 0f
                 val mode = sessions.firstOrNull()?.mode ?: "Unknown"
                 // Use exerciseName from the session (stored when workout was saved)
                 val exerciseName = sessions.firstOrNull()?.exerciseName ?: "Unknown Exercise"

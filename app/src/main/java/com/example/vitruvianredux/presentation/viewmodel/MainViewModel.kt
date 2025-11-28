@@ -1877,9 +1877,8 @@ class MainViewModel @Inject constructor(
             params.weightPerCableKg // Fallback to configured if no metrics
         }
 
-        // For history display, we want to preserve the configured weight per cable so it matches
-        // what the user selected, while still using measuredPerCableKg for PR/analytics logic.
-        val effectivePerCableKg = params.weightPerCableKg
+        // Use measuredPerCableKg for history display so it shows actual weight lifted,
+        // not the configured weight (which may differ from what the device measured)
 
         val (eccentricLoad, echoLevel) = when (val wt = params.workoutType) {
             is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
@@ -1907,7 +1906,7 @@ class MainViewModel @Inject constructor(
             timestamp = workoutStartTime,
             mode = params.workoutType.displayName,
             reps = params.reps,
-            weightPerCableKg = effectivePerCableKg, // Store per-cable weight used for history
+            weightPerCableKg = measuredPerCableKg, // Store actual measured weight for history
             progressionKg = params.progressionRegressionKg,
             duration = duration,
             totalReps = working,  // Exclude warm-up reps from total count
