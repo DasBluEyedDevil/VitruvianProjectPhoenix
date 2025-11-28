@@ -41,6 +41,7 @@ interface BleRepository {
     val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
     val scannedDevices: Flow<ScanResult>
     val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
+    val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>
 
     suspend fun startScanning(): Result<Unit>
     suspend fun stopScanning()
@@ -112,6 +113,9 @@ class BleRepositoryImpl @Inject constructor(
 
     private val _handleState = MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
     override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
+
+    private val _heuristicData = MutableStateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>(null)
+    override val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?> = _heuristicData.asStateFlow()
 
     private var isScanning = false
     
@@ -346,6 +350,14 @@ class BleRepositoryImpl @Inject constructor(
                 scope.launch {
                     handleState.collect { state ->
                         _handleState.value = state
+                    }
+                }
+
+                // Collect heuristic data (force telemetry) and forward to repository flow
+                // This is critical for Echo mode where kgMax represents actual measured force
+                scope.launch {
+                    heuristicData.collect { stats ->
+                        _heuristicData.value = stats
                     }
                 }
 

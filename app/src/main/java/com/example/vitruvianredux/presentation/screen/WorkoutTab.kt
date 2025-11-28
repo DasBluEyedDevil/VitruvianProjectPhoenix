@@ -44,6 +44,7 @@ fun WorkoutTab(
     connectionState: ConnectionState,
     workoutState: WorkoutState,
     currentMetric: WorkoutMetric?,
+    currentHeuristicKgMax: Float = 0f, // Echo mode: actual measured force per cable (kg)
     workoutParameters: WorkoutParameters,
     repCount: RepCount,
     repRanges: com.example.vitruvianredux.domain.usecase.RepRanges?,
@@ -440,7 +441,9 @@ fun WorkoutTab(
                 LiveMetricsCard(
                     metric = currentMetric,
                     weightUnit = weightUnit,
-                    formatWeight = formatWeight
+                    formatWeight = formatWeight,
+                    isEchoMode = workoutParameters.workoutType is WorkoutType.Echo,
+                    echoForceKgMax = currentHeuristicKgMax
                 )
             }
         }
@@ -1705,7 +1708,9 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
 fun LiveMetricsCard(
     metric: WorkoutMetric,
     weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String
+    formatWeight: (Float, WeightUnit) -> String,
+    isEchoMode: Boolean = false,
+    echoForceKgMax: Float = 0f // Echo mode: actual measured force per cable (kg)
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1726,10 +1731,16 @@ fun LiveMetricsCard(
             )
             Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Current Load - show per-cable resistance (totalLoad / 2)
-            // For cable machines, each cable provides independent resistance
+            // Current Load - show per-cable resistance
+            // For Echo mode: use heuristic kgMax (actual measured force from device)
+            // For other modes: use totalLoad / 2 (from workout metrics)
+            val perCableKg = if (isEchoMode && echoForceKgMax > 0f) {
+                echoForceKgMax
+            } else {
+                metric.totalLoad / 2f
+            }
             Text(
-                formatWeight(metric.totalLoad / 2f, weightUnit),
+                formatWeight(perCableKg, weightUnit),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary

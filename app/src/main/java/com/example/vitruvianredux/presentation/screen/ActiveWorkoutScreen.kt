@@ -26,6 +26,7 @@ fun ActiveWorkoutScreen(
 ) {
     val workoutState by viewModel.workoutState.collectAsState()
     val currentMetric by viewModel.currentMetric.collectAsState()
+    val currentHeuristicKgMax by viewModel.currentHeuristicKgMax.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val repCount by viewModel.repCount.collectAsState()
     val repRanges by viewModel.repRanges.collectAsState()
@@ -127,6 +128,7 @@ fun ActiveWorkoutScreen(
         connectionState = connectionState,
         workoutState = workoutState,
         currentMetric = currentMetric,
+        currentHeuristicKgMax = currentHeuristicKgMax,
         workoutParameters = workoutParameters,
         repCount = repCount,
         repRanges = repRanges,

@@ -54,6 +54,7 @@ fun JustLiftScreen(
     val workoutState by viewModel.workoutState.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val currentMetric by viewModel.currentMetric.collectAsState()
+    val currentHeuristicKgMax by viewModel.currentHeuristicKgMax.collectAsState()
     val repCount by viewModel.repCount.collectAsState()
     val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
@@ -459,7 +460,9 @@ fun JustLiftScreen(
                         repCount = repCount,
                         weightUnit = weightUnit,
                         formatWeight = viewModel::formatWeight,
-                        onStopWorkout = { viewModel.stopWorkout() }
+                        onStopWorkout = { viewModel.stopWorkout() },
+                        isEchoMode = workoutParameters.workoutType is WorkoutType.Echo,
+                        echoForceKgMax = currentHeuristicKgMax
                     )
                 }
             }
@@ -491,7 +494,9 @@ fun ActiveStatusCard(
     repCount: RepCount,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String,
-    onStopWorkout: () -> Unit
+    onStopWorkout: () -> Unit,
+    isEchoMode: Boolean = false,
+    echoForceKgMax: Float = 0f // Echo mode: actual measured force per cable (kg)
 ) {
     // Live pulse animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -579,7 +584,14 @@ fun ActiveStatusCard(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         )
-                        val loadText = currentMetric?.let { formatWeight(it.totalLoad, weightUnit) } ?: "--"
+                        // For Echo mode: use heuristic kgMax * 2 (total load from both cables)
+                        // For other modes: use totalLoad from workout metrics
+                        val loadKg = if (isEchoMode && echoForceKgMax > 0f) {
+                            echoForceKgMax * 2f // Convert per-cable to total load
+                        } else {
+                            currentMetric?.totalLoad ?: 0f
+                        }
+                        val loadText = if (loadKg > 0f) formatWeight(loadKg, weightUnit) else "--"
                         Text(
                             loadText,
                             style = MaterialTheme.typography.titleMedium,
