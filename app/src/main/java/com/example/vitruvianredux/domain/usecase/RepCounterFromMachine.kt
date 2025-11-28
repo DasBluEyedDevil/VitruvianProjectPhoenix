@@ -176,15 +176,24 @@ class RepCounterFromMachine {
     /**
      * Process rep data from machine with visual feedback timing.
      *
-     * For WARMUP reps: Uses ROM counter directly (no pending animation)
-     * For WORKING reps: Shows pending (grey) at TOP, confirmed (colored) at BOTTOM
+     * Supports TWO modes (Issue #187):
      *
-     * @param repsRomCount Machine's ROM rep count (warmup reps)
-     * @param repsSetCount Machine's set rep count (working reps)
+     * MODERN MODE (isLegacyFormat=false):
+     * - Uses repsRomCount for warmup reps
+     * - Uses repsSetCount for working reps
+     * - up/down counters for visual pending feedback
+     *
+     * LEGACY MODE (isLegacyFormat=true, Beta 4 compatible):
+     * - Uses topCounter (up) increments to count reps directly
+     * - This is the method that worked in Beta 4 and handles Samsung devices
+     *
+     * @param repsRomCount Machine's ROM rep count (warmup reps) - 0 for legacy
+     * @param repsSetCount Machine's set rep count (working reps) - 0 for legacy
      * @param up Directional counter - increments at TOP (concentric peak)
      * @param down Directional counter - increments at BOTTOM (eccentric valley)
      * @param posA Position A for range calibration
      * @param posB Position B for range calibration
+     * @param isLegacyFormat True if using 6-byte legacy packet format (Issue #187)
      */
     fun process(
         repsRomCount: Int,
@@ -192,15 +201,100 @@ class RepCounterFromMachine {
         up: Int = 0,
         down: Int = 0,
         posA: Int = 0,
-        posB: Int = 0
+        posB: Int = 0,
+        isLegacyFormat: Boolean = false
     ) {
         // DIAGNOSTIC: Log full state for debugging rep counting issues
-        // The "warmup gate" (warmupReps >= warmupTarget) MUST pass for working reps to count
         val warmupGateOpen = warmupReps >= warmupTarget
-        Timber.d("Rep process: ROM=$repsRomCount, Set=$repsSetCount, up=$up, down=$down, pending=$hasPendingRep")
+        Timber.d("Rep process: ROM=$repsRomCount, Set=$repsSetCount, up=$up, down=$down, pending=$hasPendingRep, legacy=$isLegacyFormat")
         Timber.d("  Warmup gate: warmupReps=$warmupReps, warmupTarget=$warmupTarget, gate=${if (warmupGateOpen) "OPEN" else "BLOCKED"}")
         Timber.d("  Working: workingReps=$workingReps, workingTarget=$workingTarget")
 
+        if (isLegacyFormat) {
+            // LEGACY MODE: Count reps based on topCounter increments (Beta 4 method)
+            // This is the proven method that works with Samsung devices and older firmware
+            processLegacy(up, down, posA, posB)
+        } else {
+            // MODERN MODE: Use machine-provided repsRomCount/repsSetCount
+            processModern(repsRomCount, repsSetCount, up, down, posA, posB)
+        }
+    }
+
+    /**
+     * LEGACY rep counting (Beta 4 method) - counts reps when topCounter increments.
+     * Used when machine sends 6-byte packets without repsRomCount/repsSetCount fields.
+     */
+    private fun processLegacy(up: Int, down: Int, posA: Int, posB: Int) {
+        if (lastTopCounter != null) {
+            val topDelta = calculateDelta(lastTopCounter!!, up)
+            if (topDelta > 0) {
+                recordTopPosition(posA, posB)
+
+                // Count the rep at TOP of movement (matches Beta 4 / official app behavior)
+                val totalReps = warmupReps + workingReps + 1
+                if (totalReps <= warmupTarget) {
+                    warmupReps++
+                    Timber.d("📈 LEGACY: Warmup rep $warmupReps (top counter increment)")
+                    onRepEvent?.invoke(
+                        RepEvent(
+                            type = RepType.WARMUP_COMPLETED,
+                            warmupCount = warmupReps,
+                            workingCount = workingReps
+                        )
+                    )
+                    if (warmupReps == warmupTarget) {
+                        onRepEvent?.invoke(
+                            RepEvent(
+                                type = RepType.WARMUP_COMPLETE,
+                                warmupCount = warmupReps,
+                                workingCount = workingReps
+                            )
+                        )
+                    }
+                } else {
+                    workingReps++
+                    Timber.d("💪 LEGACY: Working rep $workingReps (top counter increment)")
+                    onRepEvent?.invoke(
+                        RepEvent(
+                            type = RepType.WORKING_COMPLETED,
+                            warmupCount = warmupReps,
+                            workingCount = workingReps
+                        )
+                    )
+
+                    // Check if target reached (unless AMRAP or Just Lift)
+                    if (!isJustLift && !isAMRAP && workingTarget > 0 && workingReps >= workingTarget) {
+                        Timber.d("⚠️ LEGACY: shouldStop set to TRUE (target reached)")
+                        shouldStop = true
+                        onRepEvent?.invoke(
+                            RepEvent(
+                                type = RepType.WORKOUT_COMPLETE,
+                                warmupCount = warmupReps,
+                                workingCount = workingReps
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Track bottom position for calibration
+        if (lastCompleteCounter != null) {
+            val downDelta = calculateDelta(lastCompleteCounter!!, down)
+            if (downDelta > 0) {
+                recordBottomPosition(posA, posB)
+            }
+        }
+
+        lastTopCounter = up
+        lastCompleteCounter = down
+    }
+
+    /**
+     * MODERN rep counting - uses machine-provided repsRomCount/repsSetCount.
+     * This is the official app method with pending rep visual feedback.
+     */
+    private fun processModern(repsRomCount: Int, repsSetCount: Int, up: Int, down: Int, posA: Int, posB: Int) {
         // Track UP movement - for working reps, show PENDING (grey) at TOP
         if (lastTopCounter != null) {
             val upDelta = calculateDelta(lastTopCounter!!, up)
