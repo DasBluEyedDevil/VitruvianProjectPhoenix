@@ -90,6 +90,11 @@ class MainViewModel @Inject constructor(
     private val _currentMetric = MutableStateFlow<WorkoutMetric?>(null)
     val currentMetric: StateFlow<WorkoutMetric?> = _currentMetric.asStateFlow()
 
+    // Current heuristic force (kgMax per cable) for Echo mode live display
+    // This is the actual measured force from the device's force telemetry
+    private val _currentHeuristicKgMax = MutableStateFlow(0f)
+    val currentHeuristicKgMax: StateFlow<Float> = _currentHeuristicKgMax.asStateFlow()
+
     private val _workoutParameters = MutableStateFlow(
         WorkoutParameters(
             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
@@ -468,6 +473,11 @@ class MainViewModel @Inject constructor(
                     val concentricMax = stats.concentric.kgMax
                     val eccentricMax = stats.eccentric.kgMax
                     val currentMax = maxOf(concentricMax, eccentricMax)
+
+                    // Update live display value for Echo mode
+                    _currentHeuristicKgMax.value = currentMax
+
+                    // Track session maximum for history recording
                     if (currentMax > maxHeuristicKgMax) {
                         maxHeuristicKgMax = currentMax
                         Timber.v("Echo force telemetry: kgMax=$currentMax (concentric=$concentricMax, eccentric=$eccentricMax)")
@@ -1129,7 +1139,8 @@ class MainViewModel @Inject constructor(
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
-            maxHeuristicKgMax = 0f // Reset Echo mode force tracking
+            maxHeuristicKgMax = 0f // Reset Echo mode force tracking (for history)
+            _currentHeuristicKgMax.value = 0f // Reset Echo mode live display
 
             // Countdown (optional) - Skip countdown for Just Lift mode or if explicitly requested
             if (!skipCountdown && !params.isJustLift) {
