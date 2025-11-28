@@ -35,15 +35,16 @@ fun HapticFeedbackEffect(
     val context = LocalContext.current
 
     // Create SoundPool for audio cues
-    // Uses USAGE_MEDIA to tie sounds to media volume (not notification volume)
+    // Uses USAGE_ASSISTANCE_SONIFICATION for short UI feedback sounds
+    // This prevents our beeps from interrupting other media playback (Issue #180)
     val soundPool = remember {
         try {
             SoundPool.Builder()
                 .setMaxStreams(2)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
                 .build()
