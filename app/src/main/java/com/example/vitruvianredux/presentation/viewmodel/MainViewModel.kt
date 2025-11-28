@@ -463,7 +463,12 @@ class MainViewModel @Inject constructor(
                 val state = _workoutState.value
                 Timber.d("Rep notification received: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}, state=$state")
 
-                if (state is WorkoutState.Active) {
+                // FIX Issue #174: Process rep notifications during Countdown state too
+                // After countdown completes, state stays as Countdown(1) while BLE commands
+                // are sent (150ms+ delay). Machine starts workout and sends rep notifications
+                // during this window. Previously these were DROPPED, causing warmup reps
+                // to never register and users to get stuck in "0/3" warmup display.
+                if (state is WorkoutState.Active || state is WorkoutState.Countdown) {
                     handleRepNotification(repNotification)
                 } else {
                     Timber.w("Rep notification ignored - workout not active (state=$state)")
@@ -1160,6 +1165,14 @@ class MainViewModel @Inject constructor(
                     Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
                 }
 
+                // FIX Issue #174: Set state to Active BEFORE sending BLE commands
+                // This ensures rep notifications are processed immediately when the machine
+                // starts responding. Previously, there was a 150ms+ gap between BLE command
+                // and Active state where warmup rep notifications were DROPPED, causing
+                // users to get stuck showing "0/3" warmup progress.
+                _workoutState.value = WorkoutState.Active
+                Timber.d("?? TIMING: State set to Active BEFORE BLE command (early activation for rep capture)")
+
                 val result = bleRepository.startWorkout(params)
 
                 val commandLatency = System.currentTimeMillis() - startTime
@@ -1173,10 +1186,7 @@ class MainViewModel @Inject constructor(
                     return@launch
                 }
 
-                // Only mark the workout as Active after the START command has succeeded
-                val activeStateTime = System.currentTimeMillis()
-                _workoutState.value = WorkoutState.Active
-                Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
+                Timber.d("?? TIMING: BLE command succeeded at ${System.currentTimeMillis()}ms (${commandLatency}ms latency)")
 
                 WorkoutForegroundService.startWorkoutService(
                     getContext(),
