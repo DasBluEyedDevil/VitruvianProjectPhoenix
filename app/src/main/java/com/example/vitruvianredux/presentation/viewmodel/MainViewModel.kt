@@ -112,6 +112,9 @@ class MainViewModel @Inject constructor(
     private val _autoStopState = MutableStateFlow(AutoStopUiState())
     val autoStopState: StateFlow<AutoStopUiState> = _autoStopState.asStateFlow()
 
+    // Track if user modified parameters during rest period (so we don't overwrite their changes)
+    private val _parametersModifiedDuringRest = MutableStateFlow(false)
+
     private val _autoStartCountdown = MutableStateFlow<Int?>(null)
     val autoStartCountdown: StateFlow<Int?> = _autoStartCountdown.asStateFlow()
 
@@ -1007,6 +1010,12 @@ class MainViewModel @Inject constructor(
     fun updateWorkoutParameters(params: WorkoutParameters) {
         Timber.d("⚖️ updateWorkoutParameters: weight=${params.weightPerCableKg} kg (${params.weightPerCableKg * 2.20462f} lbs)")
         _workoutParameters.value = params
+
+        // Track if user modified parameters during rest (so we preserve their changes for next set)
+        if (_workoutState.value is WorkoutState.Resting) {
+            Timber.d("⚖️ Parameters modified during rest - will preserve for next set")
+            _parametersModifiedDuringRest.value = true
+        }
     }
 
     fun enableHandleDetection() {
@@ -1619,14 +1628,33 @@ class MainViewModel @Inject constructor(
                         _currentSetIndex.value++
                         // CRITICAL: Update workout parameters for the new set (Issue #147 fix)
                         val targetReps = currentExerciseSets.setReps[_currentSetIndex.value]
-                        val setWeight = currentExerciseSets.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
-                            ?: currentExerciseSets.weightPerCableKg
-                        Timber.d("Autoplay: Advancing to set ${_currentSetIndex.value + 1}, targetReps=$targetReps, isAMRAP=${targetReps == null}")
+
+                        // Check if user modified parameters during rest
+                        val userModified = _parametersModifiedDuringRest.value
+                        if (userModified) {
+                            Timber.d("Autoplay: User modified parameters during rest - preserving their changes")
+                        }
+
+                        val setWeight = if (userModified) {
+                            workoutParameters.value.weightPerCableKg
+                        } else {
+                            currentExerciseSets.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                                ?: currentExerciseSets.weightPerCableKg
+                        }
+                        val finalReps = if (userModified) {
+                            workoutParameters.value.reps
+                        } else {
+                            targetReps ?: 0
+                        }
+
+                        Timber.d("Autoplay: Advancing to set ${_currentSetIndex.value + 1}, targetReps=$finalReps, isAMRAP=${!userModified && targetReps == null}")
                         _workoutParameters.value = workoutParameters.value.copy(
-                            reps = targetReps ?: 0,
+                            reps = finalReps,
                             weightPerCableKg = setWeight,
-                            isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+                            isAMRAP = if (userModified) workoutParameters.value.isAMRAP else (targetReps == null)
                         )
+                        // Reset the flag after applying user changes
+                        _parametersModifiedDuringRest.value = false
                         startWorkout(skipCountdown = true)
                     } else {
                         Timber.d("Single exercise complete - no more sets remaining")
@@ -1711,20 +1739,41 @@ class MainViewModel @Inject constructor(
             Timber.d("  ? Moving to next set")
             _currentSetIndex.value++
             val targetReps = currentExercise.setReps[_currentSetIndex.value]
+
+            // Check if user modified parameters during rest - if so, use their values
+            val userModified = _parametersModifiedDuringRest.value
+            if (userModified) {
+                Timber.d("  User modified parameters during rest - preserving their changes")
+                Timber.d("  Using user weight: ${workoutParameters.value.weightPerCableKg} kg")
+                Timber.d("  Using user reps: ${workoutParameters.value.reps}")
+            }
+
             // Get per-set weight, falling back to exercise default (Issue #147)
-            val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
-                ?: currentExercise.weightPerCableKg
+            val setWeight = if (userModified) {
+                workoutParameters.value.weightPerCableKg
+            } else {
+                currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                    ?: currentExercise.weightPerCableKg
+            }
+            val finalReps = if (userModified) {
+                workoutParameters.value.reps
+            } else {
+                targetReps ?: 0
+            }
+
             Timber.d("  New set index: ${_currentSetIndex.value}")
-            Timber.d("  Target reps: $targetReps")
+            Timber.d("  Target reps: $finalReps")
             Timber.d("  Set weight: $setWeight kg")
             _workoutParameters.value = workoutParameters.value.copy(
-                reps = targetReps ?: 0, // AMRAP sets have null reps
-                weightPerCableKg = setWeight, // Use per-set weight (Issue #147)
+                reps = finalReps,
+                weightPerCableKg = setWeight,
                 progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
                 workoutType = workoutParameters.value.workoutType,
                 selectedExerciseId = workoutParameters.value.selectedExerciseId,
-                isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+                isAMRAP = if (userModified) workoutParameters.value.isAMRAP else (targetReps == null)
             )
+            // Reset the flag after applying user changes
+            _parametersModifiedDuringRest.value = false
             Timber.d("  AFTER UPDATE - isAMRAP set to: ${_workoutParameters.value.isAMRAP} (targetReps was: $targetReps)")
             Timber.d("  AFTER UPDATE - reps set to: ${_workoutParameters.value.reps}")
             Timber.d("???????????????????????????????????????????????????")
@@ -1736,6 +1785,8 @@ class MainViewModel @Inject constructor(
                 Timber.d("  ? Moving to next exercise")
                 _currentExerciseIndex.value++
                 _currentSetIndex.value = 0
+                // Reset user modification flag - new exercise uses its own parameters
+                _parametersModifiedDuringRest.value = false
                 // Update workout parameters for new exercise
                 val nextExercise = routine.exercises[_currentExerciseIndex.value]
                 val nextSetReps = nextExercise.setReps.getOrNull(0)
@@ -1798,14 +1849,33 @@ class MainViewModel @Inject constructor(
                 if (currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1) {
                     _currentSetIndex.value++
                     val targetReps = currentExercise.setReps[_currentSetIndex.value]
-                    val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
-                        ?: currentExercise.weightPerCableKg
-                    Timber.d("skipRest: Advancing to set ${_currentSetIndex.value + 1}, targetReps=$targetReps, isAMRAP=${targetReps == null}")
+
+                    // Check if user modified parameters during rest
+                    val userModified = _parametersModifiedDuringRest.value
+                    if (userModified) {
+                        Timber.d("skipRest: User modified parameters during rest - preserving their changes")
+                    }
+
+                    val setWeight = if (userModified) {
+                        workoutParameters.value.weightPerCableKg
+                    } else {
+                        currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                            ?: currentExercise.weightPerCableKg
+                    }
+                    val finalReps = if (userModified) {
+                        workoutParameters.value.reps
+                    } else {
+                        targetReps ?: 0
+                    }
+
+                    Timber.d("skipRest: Advancing to set ${_currentSetIndex.value + 1}, targetReps=$finalReps, isAMRAP=${!userModified && targetReps == null}")
                     _workoutParameters.value = workoutParameters.value.copy(
-                        reps = targetReps ?: 0,
+                        reps = finalReps,
                         weightPerCableKg = setWeight,
-                        isAMRAP = targetReps == null
+                        isAMRAP = if (userModified) workoutParameters.value.isAMRAP else (targetReps == null)
                     )
+                    // Reset the flag after applying user changes
+                    _parametersModifiedDuringRest.value = false
                     startWorkout(skipCountdown = true)
                 } else {
                     Timber.d("skipRest: Single exercise complete - no more sets remaining")

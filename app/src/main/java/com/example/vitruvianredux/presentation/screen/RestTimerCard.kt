@@ -14,6 +14,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -21,6 +25,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.vitruvianredux.domain.model.WeightUnit
+import com.example.vitruvianredux.domain.model.WorkoutParameters
+import com.example.vitruvianredux.domain.model.WorkoutType
+import com.example.vitruvianredux.presentation.components.ExpressiveSlider
 import com.example.vitruvianredux.ui.theme.*
 
 /**
@@ -42,6 +50,11 @@ fun RestTimerCard(
     currentExerciseIndex: Int? = null,
     totalExercises: Int? = null,
     formatWeight: ((Float) -> String)? = null,
+    workoutParameters: WorkoutParameters? = null,
+    weightUnit: WeightUnit = WeightUnit.KG,
+    kgToDisplay: ((Float, WeightUnit) -> Float)? = null,
+    displayToKg: ((Float, WeightUnit) -> Float)? = null,
+    onUpdateParameters: ((WorkoutParameters) -> Unit)? = null,
     onSkipRest: () -> Unit,
     onEndWorkout: () -> Unit,
     modifier: Modifier = Modifier
@@ -130,31 +143,54 @@ fun RestTimerCard(
                 text = if (isLastExercise) "Workout Complete" else nextExerciseName,
                 style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger (was titleLarge)
                 fontWeight = FontWeight.Bold,
-                color = if (isLastExercise) 
-                    MaterialTheme.colorScheme.primary 
-                else 
+                color = if (isLastExercise)
+                    MaterialTheme.colorScheme.primary
+                else
                     MaterialTheme.colorScheme.onSurface
             )
 
-            // Set progress indicator
-            if (!isLastExercise) {
+            // Mode display (non-editable, informational only)
+            if (!isLastExercise && nextExerciseMode != null) {
                 Text(
-                    text = "Set $currentSet of $totalSets",
+                    text = nextExerciseMode,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Set progress indicator - shows NEXT set number (currentSet + 1)
+            // currentSet represents the set just completed, so we add 1 to show the upcoming set
+            if (!isLastExercise && totalSets > 0) {
+                Text(
+                    text = "Set ${currentSet + 1} of $totalSets",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // Workout parameters preview (if available)
-            if (!isLastExercise && (nextExerciseWeight != null || nextExerciseReps != null)) {
+            // Editable workout configuration (if parameters available for editing)
+            if (!isLastExercise && workoutParameters != null && onUpdateParameters != null) {
                 Spacer(modifier = Modifier.height(Spacing.small))
 
-                // Parameters card - Material 3 Expressive
+                // Local state for editing
+                val isEchoMode = workoutParameters.workoutType is WorkoutType.Echo
+                var editableWeight by remember(workoutParameters.weightPerCableKg) {
+                    mutableFloatStateOf(
+                        kgToDisplay?.invoke(workoutParameters.weightPerCableKg, weightUnit)
+                            ?: workoutParameters.weightPerCableKg
+                    )
+                }
+                var editableReps by remember(workoutParameters.reps) {
+                    mutableIntStateOf(workoutParameters.reps)
+                }
+
+                // Configuration card - Material 3 Expressive
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Material 3 Expressive: Higher elevation
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     Column(
                         modifier = Modifier
@@ -163,8 +199,95 @@ fun RestTimerCard(
                         verticalArrangement = Arrangement.spacedBy(Spacing.small)
                     ) {
                         Text(
-                            "WORKOUT PARAMETERS",
-                            style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelSmall)
+                            "ADJUST FOR NEXT SET",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+
+                        // Weight slider (or "Adaptive" label for Echo mode)
+                        if (isEchoMode) {
+                            // Echo mode: Weight is adaptive, show info
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Weight",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "Adaptive",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        } else {
+                            // Non-Echo mode: Editable weight
+                            val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+                            val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
+
+                            Text(
+                                "Weight: ${editableWeight.toInt()} $weightSuffix/cable",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            ExpressiveSlider(
+                                value = editableWeight,
+                                onValueChange = { newWeight ->
+                                    editableWeight = newWeight
+                                    val kg = displayToKg?.invoke(newWeight, weightUnit) ?: newWeight
+                                    onUpdateParameters(workoutParameters.copy(weightPerCableKg = kg))
+                                },
+                                valueRange = 1f..maxWeight,
+                                steps = (maxWeight - 1).toInt(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        // Reps slider
+                        Text(
+                            "Target Reps: $editableReps",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        ExpressiveSlider(
+                            value = editableReps.toFloat(),
+                            onValueChange = { newReps ->
+                                editableReps = newReps.toInt()
+                                onUpdateParameters(workoutParameters.copy(reps = newReps.toInt()))
+                            },
+                            valueRange = 1f..50f,
+                            steps = 49,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else if (!isLastExercise && (nextExerciseWeight != null || nextExerciseReps != null)) {
+                // Fallback: Read-only display when editing is not available
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                    ) {
+                        Text(
+                            "NEXT SET PARAMETERS",
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.sp
@@ -176,23 +299,16 @@ fun RestTimerCard(
                         ) {
                             if (nextExerciseWeight != null && formatWeight != null) {
                                 WorkoutParamItem(
-                                    icon = Icons.Default.Settings,
+                                    icon = Icons.Default.FitnessCenter,
                                     label = "Weight",
                                     value = formatWeight(nextExerciseWeight)
                                 )
                             }
                             if (nextExerciseReps != null) {
                                 WorkoutParamItem(
-                                    icon = Icons.Default.Refresh,
+                                    icon = Icons.Default.Repeat,
                                     label = "Target Reps",
                                     value = nextExerciseReps.toString()
-                                )
-                            }
-                            if (nextExerciseMode != null) {
-                                WorkoutParamItem(
-                                    icon = Icons.Default.Settings,
-                                    label = "Mode",
-                                    value = nextExerciseMode.take(8)
                                 )
                             }
                         }
