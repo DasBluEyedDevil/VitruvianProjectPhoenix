@@ -90,6 +90,11 @@ class MainViewModel @Inject constructor(
     private val _currentMetric = MutableStateFlow<WorkoutMetric?>(null)
     val currentMetric: StateFlow<WorkoutMetric?> = _currentMetric.asStateFlow()
 
+    // Current heuristic force (kgMax per cable) for Echo mode live display
+    // This is the actual measured force from the device's force telemetry
+    private val _currentHeuristicKgMax = MutableStateFlow(0f)
+    val currentHeuristicKgMax: StateFlow<Float> = _currentHeuristicKgMax.asStateFlow()
+
     private val _workoutParameters = MutableStateFlow(
         WorkoutParameters(
             workoutType = WorkoutType.Program(ProgramMode.OldSchool),
@@ -353,6 +358,8 @@ class MainViewModel @Inject constructor(
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
     private val collectedMetrics = mutableListOf<WorkoutMetric>()
+    // Track max heuristic force (kgMax) for Echo mode - this is the actual measured force
+    private var maxHeuristicKgMax: Float = 0f
 
     // Routine tracking (for grouping sets from the same routine)
     private var currentRoutineSessionId: String? = null
@@ -456,6 +463,29 @@ class MainViewModel @Inject constructor(
                 Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
                 _currentMetric.value = metric
                 handleMonitorMetric(metric)
+            }
+        }
+
+        // Collect heuristic data (force telemetry for Echo mode)
+        // Echo mode uses velocity-based resistance, and kgMax is the actual measured force
+        viewModelScope.launch {
+            bleRepository.heuristicData.collect { stats ->
+                if (stats != null && _workoutState.value is WorkoutState.Active) {
+                    // Track maximum force (kgMax) across both phases for Echo mode
+                    // kgMax is per-cable force in kg
+                    val concentricMax = stats.concentric.kgMax
+                    val eccentricMax = stats.eccentric.kgMax
+                    val currentMax = maxOf(concentricMax, eccentricMax)
+
+                    // Update live display value for Echo mode
+                    _currentHeuristicKgMax.value = currentMax
+
+                    // Track session maximum for history recording
+                    if (currentMax > maxHeuristicKgMax) {
+                        maxHeuristicKgMax = currentMax
+                        Timber.v("Echo force telemetry: kgMax=$currentMax (concentric=$concentricMax, eccentric=$eccentricMax)")
+                    }
+                }
             }
         }
 
@@ -658,20 +688,24 @@ class MainViewModel @Inject constructor(
     /**
      * Handle rep notifications provided by the machine.
      *
-     * CRITICAL: Uses device-provided repsRomCount and repsSetCount directly (trainer method).
-     * This ensures rep counting matches exactly what the firmware reports.
+     * Supports TWO modes (Issue #187):
+     * - MODERN: Uses repsRomCount/repsSetCount from 24-byte packets
+     * - LEGACY: Uses topCounter increments from 6-byte packets (Beta 4 method)
+     *
+     * The isLegacyFormat flag determines which counting method to use.
      */
     private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
         val currentPositions = _currentMetric.value
-        // Use machine's ROM and Set counters directly (trainer method)
-        // This prevents "getting ready" pull from being counted as a rep
+
+        // Issue #187: Pass legacy flag to enable Beta 4 counting for Samsung devices
         repCounter.process(
-            repsRomCount = notification.repsRomCount,   // Machine's warmup rep count
-            repsSetCount = notification.repsSetCount,   // Machine's working rep count
-            up = notification.topCounter,               // For position calibration
+            repsRomCount = notification.repsRomCount,   // Machine's warmup rep count (0 for legacy)
+            repsSetCount = notification.repsSetCount,   // Machine's working rep count (0 for legacy)
+            up = notification.topCounter,               // For position calibration / legacy counting
             down = notification.completeCounter,        // For position calibration
             posA = currentPositions?.positionA ?: 0,
-            posB = currentPositions?.positionB ?: 0
+            posB = currentPositions?.positionB ?: 0,
+            isLegacyFormat = notification.isLegacyFormat  // Use Beta 4 counting if legacy packet
         )
         // Update rep ranges for position bars visualization
         _repRanges.value = repCounter.getRepRanges()
@@ -1114,6 +1148,8 @@ class MainViewModel @Inject constructor(
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
+            maxHeuristicKgMax = 0f // Reset Echo mode force tracking (for history)
+            _currentHeuristicKgMax.value = 0f // Reset Echo mode live display
 
             // Countdown (optional) - Skip countdown for Just Lift mode or if explicitly requested
             if (!skipCountdown && !params.isJustLift) {
@@ -1936,16 +1972,22 @@ class MainViewModel @Inject constructor(
         val duration = System.currentTimeMillis() - workoutStartTime
 
         // Store per-cable weight for history/PRs.
-        // measuredPerCableKg is derived from device output (totalLoad / 2).
-        val measuredPerCableKg = if (collectedMetrics.isNotEmpty()) {
+        // For Echo mode: use heuristic data (kgMax) which is the actual measured force
+        // For other modes: use totalLoad / 2 from workout metrics
+        val isEchoMode = params.workoutType is WorkoutType.Echo
+        val measuredPerCableKg = if (isEchoMode && maxHeuristicKgMax > 0f) {
+            // Echo mode: kgMax from heuristic data is already per-cable force in kg
+            Timber.d("Echo mode: using heuristic kgMax=$maxHeuristicKgMax kg for measured weight")
+            maxHeuristicKgMax
+        } else if (collectedMetrics.isNotEmpty()) {
+            // Other modes: derive from device output (totalLoad / 2)
             collectedMetrics.maxOf { it.totalLoad } / 2f
         } else {
             params.weightPerCableKg // Fallback to configured if no metrics
         }
 
-        // For history display, we want to preserve the configured weight per cable so it matches
-        // what the user selected, while still using measuredPerCableKg for PR/analytics logic.
-        val effectivePerCableKg = params.weightPerCableKg
+        // Use measuredPerCableKg for history display so it shows actual weight lifted,
+        // not the configured weight (which may differ from what the device measured)
 
         val (eccentricLoad, echoLevel) = when (val wt = params.workoutType) {
             is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
@@ -1973,7 +2015,7 @@ class MainViewModel @Inject constructor(
             timestamp = workoutStartTime,
             mode = params.workoutType.displayName,
             reps = params.reps,
-            weightPerCableKg = effectivePerCableKg, // Store per-cable weight used for history
+            weightPerCableKg = measuredPerCableKg, // Store actual measured weight for history
             progressionKg = params.progressionRegressionKg,
             duration = duration,
             totalReps = working,  // Exclude warm-up reps from total count
@@ -2029,7 +2071,6 @@ class MainViewModel @Inject constructor(
         params.selectedExerciseId?.let { exerciseId ->
             // Only track PRs for completed working sets (not warmups, not just lift, not echo mode)
             // Echo mode is excluded because it uses adaptive weight (machine calculates)
-            val isEchoMode = params.workoutType is WorkoutType.Echo
             if (working > 0 && !params.isJustLift && !isEchoMode) {
                 val brokenPRs = workoutRepository.updatePersonalRecordsIfNeeded(
                     exerciseId = exerciseId,
@@ -2103,6 +2144,12 @@ class MainViewModel @Inject constructor(
     fun setEnableVideoPlayback(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.setEnableVideoPlayback(enabled)
+        }
+    }
+
+    fun setBeepsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setBeepsEnabled(enabled)
         }
     }
 

@@ -645,18 +645,9 @@ class VitruvianBleManager(
                         Timber.d("🔥 REP NOTIFICATION CALLBACK FIRED! Data size: ${data.value?.size ?: 0} bytes")
                         handleRepNotification(data)
                     }
-                } else if (characteristic.uuid == BleConstants.MONITOR_CHAR_UUID) {
-                    // CRITICAL FIX: Use notifications for monitor data instead of read polling
-                    // This fixes the Android 16 Pixel disconnect issue where readCharacteristic()
-                    // calls fail silently, jamming the BLE queue and causing supervision timeout
-                    setNotificationCallback(characteristic).with { _, data ->
-                        // Log at INFO level initially to verify notifications are working
-                        // Can reduce to VERBOSE once confirmed working on Pixel 7/Android 16
-                        if (monitorNotificationCount++ % 100 == 0L) {
-                            Timber.i("📊 MONITOR NOTIFICATION #$monitorNotificationCount (${data.value?.size ?: 0} bytes)")
-                        }
-                        handleMonitorData(data)
-                    }
+                // NOTE: MONITOR_CHAR_UUID (SAMPLE_CHAR) is NOT a NotifiableCharacteristic!
+                // Per trainer analysis, Sample data MUST be polled via readCharacteristic().
+                // Attempting to enable notifications on it caused issues on Android 16 Pixel devices.
                 } else if (characteristic.uuid == BleConstants.VERSION_CHAR_UUID) {
                     // Special handler for VERSION characteristic - log raw hex for debugging
                     setNotificationCallback(characteristic).with { _, data ->
@@ -720,35 +711,47 @@ class VitruvianBleManager(
      * The trainer uses Kotlin coroutines with suspend functions that
      * naturally serialize BLE operations - each read waits for callback before next.
      *
-     * @return true if read succeeded, false if failed or characteristic unavailable
+     * ANDROID 16 FIX: Added timeout to prevent hanging if BLE stack doesn't call back.
+     * On Android 16 (Pixel 7), reads can fail silently without calling .with or .fail,
+     * causing the coroutine to hang forever and blocking all BLE traffic.
+     *
+     * @return true if read succeeded, false if failed, timed out, or characteristic unavailable
      */
     private suspend fun readMonitorCharacteristicSuspend(): Boolean {
         val char = monitorCharacteristic ?: return false
 
-        return suspendCancellableCoroutine { cont ->
-            var resumed = false
-            fun resumeOnce(result: Boolean) {
-                if (!resumed && cont.isActive) {
-                    resumed = true
-                    cont.resume(result)
+        // CRITICAL: Timeout prevents hanging on Android 16 where BLE callbacks may not fire
+        return withTimeoutOrNull(HEARTBEAT_READ_TIMEOUT_MS) {
+            // Single-shot read: wait for callback before issuing the next read.
+            // Mirrors trainer behavior and prevents queue flooding.
+            suspendCancellableCoroutine { cont ->
+                var resumed = false
+                fun resumeOnce(result: Boolean) {
+                    if (!resumed && cont.isActive) {
+                        resumed = true
+                        cont.resume(result)
+                    }
+                }
+
+                try {
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            handleMonitorData(data)
+                            resumeOnce(true)
+                        }
+                        .fail { _, status ->
+                            Timber.w("⚠️ Monitor read failed (status: $status)")
+                            resumeOnce(false)
+                        }
+                        .enqueue()
+                } catch (e: Exception) {
+                    Timber.e(e, "❌ Exception enqueueing monitor read")
+                    resumeOnce(false)
                 }
             }
-
-            try {
-                readCharacteristic(char)
-                    .with { _, data ->
-                        handleMonitorData(data)
-                        resumeOnce(true)
-                    }
-                    .fail { _, status ->
-                        Timber.w("⚠️ Monitor read failed (status: $status)")
-                        resumeOnce(false)
-                    }
-                    .enqueue()
-            } catch (e: Exception) {
-                Timber.e(e, "❌ Exception enqueueing monitor read")
-                resumeOnce(false)
-            }
+        } ?: run {
+            Timber.w("⚠️ Monitor read timed out (${HEARTBEAT_READ_TIMEOUT_MS}ms) - Android 16 BLE issue?")
+            false
         }
     }
 
@@ -761,12 +764,12 @@ class VitruvianBleManager(
      * OLD APPROACH (BROKEN on Android 16):
      *   readCharacteristic().enqueue()  // Fire and forget!
      *   delay(100)                       // Next read regardless of completion
-     *   → Floods BLE queue → supervision timeout → disconnect
+     *   Floods BLE queue -> supervision timeout -> disconnect
      *
      * NEW APPROACH (matches trainer):
      *   val success = readMonitorCharacteristicSuspend()  // WAITS for completion
      *   // Next read only after this one finishes
-     *   → Natural rate limiting → no queue flooding → stable connection
+     *   Natural rate limiting -> no queue flooding -> stable connection
      *
      * @param forAutoStart If true, enables handle detection with WaitingForRest state (for Just Lift auto-start).
      *                     If false, skips handle state initialization (for active workout monitoring).
@@ -801,7 +804,7 @@ class VitruvianBleManager(
         // Each read WAITS for completion before starting the next one.
         // This prevents BLE queue flooding that caused Android 16 disconnects.
         monitorPollingJob = pollingScope.launch {
-            Timber.i("📊 Starting SEQUENTIAL monitor polling (suspend-based, matches trainer)")
+            Timber.i("🔄 Starting SEQUENTIAL monitor polling (suspend-based, matches trainer)")
             var successfulReads = 0L
             var failedReads = 0L
             var consecutiveFailures = 0
@@ -850,43 +853,43 @@ class VitruvianBleManager(
             Timber.i("📊 Monitor polling stopped (reads: $successfulReads, failures: $failedReads)")
         }
     }
-    
-    /**
-     * Suspend function to read diagnostic characteristic and wait for completion.
-     * Used for keep-alive and health monitoring.
-     *
-     * @return true if read succeeded, false if failed or characteristic unavailable
-     */
+
     private suspend fun readDiagnosticCharacteristicSuspend(): Boolean {
         val char = propertyCharacteristic ?: return false
 
-        return suspendCancellableCoroutine { cont ->
-            var resumed = false
-            fun resumeOnce(result: Boolean) {
-                if (!resumed && cont.isActive) {
-                    resumed = true
-                    cont.resume(result)
+        // CRITICAL: Timeout prevents hanging on Android 16 where BLE callbacks may not fire
+        return withTimeoutOrNull(HEARTBEAT_READ_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                var resumed = false
+                fun resumeOnce(result: Boolean) {
+                    if (!resumed && cont.isActive) {
+                        resumed = true
+                        cont.resume(result)
+                    }
+                }
+
+                try {
+                    readCharacteristic(char)
+                        .with { _, data ->
+                            val bytes = data.value
+                            if (bytes != null) {
+                                parseDiagnosticData(bytes)
+                            }
+                            resumeOnce(true)
+                        }
+                        .fail { _, status ->
+                            Timber.w("⚠️ Diagnostic read failed (status: $status)")
+                            resumeOnce(false)
+                        }
+                        .enqueue()
+                } catch (e: Exception) {
+                    Timber.e(e, "❌ Exception enqueueing diagnostic read")
+                    resumeOnce(false)
                 }
             }
-
-            try {
-                readCharacteristic(char)
-                    .with { _, data ->
-                        val bytes = data.value
-                        if (bytes != null) {
-                            parseDiagnosticData(bytes)
-                        }
-                        resumeOnce(true)
-                    }
-                    .fail { _, status ->
-                        Timber.w("⚠️ Diagnostic read failed (status: $status)")
-                        resumeOnce(false)
-                    }
-                    .enqueue()
-            } catch (e: Exception) {
-                Timber.e(e, "❌ Exception enqueueing diagnostic read")
-                resumeOnce(false)
-            }
+        } ?: run {
+            Timber.w("⚠️ Diagnostic read timed out (${HEARTBEAT_READ_TIMEOUT_MS}ms) - Android 16 BLE issue?")
+            false
         }
     }
 
@@ -1584,61 +1587,88 @@ class VitruvianBleManager(
     /**
      * Handle rep notification data
      *
-     * Official App Reps Packet Structure (24 bytes, Little Endian):
+     * Supports TWO packet formats for backwards compatibility (Issue #187):
+     *
+     * LEGACY FORMAT (6+ bytes, used in Beta 4):
+     * - Bytes 0-1: topCounter (u16) - concentric completions
+     * - Bytes 2-3: (unused)
+     * - Bytes 4-5: completeCounter (u16) - eccentric completions
+     *
+     * OFFICIAL APP FORMAT (24 bytes, Little Endian):
      * - Bytes 0-3:   up (Int/u32) - up counter (concentric completions)
      * - Bytes 4-7:   down (Int/u32) - down counter (eccentric completions)
      * - Bytes 8-11:  rangeTop (Float) - maximum ROM boundary
      * - Bytes 12-15: rangeBottom (Float) - minimum ROM boundary
-     * - Bytes 16-17: repsRomCount (Short/u16) - Warmup reps with proper ROM - USE FOR WARMUP DISPLAY
+     * - Bytes 16-17: repsRomCount (Short/u16) - Warmup reps with proper ROM
      * - Bytes 18-19: repsRomTotal (Short/u16) - Total reps regardless of ROM
-     * - Bytes 20-21: repsSetCount (Short/u16) - WORKING SET REP COUNT - display this!
+     * - Bytes 20-21: repsSetCount (Short/u16) - WORKING SET REP COUNT
      * - Bytes 22-23: repsSetTotal (Short/u16) - Total reps in set
      */
     private fun handleRepNotification(data: Data) {
         try {
             val bytes = data.value ?: return
 
-            if (bytes.size < 24) {
-                Timber.w("Rep notification too short: ${bytes.size} bytes (expected 24)")
+            if (bytes.size < 6) {
+                Timber.w("Rep notification too short: ${bytes.size} bytes (minimum 6)")
                 return
             }
 
-            // Parse full 24-byte packet according to trainer structure
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
-            // u32 counters at offsets 0 and 4
-            val upCounter = buffer.getInt(0)
-            val downCounter = buffer.getInt(4)
+            val repData: RepNotification
 
-            // Float ROM boundaries at offsets 8 and 12
-            val rangeTop = buffer.getFloat(8)
-            val rangeBottom = buffer.getFloat(12)
+            if (bytes.size >= 24) {
+                // FULL 24-byte packet - parse all fields
+                val upCounter = buffer.getInt(0)
+                val downCounter = buffer.getInt(4)
+                val rangeTop = buffer.getFloat(8)
+                val rangeBottom = buffer.getFloat(12)
+                val repsRomCount = buffer.getShort(16).toInt() and 0xFFFF
+                val repsRomTotal = buffer.getShort(18).toInt() and 0xFFFF
+                val repsSetCount = buffer.getShort(20).toInt() and 0xFFFF
+                val repsSetTotal = buffer.getShort(22).toInt() and 0xFFFF
 
-            // u16 rep counts at offsets 16, 18, 20, 22
-            val repsRomCount = buffer.getShort(16).toInt() and 0xFFFF   // Warmup reps (proper ROM)
-            val repsRomTotal = buffer.getShort(18).toInt() and 0xFFFF  // Total reps (any ROM)
-            val repsSetCount = buffer.getShort(20).toInt() and 0xFFFF  // WORKING SET REPS - display this!
-            val repsSetTotal = buffer.getShort(22).toInt() and 0xFFFF  // Total set reps
+                Timber.d("Rep notification (24-byte format):")
+                Timber.d("  up=$upCounter, down=$downCounter")
+                Timber.d("  repsRomCount=$repsRomCount (warmup), repsSetCount=$repsSetCount (working)")
+                Timber.d("  hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
 
-            Timber.d("Rep notification FULL PARSE:")
-            Timber.d("  up=$upCounter, down=$downCounter")
-            Timber.d("  rangeTop=$rangeTop, rangeBottom=$rangeBottom")
-            Timber.d("  repsRomCount=$repsRomCount (warmup), repsRomTotal=$repsRomTotal")
-            Timber.d("  repsSetCount=$repsSetCount (WORKING), repsSetTotal=$repsSetTotal")
-            Timber.d("  hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
+                repData = RepNotification(
+                    topCounter = upCounter,
+                    completeCounter = downCounter,
+                    repsRomCount = repsRomCount,
+                    repsSetCount = repsSetCount,
+                    rangeTop = rangeTop,
+                    rangeBottom = rangeBottom,
+                    rawData = bytes,
+                    timestamp = System.currentTimeMillis(),
+                    isLegacyFormat = false
+                )
+            } else {
+                // LEGACY 6-byte packet (Beta 4 format) - parse u16 counters
+                // This handles Samsung devices and older firmware that may send shorter packets
+                val topCounter = buffer.getShort(0).toInt() and 0xFFFF
+                val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
 
-            val repData = RepNotification(
-                topCounter = upCounter,          // Use full u32 up counter
-                completeCounter = downCounter,   // Use full u32 down counter
-                repsRomCount = repsRomCount,     // Warmup reps (proper ROM)
-                repsSetCount = repsSetCount,     // WORKING SET REPS - this is what trainer displays!
-                rangeTop = rangeTop,
-                rangeBottom = rangeBottom,
-                rawData = bytes,
-                timestamp = System.currentTimeMillis()
-            )
+                Timber.w("Rep notification (LEGACY 6-byte format - Issue #187 fallback):")
+                Timber.w("  top=$topCounter, complete=$completeCounter")
+                Timber.w("  hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
+
+                repData = RepNotification(
+                    topCounter = topCounter,
+                    completeCounter = completeCounter,
+                    repsRomCount = 0,  // Not available in legacy format
+                    repsSetCount = 0,  // Not available in legacy format
+                    rangeTop = 0f,
+                    rangeBottom = 0f,
+                    rawData = bytes,
+                    timestamp = System.currentTimeMillis(),
+                    isLegacyFormat = true
+                )
+            }
+
             val emitted = _repEvents.tryEmit(repData)
-            Timber.d("🔥 Emitted rep event: success=$emitted, subscribers=${_repEvents.subscriptionCount.value}")
+            Timber.d("🔥 Emitted rep event: success=$emitted, subscribers=${_repEvents.subscriptionCount.value}, legacy=${repData.isLegacyFormat}")
         } catch (e: Exception) {
             Timber.e(e, "Error parsing rep notification")
         }
@@ -1707,7 +1737,13 @@ enum class HandleState {
  * Rep notification data class
  * Parsed from device notifications on characteristic 8308f2a6-0875-4a94-a86f-5c5c5e1b068a
  *
- * Official App 24-byte Structure:
+ * Supports TWO formats (Issue #187):
+ *
+ * LEGACY FORMAT (6 bytes, Beta 4 compatible):
+ * - Uses topCounter/completeCounter for rep counting
+ * - isLegacyFormat = true
+ *
+ * OFFICIAL APP FORMAT (24 bytes):
  * - topCounter (u32): Concentric/up phase completions
  * - completeCounter (u32): Eccentric/down phase completions
  * - rangeTop (float): Maximum ROM boundary
@@ -1716,6 +1752,7 @@ enum class HandleState {
  * - repsRomTotal (u16): Total reps regardless of ROM
  * - repsSetCount (u16): Working set rep count - USE FOR WORKING REPS DISPLAY
  * - repsSetTotal (u16): Total reps in set
+ * - isLegacyFormat = false
  */
 data class RepNotification(
     val topCounter: Int,        // u32: Concentric completions (up counter)
@@ -1725,7 +1762,8 @@ data class RepNotification(
     val rangeTop: Float = 0f,   // ROM max boundary
     val rangeBottom: Float = 0f, // ROM min boundary
     val rawData: ByteArray,
-    val timestamp: Long
+    val timestamp: Long,
+    val isLegacyFormat: Boolean = false  // True if parsed from 6-byte legacy packet (Issue #187)
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -1741,6 +1779,7 @@ data class RepNotification(
         if (rangeBottom != other.rangeBottom) return false
         if (!rawData.contentEquals(other.rawData)) return false
         if (timestamp != other.timestamp) return false
+        if (isLegacyFormat != other.isLegacyFormat) return false
 
         return true
     }
@@ -1754,6 +1793,7 @@ data class RepNotification(
         result = 31 * result + rangeBottom.hashCode()
         result = 31 * result + rawData.contentHashCode()
         result = 31 * result + timestamp.hashCode()
+        result = 31 * result + isLegacyFormat.hashCode()
         return result
     }
 }

@@ -427,7 +427,7 @@ fun GroupedRoutineCard(
             .map { (exerciseId, sessions) ->
                 val totalReps = sessions.sumOf { it.totalReps }
                 val totalSets = sessions.size
-                val weightPerCableKg = sessions.firstOrNull()?.weightPerCableKg ?: 0f
+                val weightPerCableKg = sessions.maxOfOrNull { it.weightPerCableKg } ?: 0f
                 val mode = sessions.firstOrNull()?.mode ?: "Unknown"
                 // Use exerciseName from the session (stored when workout was saved)
                 val exerciseName = sessions.firstOrNull()?.exerciseName ?: "Unknown Exercise"
@@ -774,10 +774,12 @@ fun SettingsTab(
     autoplayEnabled: Boolean,
     stopAtTop: Boolean,
     enableVideoPlayback: Boolean,
+    beepsEnabled: Boolean,
     onWeightUnitChange: (WeightUnit) -> Unit,
     onAutoplayChange: (Boolean) -> Unit,
     onStopAtTopChange: (Boolean) -> Unit,
     onEnableVideoPlaybackChange: (Boolean) -> Unit,
+    onBeepsEnabledChange: (Boolean) -> Unit,
     onColorSchemeChange: (Int) -> Unit,
     onDeleteAllWorkouts: () -> Unit,
     onNavigateToConnectionLogs: () -> Unit = {},
@@ -1022,6 +1024,36 @@ fun SettingsTab(
                     Switch(
                         checked = enableVideoPlayback,
                         onCheckedChange = onEnableVideoPlaybackChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Workout Beeps toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Workout Beeps",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Play audio cues for rep completion and workout events (won't interrupt music)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = beepsEnabled,
+                        onCheckedChange = onBeepsEnabledChange
                     )
                 }
             }
