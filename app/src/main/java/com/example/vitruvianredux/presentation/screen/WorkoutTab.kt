@@ -478,6 +478,11 @@ fun WorkoutTab(
                     currentExerciseIndex = if (loadedRoutine != null) currentExerciseIndex else null,
                     totalExercises = loadedRoutine?.exercises?.size,
                     formatWeight = { weight -> formatWeight(weight, weightUnit) },
+                    workoutParameters = workoutParameters,
+                    weightUnit = weightUnit,
+                    kgToDisplay = kgToDisplay,
+                    displayToKg = displayToKg,
+                    onUpdateParameters = onUpdateParameters,
                     onSkipRest = onSkipRest,
                     onEndWorkout = onStopWorkout
                 )
