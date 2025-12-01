@@ -40,6 +40,10 @@ import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.*
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.vitruvianredux.util.ImportResult
 
 @Composable
 fun HistoryTab(
@@ -788,6 +792,13 @@ fun SettingsTab(
     onDeleteAllWorkouts: () -> Unit,
     onNavigateToConnectionLogs: () -> Unit = {},
     onNavigateToProtocolTester: () -> Unit = {},
+    isExporting: Boolean = false,
+    isImporting: Boolean = false,
+    importResult: ImportResult? = null,
+    showImportResultDialog: Boolean = false,
+    onExportData: () -> Unit = {},
+    onImportData: (Uri) -> Unit = {},
+    onDismissImportResult: () -> Unit = {},
     isAutoConnecting: Boolean = false,
     connectionError: String? = null,
     onClearConnectionError: () -> Unit = {},
@@ -808,6 +819,13 @@ fun SettingsTab(
 
     // Context for opening URLs
     val context = LocalContext.current
+
+    // Import file picker launcher
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { onImportData(it) }
+    }
 
     Column(
         modifier = modifier
@@ -1138,6 +1156,119 @@ fun SettingsTab(
         }
     )
 
+    // Backup & Restore Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF3B82F6), Color(0xFF8B5CF6))
+                            ),
+                            RoundedCornerShape(20.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.CloudUpload,
+                        contentDescription = "Backup and restore",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Backup & Restore",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(modifier = Modifier.height(Spacing.small))
+            Text(
+                "Export your data to migrate between devices or back up your workout history",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Export button
+            OutlinedButton(
+                onClick = onExportData,
+                enabled = !isExporting && !isImporting,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                if (isExporting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Upload,
+                        contentDescription = "Export data",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.small))
+                Text(
+                    if (isExporting) "Exporting..." else "Export Data",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Import button
+            OutlinedButton(
+                onClick = { importLauncher.launch(arrayOf("application/json")) },
+                enabled = !isExporting && !isImporting,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                if (isImporting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = "Import data",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.small))
+                Text(
+                    if (isImporting) "Importing..." else "Import Data",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+
     // Data Management Section - Material 3 Expressive
     Card(
         modifier = Modifier
@@ -1433,6 +1564,83 @@ fun SettingsTab(
         com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
             message = error,
             onDismiss = onClearConnectionError
+        )
+    }
+
+    // Import Result Dialog
+    if (showImportResultDialog && importResult != null) {
+        AlertDialog(
+            onDismissRequest = onDismissImportResult,
+            title = {
+                Text(
+                    "Import Complete",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "Successfully imported data:",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                    Text(
+                        "Workout Sessions: ${importResult.sessionsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Workout Metrics: ${importResult.metricsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Routines: ${importResult.routinesImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Routine Exercises: ${importResult.routineExercisesImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Weekly Programs: ${importResult.programsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Program Days: ${importResult.programDaysImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Personal Records: ${importResult.personalRecordsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    if (importResult.totalSkipped > 0) {
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        Text(
+                            "Skipped ${importResult.totalSkipped} duplicate records",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            shape = RoundedCornerShape(28.dp),
+            confirmButton = {
+                TextButton(
+                    onClick = onDismissImportResult,
+                    modifier = Modifier.height(56.dp),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text(
+                        "OK",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         )
     }
 }

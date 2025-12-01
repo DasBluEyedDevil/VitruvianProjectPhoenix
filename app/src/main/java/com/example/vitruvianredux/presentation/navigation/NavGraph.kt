@@ -180,6 +180,11 @@ fun NavGraph(
             val userPreferences by viewModel.userPreferences.collectAsState()
             val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
             val connectionError by viewModel.connectionError.collectAsState()
+            val isExporting by viewModel.isExporting.collectAsState()
+            val isImporting by viewModel.isImporting.collectAsState()
+            val importResult by viewModel.importResult.collectAsState()
+            val showImportResultDialog by viewModel.showImportResultDialog.collectAsState()
+
             SettingsTab(
                 weightUnit = weightUnit,
                 autoplayEnabled = userPreferences.autoplayEnabled,
@@ -195,6 +200,13 @@ fun NavGraph(
                 onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                 onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
                 onNavigateToProtocolTester = { navController.navigate(NavigationRoutes.ProtocolTester.route) },
+                isExporting = isExporting,
+                isImporting = isImporting,
+                importResult = importResult,
+                showImportResultDialog = showImportResultDialog,
+                onExportData = { viewModel.exportAllData() },
+                onImportData = { uri -> viewModel.importFromUri(uri) },
+                onDismissImportResult = { viewModel.dismissImportResult() },
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
                 onClearConnectionError = { viewModel.clearConnectionError() },

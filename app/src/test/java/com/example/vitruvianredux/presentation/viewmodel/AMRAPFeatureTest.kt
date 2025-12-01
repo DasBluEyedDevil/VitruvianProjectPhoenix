@@ -44,6 +44,7 @@ class AMRAPFeatureTest {
     private lateinit var personalRecordRepository: PersonalRecordRepository
     private lateinit var repCounter: RepCounterFromMachine
     private lateinit var preferencesManager: PreferencesManager
+    private lateinit var dataBackupManager: com.example.vitruvianredux.util.DataBackupManager
     private lateinit var viewModel: MainViewModel
 
     private val testExercise = Exercise(
@@ -67,6 +68,7 @@ class AMRAPFeatureTest {
         personalRecordRepository = mockk(relaxed = true)
         repCounter = mockk(relaxed = true)
         preferencesManager = mockk(relaxed = true)
+        dataBackupManager = mockk(relaxed = true)
 
         every { bleRepository.connectionState } returns MutableStateFlow(ConnectionState.Disconnected)
         every { bleRepository.monitorData } returns emptyFlow()
@@ -90,7 +92,8 @@ class AMRAPFeatureTest {
             exerciseRepository = exerciseRepository,
             personalRecordRepository = personalRecordRepository,
             repCounter = repCounter,
-            preferencesManager = preferencesManager
+            preferencesManager = preferencesManager,
+            dataBackupManager = dataBackupManager
         )
     }
 
