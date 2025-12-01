@@ -45,6 +45,7 @@ class MainViewModelEnhancedTest {
     private lateinit var personalRecordRepository: PersonalRecordRepository
     private lateinit var repCounter: RepCounterFromMachine
     private lateinit var preferencesManager: PreferencesManager
+    private lateinit var dataBackupManager: com.example.vitruvianredux.util.DataBackupManager
     private lateinit var viewModel: MainViewModel
 
     // Test data
@@ -112,6 +113,7 @@ class MainViewModelEnhancedTest {
         personalRecordRepository = mockk(relaxed = true)
         repCounter = mockk(relaxed = true)
         preferencesManager = mockk(relaxed = true)
+        dataBackupManager = mockk(relaxed = true)
 
         // Setup default flows for BleRepository
         every { bleRepository.connectionState } returns MutableStateFlow(ConnectionState.Disconnected)
@@ -139,7 +141,8 @@ class MainViewModelEnhancedTest {
             exerciseRepository = exerciseRepository,
             personalRecordRepository = personalRecordRepository,
             repCounter = repCounter,
-            preferencesManager = preferencesManager
+            preferencesManager = preferencesManager,
+            dataBackupManager = dataBackupManager
         )
     }
 
@@ -297,7 +300,8 @@ class MainViewModelEnhancedTest {
             exerciseRepository = exerciseRepository,
             personalRecordRepository = personalRecordRepository,
             repCounter = repCounter,
-            preferencesManager = preferencesManager
+            preferencesManager = preferencesManager,
+            dataBackupManager = dataBackupManager
         )
 
         // Assert

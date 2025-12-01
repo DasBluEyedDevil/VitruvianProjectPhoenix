@@ -131,4 +131,51 @@ interface WorkoutDao {
 
     @Query("DELETE FROM weekly_programs WHERE id = :programId")
     suspend fun deleteProgram(programId: String)
+
+    // --- Bulk Data Access for Backup/Restore ---
+
+    @Query("SELECT * FROM workout_sessions")
+    suspend fun getAllSessionsSync(): List<WorkoutSessionEntity>
+
+    @Query("SELECT * FROM workout_metrics")
+    suspend fun getAllMetricsSync(): List<WorkoutMetricEntity>
+
+    @Query("SELECT * FROM routines")
+    suspend fun getAllRoutinesSync(): List<RoutineEntity>
+
+    @Query("SELECT * FROM routine_exercises")
+    suspend fun getAllRoutineExercisesSync(): List<RoutineExerciseEntity>
+
+    @Query("SELECT * FROM weekly_programs")
+    suspend fun getAllProgramsSync(): List<WeeklyProgramEntity>
+
+    @Query("SELECT * FROM program_days")
+    suspend fun getAllProgramDaysSync(): List<ProgramDayEntity>
+
+    @Query("SELECT id FROM workout_sessions")
+    suspend fun getAllSessionIds(): List<String>
+
+    @Query("SELECT id FROM routines")
+    suspend fun getAllRoutineIds(): List<String>
+
+    @Query("SELECT id FROM weekly_programs")
+    suspend fun getAllProgramIds(): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSessionIgnore(session: WorkoutSessionEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMetricIgnore(metric: WorkoutMetricEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRoutineIgnore(routine: RoutineEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRoutineExerciseIgnore(exercise: RoutineExerciseEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProgramIgnore(program: WeeklyProgramEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProgramDayIgnore(day: ProgramDayEntity): Long
 }

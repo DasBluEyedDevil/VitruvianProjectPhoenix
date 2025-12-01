@@ -98,6 +98,24 @@ interface PersonalRecordDao {
     fun getAllPRsGrouped(): Flow<List<PersonalRecordEntity>>
 
     /**
+     * Get all personal records synchronously for backup
+     */
+    @Query("SELECT * FROM personal_records")
+    suspend fun getAllPRsSync(): List<PersonalRecordEntity>
+
+    /**
+     * Get all PR IDs for duplicate checking during import
+     */
+    @Query("SELECT id FROM personal_records")
+    suspend fun getAllPRIds(): List<Long>
+
+    /**
+     * Insert a PR, ignoring if it already exists
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPRIgnore(pr: PersonalRecordEntity): Long
+
+    /**
      * Insert or update a personal record
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
