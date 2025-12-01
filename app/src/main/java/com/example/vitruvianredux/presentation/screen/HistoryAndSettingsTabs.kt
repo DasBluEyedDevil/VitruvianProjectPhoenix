@@ -1488,8 +1488,8 @@ fun SettingsTab(
                 )
             }
                 Spacer(modifier = Modifier.height(Spacing.small))
-                Text("Version: 1.0.0", color = MaterialTheme.colorScheme.onSurface)
-                Text("Build: Production Release", color = MaterialTheme.colorScheme.onSurface)
+                Text("Version: ${com.example.vitruvianredux.BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurface)
+                Text("Build: ${com.example.vitruvianredux.BuildConfig.BUILD_TYPE_LABEL}", color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(Spacing.small))
                 Text(
                     "Open source community project to control Vitruvian Trainer machines locally.",
