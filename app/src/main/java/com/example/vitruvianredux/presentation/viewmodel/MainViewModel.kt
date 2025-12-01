@@ -703,8 +703,8 @@ class MainViewModel @Inject constructor(
             repsSetCount = notification.repsSetCount,   // Machine's working rep count (0 for legacy)
             up = notification.topCounter,               // For position calibration / legacy counting
             down = notification.completeCounter,        // For position calibration
-            posA = currentPositions?.positionA ?: 0,
-            posB = currentPositions?.positionB ?: 0,
+            posA = currentPositions?.positionA ?: 0f,
+            posB = currentPositions?.positionB ?: 0f,
             isLegacyFormat = notification.isLegacyFormat  // Use Beta 4 counting if legacy packet
         )
         // Update rep ranges for position bars visualization

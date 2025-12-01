@@ -17,11 +17,9 @@ object WorkoutConstants {
 
     // Position ranges (mm) - from official app documentation
     // Cable position is measured in millimeters, valid range is -1000 to +1000 mm
-    const val MAX_POSITION = 1000   // Maximum valid position (mm)
-    const val MIN_POSITION = -1000  // Minimum valid position (mm)
-
-    // Spike detection threshold (web app uses 50000 to filter BLE transmission errors)
-    const val POSITION_SPIKE_THRESHOLD = 50000
+    // BLE sends signed 16-bit values with 0.1mm resolution, divided by 10 to get mm
+    const val MAX_POSITION = 1000.0f   // Maximum valid position (mm)
+    const val MIN_POSITION = -1000.0f  // Minimum valid position (mm)
 }
 
 /**

@@ -80,13 +80,15 @@ class VitruvianBleManager(
     private val HEARTBEAT_READ_TIMEOUT_MS = 1500L
     private val HEARTBEAT_NO_OP = byteArrayOf(0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte())
 
-    // Last good positions for filtering spikes (volatile for thread safety)
-    @Volatile private var lastGoodPosA = 0
-    @Volatile private var lastGoodPosB = 0
+    // Last good positions for filtering invalid values (volatile for thread safety)
+    // Position values are in mm (-1000.0 to +1000.0)
+    @Volatile private var lastGoodPosA = 0.0f
+    @Volatile private var lastGoodPosB = 0.0f
 
     // Position tracking for validation and velocity (volatile for thread safety)
-    @Volatile private var lastPositionA = 0
-    @Volatile private var lastPositionB = 0
+    // Position values are in mm (-1000.0 to +1000.0)
+    @Volatile private var lastPositionA = 0.0f
+    @Volatile private var lastPositionB = 0.0f
     @Volatile private var lastTimestamp = 0L
     @Volatile private var strictValidationEnabled = false
 
@@ -1316,26 +1318,23 @@ class VitruvianBleManager(
      * Filters out invalid position values and optionally large position jumps.
      *
      * Position validation per official app:
-     * - Valid range: -1000 to +1000 mm (MIN_POSITION to MAX_POSITION)
-     * - Values > 50000 are BLE transmission errors (already handled by spike filter)
-     *
-     * NOTE: The spike filter runs BEFORE this function and replaces values > 50000
-     * with lastGoodPos, so we only need to check the valid range here.
+     * - Valid range: -1000.0 to +1000.0 mm (MIN_POSITION to MAX_POSITION)
+     * - Position values are now Float in mm (scaled by /10 at parse time)
      */
-    private fun validateSample(posA: Int, loadA: Float, posB: Int, loadB: Float): Boolean {
+    private fun validateSample(posA: Float, loadA: Float, posB: Float, loadB: Float): Boolean {
         // Official app range: -1000 to +1000 mm
-        // Values outside this range are invalid (but > 50000 already filtered as spikes)
-        if ((posA < WorkoutConstants.MIN_POSITION || posA > WorkoutConstants.MAX_POSITION) ||
-            (posB < WorkoutConstants.MIN_POSITION || posB > WorkoutConstants.MAX_POSITION)) {
+        if (posA !in WorkoutConstants.MIN_POSITION..WorkoutConstants.MAX_POSITION ||
+            posB !in WorkoutConstants.MIN_POSITION..WorkoutConstants.MAX_POSITION) {
             Timber.w("Position out of range: posA=$posA, posB=$posB (valid: ${WorkoutConstants.MIN_POSITION} to ${WorkoutConstants.MAX_POSITION})")
             return false
         }
 
         // Strict validation checks position jumps (when enabled)
+        // Threshold is 20mm (was 200 raw units = 20mm after /10 scaling)
         if (strictValidationEnabled) {
             val deltaA = kotlin.math.abs(posA - lastPositionA)
             val deltaB = kotlin.math.abs(posB - lastPositionB)
-            if (deltaA > 200 || deltaB > 200) {
+            if (deltaA > 20f || deltaB > 20f) {
                 Timber.w("Position jump detected: deltaA=$deltaA, deltaB=$deltaB")
                 return false
             }
@@ -1442,30 +1441,42 @@ class VitruvianBleManager(
 
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
-            // v0.5.1-beta parsing - proven working format
-            // Format: u16[0-1]=ticks, u16[2]=posA, u16[4]=loadA*100, u16[5]=posB, u16[7]=loadB*100
-            val f0 = buffer.getShort(0).toInt() and 0xFFFF      // Offset 0-1
-            val f1 = buffer.getShort(2).toInt() and 0xFFFF      // Offset 2-3
-            val f2 = buffer.getShort(4).toInt() and 0xFFFF      // Offset 4-5 (posA)
-            val f4 = buffer.getShort(8).toInt() and 0xFFFF      // Offset 8-9 (loadA*100)
-            val f5 = buffer.getShort(10).toInt() and 0xFFFF     // Offset 10-11 (posB)
-            val f7 = buffer.getShort(14).toInt() and 0xFFFF     // Offset 14-15 (loadB*100)
+            // BLE packet parsing - official app format
+            // Format: u16[0-1]=ticks_lo, u16[2-3]=ticks_hi, s16[4-5]=posA*10, u16[8-9]=loadA*100,
+            //         s16[10-11]=posB*10, u16[14-15]=loadB*100
+            val ticksLo = buffer.getShort(0).toInt() and 0xFFFF    // Offset 0-1 (unsigned)
+            val ticksHi = buffer.getShort(2).toInt() and 0xFFFF    // Offset 2-3 (unsigned)
+            val posARaw = buffer.getShort(4)                       // Offset 4-5 (SIGNED - position)
+            val loadARaw = buffer.getShort(8).toInt() and 0xFFFF   // Offset 8-9 (unsigned - load*100)
+            val posBRaw = buffer.getShort(10)                      // Offset 10-11 (SIGNED - position)
+            val loadBRaw = buffer.getShort(14).toInt() and 0xFFFF  // Offset 14-15 (unsigned - load*100)
 
             // Reconstruct 32-bit tick counter
-            val ticks = f0 + (f1 shl 16)
+            val ticks = ticksLo + (ticksHi shl 16)
 
-            // Position values
-            var positionA = f2
-            var positionB = f5
+            // Position values - signed 16-bit with 0.1mm resolution, scale to mm
+            // Per official app: position = buffer.getShort() / 10.0
+            // Valid range after scaling: -1000.0 to +1000.0 mm
+            var positionA = posARaw / 10.0f
+            var positionB = posBRaw / 10.0f
 
-            // Spike filtering - BLE transmission errors produce values > 50000
-            // Per official app documentation, valid range is -1000 to +1000 mm
-            if (positionA > WorkoutConstants.POSITION_SPIKE_THRESHOLD) positionA = lastGoodPosA else lastGoodPosA = positionA
-            if (positionB > WorkoutConstants.POSITION_SPIKE_THRESHOLD) positionB = lastGoodPosB else lastGoodPosB = positionB
+            // Validate position range and use last good value if invalid
+            if (positionA !in WorkoutConstants.MIN_POSITION..WorkoutConstants.MAX_POSITION) {
+                Timber.w("Position A out of range: $positionA, using last good: $lastGoodPosA")
+                positionA = lastGoodPosA
+            } else {
+                lastGoodPosA = positionA
+            }
+            if (positionB !in WorkoutConstants.MIN_POSITION..WorkoutConstants.MAX_POSITION) {
+                Timber.w("Position B out of range: $positionB, using last good: $lastGoodPosB")
+                positionB = lastGoodPosB
+            } else {
+                lastGoodPosB = positionB
+            }
 
             // Load in kg (device sends kg * 100)
-            val loadA = f4 / 100.0f
-            val loadB = f7 / 100.0f
+            val loadA = loadARaw / 100.0f
+            val loadB = loadBRaw / 100.0f
 
             // Status (Bytes 16-17) if available
             var status = 0
@@ -1512,11 +1523,7 @@ class VitruvianBleManager(
                 return
             }
 
-            // Update last good positions after validation passes
-            lastGoodPosA = positionA
-            lastGoodPosB = positionB
-
-            // Calculate velocity from position delta (v0.5.1-beta approach)
+            // Calculate velocity from position delta (mm/s)
             val currentTime = System.currentTimeMillis()
             val velocityA = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0

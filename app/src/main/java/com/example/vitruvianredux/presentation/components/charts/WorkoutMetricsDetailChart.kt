@@ -123,14 +123,14 @@ fun WorkoutMetricsDetailChart(
  * Calculate power from load and position data
  * Power = Load × Velocity (velocity derived from position changes)
  */
-private fun calculatePower(loads: List<Float>, positions: List<Int>): List<Float> {
+private fun calculatePower(loads: List<Float>, positions: List<Float>): List<Float> {
     if (loads.size < 2 || positions.size < 2) return emptyList()
-    
+
     val power = mutableListOf<Float>()
-    
+
     for (i in 1 until loads.size) {
         val load = loads[i]
-        val positionChange = abs(positions[i] - positions[i - 1]).toFloat()
+        val positionChange = abs(positions[i] - positions[i - 1])
         // Power approximation: load × position change rate
         val calculatedPower = load * positionChange
         power.add(calculatedPower)
