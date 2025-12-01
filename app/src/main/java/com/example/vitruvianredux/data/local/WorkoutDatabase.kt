@@ -42,7 +42,7 @@ import androidx.room.TypeConverters
         com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity::class,
         com.example.vitruvianredux.data.local.entity.DiagnosticsEntity::class
     ],
-    version = 25,  // Added dual PR tracking (prType, volume columns)
+    version = 26,  // Changed positionA/B from Int to Float (mm) - Issue #197
     exportSchema = false
 )
 @TypeConverters(Converters::class)

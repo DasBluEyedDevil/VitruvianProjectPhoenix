@@ -42,23 +42,23 @@ enum class MovementPhase {
  * - **Smooth Animations**: Fluid position and color transitions
  *
  * @param label Label for the bar (e.g., "L" or "R")
- * @param currentPosition Current cable position (0-1000 scale)
- * @param velocity Current velocity (positive = concentric/extending, negative = eccentric/retracting)
- * @param minPosition ROM bottom position (from calibration)
- * @param maxPosition ROM top position (from calibration)
- * @param ghostMin Ghost marker at last rep's minimum extent
- * @param ghostMax Ghost marker at last rep's maximum extent
+ * @param currentPosition Current cable position in mm (0-1000 range)
+ * @param velocity Current velocity in mm/s (positive = concentric/extending, negative = eccentric/retracting)
+ * @param minPosition ROM bottom position in mm (from calibration)
+ * @param maxPosition ROM top position in mm (from calibration)
+ * @param ghostMin Ghost marker at last rep's minimum extent in mm
+ * @param ghostMax Ghost marker at last rep's maximum extent in mm
  * @param isActive Whether the cable is actively being used
  */
 @Composable
 fun EnhancedCablePositionBar(
     label: String,
-    currentPosition: Int,
+    currentPosition: Float,
     velocity: Double = 0.0,
-    minPosition: Int? = null,
-    maxPosition: Int? = null,
-    ghostMin: Int? = null,
-    ghostMax: Int? = null,
+    minPosition: Float? = null,
+    maxPosition: Float? = null,
+    ghostMin: Float? = null,
+    ghostMax: Float? = null,
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -89,19 +89,57 @@ fun EnhancedCablePositionBar(
         label = "Phase Color"
     )
 
-    // Smooth position animation (50ms for responsive feel without jitter)
-    val maxPos = 1000f
+    // Position display normalization
+    // Per trainer behavior observed in video:
+    // - During warmup, ROM is dynamically calibrated from actual movement
+    // - Once ROM established, position is normalized relative to ROM range
+    // - ROM markers appear at ~20% and ~80% of the bar, leaving headroom
+    // - Going below ROM bottom triggers deload/spotter mode
+
+    // ROM padding: Based on trainer screenshots, ROM boundaries appear at ~25% and ~90%
+    val romPaddingBottom = 0.25f  // ROM bottom appears at 25% (leaves room for deload detection below)
+    val romPaddingTop = 0.90f     // ROM top appears at 90% (small headroom at top)
+    val romDisplayRange = romPaddingTop - romPaddingBottom  // 0.65 (65% of bar for ROM)
+
+    // Calculate normalized position
     val animatedPosition by animateFloatAsState(
-        targetValue = (currentPosition / maxPos).coerceIn(0f, 1f),
+        targetValue = if (minPosition != null && maxPosition != null && maxPosition > minPosition) {
+            // ROM established: normalize relative to ROM range with padding
+            val romRange = maxPosition - minPosition
+            val positionInRom = (currentPosition - minPosition) / romRange  // 0-1 within ROM
+            // Map ROM 0-1 to display 0.2-0.8, allow overflow for positions outside ROM
+            (romPaddingBottom + positionInRom * romDisplayRange).coerceIn(0f, 1f)
+        } else {
+            // ROM not yet established: use wide range for initial display
+            // Start with large range so initial movements appear small (like trainer)
+            val wideRangeMax = 1000f  // Full validation range
+            (currentPosition / wideRangeMax).coerceIn(0f, 1f)
+        },
         animationSpec = tween(durationMillis = 50),
         label = "Position"
     )
 
-    // Calculate normalized positions
-    val minProgress = minPosition?.let { (it / maxPos).coerceIn(0f, 1f) }
-    val maxProgress = maxPosition?.let { (it / maxPos).coerceIn(0f, 1f) }
-    val ghostMinProgress = ghostMin?.let { (it / maxPos).coerceIn(0f, 1f) }
-    val ghostMaxProgress = ghostMax?.let { (it / maxPos).coerceIn(0f, 1f) }
+    // Calculate ROM marker positions (fixed at padding boundaries when ROM established)
+    val minProgress = if (minPosition != null && maxPosition != null && maxPosition > minPosition) {
+        romPaddingBottom  // ROM bottom marker at 20%
+    } else null
+
+    val maxProgress = if (minPosition != null && maxPosition != null && maxPosition > minPosition) {
+        romPaddingTop  // ROM top marker at 80%
+    } else null
+
+    // Ghost markers also normalized to ROM-relative display
+    val ghostMinProgress = if (minPosition != null && maxPosition != null && maxPosition > minPosition && ghostMin != null) {
+        val romRange = maxPosition - minPosition
+        val posInRom = (ghostMin - minPosition) / romRange
+        (romPaddingBottom + posInRom * romDisplayRange).coerceIn(0f, 1f)
+    } else null
+
+    val ghostMaxProgress = if (minPosition != null && maxPosition != null && maxPosition > minPosition && ghostMax != null) {
+        val romRange = maxPosition - minPosition
+        val posInRom = (ghostMax - minPosition) / romRange
+        (romPaddingBottom + posInRom * romDisplayRange).coerceIn(0f, 1f)
+    } else null
 
     Column(
         modifier = modifier.fillMaxHeight(),
@@ -329,6 +367,7 @@ private fun DrawScope.drawPositionIndicator(
 
 /**
  * Preview/demo composable showing the enhanced cable position bar in different states
+ * Position values are in the 0-1000 range
  */
 @Composable
 fun EnhancedCablePositionBarDemo() {
@@ -342,41 +381,41 @@ fun EnhancedCablePositionBarDemo() {
         // Concentric phase (lifting)
         EnhancedCablePositionBar(
             label = "L",
-            currentPosition = 600,
+            currentPosition = 600f,
             velocity = 100.0,
-            minPosition = 200,
-            maxPosition = 800,
-            ghostMin = 180,
-            ghostMax = 820,
+            minPosition = 200f,
+            maxPosition = 800f,
+            ghostMin = 180f,
+            ghostMax = 820f,
             isActive = true
         )
 
         // Eccentric phase (lowering)
         EnhancedCablePositionBar(
             label = "R",
-            currentPosition = 400,
+            currentPosition = 400f,
             velocity = -100.0,
-            minPosition = 200,
-            maxPosition = 800,
-            ghostMin = 180,
-            ghostMax = 820,
+            minPosition = 200f,
+            maxPosition = 800f,
+            ghostMin = 180f,
+            ghostMax = 820f,
             isActive = true
         )
 
         // Static/holding
         EnhancedCablePositionBar(
             label = "L",
-            currentPosition = 500,
+            currentPosition = 500f,
             velocity = 0.0,
-            minPosition = 200,
-            maxPosition = 800,
+            minPosition = 200f,
+            maxPosition = 800f,
             isActive = true
         )
 
         // Inactive
         EnhancedCablePositionBar(
             label = "R",
-            currentPosition = 300,
+            currentPosition = 300f,
             velocity = 0.0,
             isActive = false
         )

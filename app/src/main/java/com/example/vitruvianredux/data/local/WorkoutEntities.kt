@@ -44,6 +44,7 @@ data class WorkoutSessionEntity(
 
 /**
  * Workout metric entity for storing time-series data
+ * Position values are in millimeters (mm), range -1000.0 to +1000.0
  */
 @Entity(tableName = "workout_metrics")
 data class WorkoutMetricEntity(
@@ -52,8 +53,8 @@ data class WorkoutMetricEntity(
     val timestamp: Long,
     val loadA: Float,
     val loadB: Float,
-    val positionA: Int,
-    val positionB: Int,
+    val positionA: Float,  // Cable position in mm
+    val positionB: Float,  // Cable position in mm
     val ticks: Int,
     val status: Int = 0 // Machine status flags
 )

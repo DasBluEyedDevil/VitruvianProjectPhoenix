@@ -391,8 +391,8 @@ class ConnectionLogger @Inject constructor(
     fun logMonitorDataReceived(
         deviceName: String?,
         deviceAddress: String?,
-        positionA: Int,
-        positionB: Int,
+        positionA: Float,  // Position in mm
+        positionB: Float,  // Position in mm
         loadA: Float,
         loadB: Float
     ) {
@@ -404,7 +404,7 @@ class ConnectionLogger @Inject constructor(
                 "Monitor data",
                 deviceAddress = deviceAddress,
                 deviceName = deviceName,
-                details = "PosA=$positionA, PosB=$positionB, LoadA=${loadA}kg, LoadB=${loadB}kg"
+                details = "PosA=${positionA}mm, PosB=${positionB}mm, LoadA=${loadA}kg, LoadB=${loadB}kg"
             )
         }
     }

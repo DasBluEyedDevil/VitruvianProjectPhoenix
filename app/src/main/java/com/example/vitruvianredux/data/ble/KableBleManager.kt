@@ -253,24 +253,28 @@ class KableBleManager {
         return try {
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
 
-            // Parse according to VitruvianBleManager format
-            val f0 = buffer.getShort(0).toInt() and 0xFFFF      // Offset 0-1
-            val f1 = buffer.getShort(2).toInt() and 0xFFFF      // Offset 2-3
-            val f2 = buffer.getShort(4).toInt() and 0xFFFF      // Offset 4-5 (posA)
-            val f4 = buffer.getShort(8).toInt() and 0xFFFF      // Offset 8-9 (loadA*100)
-            val f5 = buffer.getShort(10).toInt() and 0xFFFF     // Offset 10-11 (posB)
-            val f7 = buffer.getShort(14).toInt() and 0xFFFF     // Offset 14-15 (loadB*100)
+            // BLE packet parsing - trainer format
+            // Format: u16[0-1]=ticks_lo, u16[2-3]=ticks_hi, s16[4-5]=posA*10, u16[8-9]=loadA*100,
+            //         s16[10-11]=posB*10, u16[14-15]=loadB*100
+            val ticksLo = buffer.getShort(0).toInt() and 0xFFFF    // Offset 0-1 (unsigned)
+            val ticksHi = buffer.getShort(2).toInt() and 0xFFFF    // Offset 2-3 (unsigned)
+            val posARaw = buffer.getShort(4)                       // Offset 4-5 (SIGNED - position)
+            val loadARaw = buffer.getShort(8).toInt() and 0xFFFF   // Offset 8-9 (unsigned - load*100)
+            val posBRaw = buffer.getShort(10)                      // Offset 10-11 (SIGNED - position)
+            val loadBRaw = buffer.getShort(14).toInt() and 0xFFFF  // Offset 14-15 (unsigned - load*100)
 
             // Reconstruct 32-bit tick counter
-            val ticks = f0 + (f1 shl 16)
+            val ticks = ticksLo + (ticksHi shl 16)
 
-            // Position values
-            val positionA = f2
-            val positionB = f5
+            // Position values - signed 16-bit with 0.1mm resolution, scale to mm
+            // Per trainer: position = buffer.getShort() / 10.0
+            // Valid range after scaling: -1000.0 to +1000.0 mm
+            val positionA = posARaw / 10.0f
+            val positionB = posBRaw / 10.0f
 
             // Load in kg (device sends kg * 100)
-            val loadA = f4 / 100.0f
-            val loadB = f7 / 100.0f
+            val loadA = loadARaw / 100.0f
+            val loadB = loadBRaw / 100.0f
 
             // Status (Bytes 16-17) if available
             var status = 0

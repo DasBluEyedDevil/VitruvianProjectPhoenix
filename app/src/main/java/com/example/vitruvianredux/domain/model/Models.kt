@@ -187,13 +187,16 @@ data class WorkoutParameters(
 
 /**
  * Real-time workout metric data from the device
+ *
+ * Position values are in millimeters (mm), range -1000.0 to +1000.0.
+ * BLE sends signed 16-bit values with 0.1mm resolution, scaled by /10 at parse time.
  */
 data class WorkoutMetric(
     val timestamp: Long = System.currentTimeMillis(),
     val loadA: Float,
     val loadB: Float,
-    val positionA: Int,
-    val positionB: Int,
+    val positionA: Float,  // Cable position in mm (-1000 to +1000)
+    val positionB: Float,  // Cable position in mm (-1000 to +1000)
     val ticks: Int = 0,
     val velocityA: Double = 0.0,  // Velocity for handle detection (trainer protocol)
     val velocityB: Double = 0.0,   // Velocity for right handle detection (for single-handle exercises)

@@ -38,20 +38,22 @@ class RepCounterFromMachine {
     private var lastTopCounter: Int? = null
     private var lastCompleteCounter: Int? = null
 
-    private val topPositionsA = mutableListOf<Int>()
-    private val topPositionsB = mutableListOf<Int>()
-    private val bottomPositionsA = mutableListOf<Int>()
-    private val bottomPositionsB = mutableListOf<Int>()
+    // Position tracking lists - now in mm (Float)
+    private val topPositionsA = mutableListOf<Float>()
+    private val topPositionsB = mutableListOf<Float>()
+    private val bottomPositionsA = mutableListOf<Float>()
+    private val bottomPositionsB = mutableListOf<Float>()
 
-    private var maxRepPosA: Int? = null
-    private var minRepPosA: Int? = null
-    private var maxRepPosB: Int? = null
-    private var minRepPosB: Int? = null
+    // ROM boundaries in mm
+    private var maxRepPosA: Float? = null
+    private var minRepPosA: Float? = null
+    private var maxRepPosB: Float? = null
+    private var minRepPosB: Float? = null
 
-    private var maxRepPosARange: Pair<Int, Int>? = null
-    private var minRepPosARange: Pair<Int, Int>? = null
-    private var maxRepPosBRange: Pair<Int, Int>? = null
-    private var minRepPosBRange: Pair<Int, Int>? = null
+    private var maxRepPosARange: Pair<Float, Float>? = null
+    private var minRepPosARange: Pair<Float, Float>? = null
+    private var maxRepPosBRange: Pair<Float, Float>? = null
+    private var minRepPosBRange: Pair<Float, Float>? = null
 
     var onRepEvent: ((RepEvent) -> Unit)? = null
 
@@ -125,13 +127,13 @@ class RepCounterFromMachine {
      *
      * The baseline will be refined as reps are performed through the sliding window calibration.
      */
-    fun setInitialBaseline(posA: Int, posB: Int) {
+    fun setInitialBaseline(posA: Float, posB: Float) {
         // Only set initial baseline if positions are valid and not already calibrated
-        if (posA > 0 && minRepPosA == null) {
+        if (posA > 0f && minRepPosA == null) {
             minRepPosA = posA
             minRepPosARange = Pair(posA, posA)
         }
-        if (posB > 0 && minRepPosB == null) {
+        if (posB > 0f && minRepPosB == null) {
             minRepPosB = posB
             minRepPosBRange = Pair(posB, posB)
         }
@@ -145,11 +147,11 @@ class RepCounterFromMachine {
      *
      * This should be called on every monitor metric during an active Just Lift workout.
      */
-    fun updatePositionRangesContinuously(posA: Int, posB: Int) {
-        if (posA <= 0 && posB <= 0) return
+    fun updatePositionRangesContinuously(posA: Float, posB: Float) {
+        if (posA <= 0f && posB <= 0f) return
 
         // Track minimum positions (cable at rest / bottom of movement)
-        if (posA > 0) {
+        if (posA > 0f) {
             if (minRepPosA == null || posA < minRepPosA!!) {
                 minRepPosA = posA
                 minRepPosARange = Pair(posA, minRepPosARange?.second ?: posA)
@@ -161,7 +163,7 @@ class RepCounterFromMachine {
             }
         }
 
-        if (posB > 0) {
+        if (posB > 0f) {
             if (minRepPosB == null || posB < minRepPosB!!) {
                 minRepPosB = posB
                 minRepPosBRange = Pair(posB, minRepPosBRange?.second ?: posB)
@@ -200,8 +202,8 @@ class RepCounterFromMachine {
         repsSetCount: Int,
         up: Int = 0,
         down: Int = 0,
-        posA: Int = 0,
-        posB: Int = 0,
+        posA: Float = 0f,
+        posB: Float = 0f,
         isLegacyFormat: Boolean = false
     ) {
         // DIAGNOSTIC: Log full state for debugging rep counting issues
@@ -224,7 +226,7 @@ class RepCounterFromMachine {
      * LEGACY rep counting (Beta 4 method) - counts reps when topCounter increments.
      * Used when machine sends 6-byte packets without repsRomCount/repsSetCount fields.
      */
-    private fun processLegacy(up: Int, down: Int, posA: Int, posB: Int) {
+    private fun processLegacy(up: Int, down: Int, posA: Float, posB: Float) {
         if (lastTopCounter != null) {
             val topDelta = calculateDelta(lastTopCounter!!, up)
             if (topDelta > 0) {
@@ -294,7 +296,7 @@ class RepCounterFromMachine {
      * MODERN rep counting - uses machine-provided repsRomCount/repsSetCount.
      * This is the trainer method with pending rep visual feedback.
      */
-    private fun processModern(repsRomCount: Int, repsSetCount: Int, up: Int, down: Int, posA: Int, posB: Int) {
+    private fun processModern(repsRomCount: Int, repsSetCount: Int, up: Int, down: Int, posA: Float, posB: Float) {
         // Track UP movement - for working reps, show PENDING (grey) at TOP
         if (lastTopCounter != null) {
             val upDelta = calculateDelta(lastTopCounter!!, up)
@@ -414,15 +416,15 @@ class RepCounterFromMachine {
         }
     }
 
-    private fun recordTopPosition(posA: Int, posB: Int) {
-        if (posA <= 0 && posB <= 0) return
+    private fun recordTopPosition(posA: Float, posB: Float) {
+        if (posA <= 0f && posB <= 0f) return
 
         val window = getWindowSize()
-        if (posA > 0) {
+        if (posA > 0f) {
             topPositionsA.add(posA)
             if (topPositionsA.size > window) topPositionsA.removeAt(0)
         }
-        if (posB > 0) {
+        if (posB > 0f) {
             topPositionsB.add(posB)
             if (topPositionsB.size > window) topPositionsB.removeAt(0)
         }
@@ -430,15 +432,15 @@ class RepCounterFromMachine {
         updateRepRanges()
     }
 
-    private fun recordBottomPosition(posA: Int, posB: Int) {
-        if (posA <= 0 && posB <= 0) return
+    private fun recordBottomPosition(posA: Float, posB: Float) {
+        if (posA <= 0f && posB <= 0f) return
 
         val window = getWindowSize()
-        if (posA > 0) {
+        if (posA > 0f) {
             bottomPositionsA.add(posA)
             if (bottomPositionsA.size > window) bottomPositionsA.removeAt(0)
         }
-        if (posB > 0) {
+        if (posB > 0f) {
             bottomPositionsB.add(posB)
             if (bottomPositionsB.size > window) bottomPositionsB.removeAt(0)
         }
@@ -448,20 +450,20 @@ class RepCounterFromMachine {
 
     private fun updateRepRanges() {
         if (topPositionsA.isNotEmpty()) {
-            maxRepPosA = topPositionsA.average().toInt()
-            maxRepPosARange = Pair(topPositionsA.minOrNull() ?: 0, topPositionsA.maxOrNull() ?: 0)
+            maxRepPosA = topPositionsA.average().toFloat()
+            maxRepPosARange = Pair(topPositionsA.minOrNull() ?: 0f, topPositionsA.maxOrNull() ?: 0f)
         }
         if (bottomPositionsA.isNotEmpty()) {
-            minRepPosA = bottomPositionsA.average().toInt()
-            minRepPosARange = Pair(bottomPositionsA.minOrNull() ?: 0, bottomPositionsA.maxOrNull() ?: 0)
+            minRepPosA = bottomPositionsA.average().toFloat()
+            minRepPosARange = Pair(bottomPositionsA.minOrNull() ?: 0f, bottomPositionsA.maxOrNull() ?: 0f)
         }
         if (topPositionsB.isNotEmpty()) {
-            maxRepPosB = topPositionsB.average().toInt()
-            maxRepPosBRange = Pair(topPositionsB.minOrNull() ?: 0, topPositionsB.maxOrNull() ?: 0)
+            maxRepPosB = topPositionsB.average().toFloat()
+            maxRepPosBRange = Pair(topPositionsB.minOrNull() ?: 0f, topPositionsB.maxOrNull() ?: 0f)
         }
         if (bottomPositionsB.isNotEmpty()) {
-            minRepPosB = bottomPositionsB.average().toInt()
-            minRepPosBRange = Pair(bottomPositionsB.minOrNull() ?: 0, bottomPositionsB.maxOrNull() ?: 0)
+            minRepPosB = bottomPositionsB.average().toFloat()
+            minRepPosBRange = Pair(bottomPositionsB.minOrNull() ?: 0f, bottomPositionsB.maxOrNull() ?: 0f)
         }
     }
 
@@ -486,7 +488,7 @@ class RepCounterFromMachine {
 
     fun getCurrentRepCount(): RepCount = getRepCount()
 
-    fun getCalibratedTopPosition(): Int? = maxRepPosA
+    fun getCalibratedTopPosition(): Float? = maxRepPosA
 
     fun getRepRanges(): RepRanges = RepRanges(
         minPosA = minRepPosA,
@@ -499,17 +501,17 @@ class RepCounterFromMachine {
         maxRangeB = maxRepPosBRange
     )
 
-    fun hasMeaningfulRange(minRangeThreshold: Int = 50): Boolean {
+    fun hasMeaningfulRange(minRangeThreshold: Float = 50f): Boolean {
         val minA = minRepPosA
         val maxA = maxRepPosA
         val minB = minRepPosB
         val maxB = maxRepPosB
-        val rangeA = if (minA != null && maxA != null) maxA - minA else 0
-        val rangeB = if (minB != null && maxB != null) maxB - minB else 0
+        val rangeA = if (minA != null && maxA != null) maxA - minA else 0f
+        val rangeB = if (minB != null && maxB != null) maxB - minB else 0f
         return rangeA > minRangeThreshold || rangeB > minRangeThreshold
     }
 
-    fun isInDangerZone(posA: Int, posB: Int, minRangeThreshold: Int = 50): Boolean {
+    fun isInDangerZone(posA: Float, posB: Float, minRangeThreshold: Float = 50f): Boolean {
         val minA = minRepPosA
         val maxA = maxRepPosA
         val minB = minRepPosB
@@ -519,7 +521,7 @@ class RepCounterFromMachine {
         if (minA != null && maxA != null) {
             val rangeA = maxA - minA
             if (rangeA > minRangeThreshold) {
-                val thresholdA = minA + (rangeA * 0.05f).toInt()
+                val thresholdA = minA + (rangeA * 0.05f)
                 if (posA <= thresholdA) return true
             }
         }
@@ -528,7 +530,7 @@ class RepCounterFromMachine {
         if (minB != null && maxB != null) {
             val rangeB = maxB - minB
             if (rangeB > minRangeThreshold) {
-                val thresholdB = minB + (rangeB * 0.05f).toInt()
+                val thresholdB = minB + (rangeB * 0.05f)
                 if (posB <= thresholdB) return true
             }
         }
@@ -539,19 +541,20 @@ class RepCounterFromMachine {
 
 /**
  * Snapshot of the discovered rep ranges for UI/diagnostics.
+ * Position values are in mm (Float).
  */
 data class RepRanges(
-    val minPosA: Int?,
-    val maxPosA: Int?,
-    val minPosB: Int?,
-    val maxPosB: Int?,
-    val minRangeA: Pair<Int, Int>?,
-    val maxRangeA: Pair<Int, Int>?,
-    val minRangeB: Pair<Int, Int>?,
-    val maxRangeB: Pair<Int, Int>?
+    val minPosA: Float?,
+    val maxPosA: Float?,
+    val minPosB: Float?,
+    val maxPosB: Float?,
+    val minRangeA: Pair<Float, Float>?,
+    val maxRangeA: Pair<Float, Float>?,
+    val minRangeB: Pair<Float, Float>?,
+    val maxRangeB: Pair<Float, Float>?
 ) {
-    val rangeA: Int?
-        get() = if (minPosA != null && maxPosA != null) max(maxPosA!! - minPosA!!, 0) else null
-    val rangeB: Int?
-        get() = if (minPosB != null && maxPosB != null) max(maxPosB!! - minPosB!!, 0) else null
+    val rangeA: Float?
+        get() = if (minPosA != null && maxPosA != null) max(maxPosA!! - minPosA!!, 0f) else null
+    val rangeB: Float?
+        get() = if (minPosB != null && maxPosB != null) max(maxPosB!! - minPosB!!, 0f) else null
 }

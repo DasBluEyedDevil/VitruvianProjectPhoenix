@@ -726,6 +726,44 @@ object AppModule {
         }
     }
 
+    /**
+     * Migration from version 25 to 26: Change position columns from INTEGER to REAL
+     * - positionA and positionB in workout_metrics now store Float (mm) instead of Int
+     * - This fixes Issue #197: position indicators maxing out during high-extension exercises
+     */
+    internal val MIGRATION_25_26 = object : Migration(25, 26) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // SQLite doesn't support ALTER COLUMN, so we need to recreate the table
+            // 1. Create new table with REAL columns for position
+            db.execSQL("""
+                CREATE TABLE workout_metrics_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    sessionId TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    loadA REAL NOT NULL,
+                    loadB REAL NOT NULL,
+                    positionA REAL NOT NULL,
+                    positionB REAL NOT NULL,
+                    ticks INTEGER NOT NULL,
+                    status INTEGER NOT NULL DEFAULT 0
+                )
+            """.trimIndent())
+
+            // 2. Copy data from old table (INTEGER positions are implicitly converted to REAL)
+            db.execSQL("""
+                INSERT INTO workout_metrics_new (id, sessionId, timestamp, loadA, loadB, positionA, positionB, ticks, status)
+                SELECT id, sessionId, timestamp, loadA, loadB, positionA, positionB, ticks, status
+                FROM workout_metrics
+            """.trimIndent())
+
+            // 3. Drop old table
+            db.execSQL("DROP TABLE workout_metrics")
+
+            // 4. Rename new table to original name
+            db.execSQL("ALTER TABLE workout_metrics_new RENAME TO workout_metrics")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideConnectionLogDao(database: WorkoutDatabase): ConnectionLogDao {
@@ -763,9 +801,7 @@ object AppModule {
             WorkoutDatabase::class.java,
             "vitruvian_workout_db"
         )
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
-        // MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19 removed - use destructive migration for v16-18 users
-        .fallbackToDestructiveMigration(dropAllTables = true)  // Allow destructive migration for beta (will delete and recreate DB if migration missing)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
         .build()
     }
 
