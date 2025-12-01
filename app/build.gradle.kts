@@ -66,6 +66,26 @@ android {
         }
     }
 
+    // Product flavors for production and beta builds
+    // Note: Both use same applicationId so they replace each other when installed
+    // Users wanting coexistence should use debug builds alongside release
+    flavorDimensions += "version"
+    productFlavors {
+        create("production") {
+            dimension = "version"
+            // Production uses the default applicationId
+            // No suffix needed - this is the main release
+            buildConfigField("String", "BUILD_TYPE_LABEL", "\"Production Release\"")
+        }
+        create("beta") {
+            dimension = "version"
+            // No applicationIdSuffix - updates existing 0.6.2 beta installations
+            versionCode = 10  // Higher than existing beta (9) to allow update
+            versionName = "0.6.2-beta"
+            buildConfigField("String", "BUILD_TYPE_LABEL", "\"Beta\"")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
