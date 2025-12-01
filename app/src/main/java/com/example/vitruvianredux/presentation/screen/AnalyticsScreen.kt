@@ -324,9 +324,9 @@ fun AnalyticsScreen(
                     Button(
                         onClick = {
                             scope.launch {
-                                // Fetch exercise names
+                                // Fetch exercise names - use allWorkoutSessions to export ALL workouts
                                 val exerciseNames = mutableMapOf<String, String>()
-                                workoutHistory.forEach { session ->
+                                allWorkoutSessions.forEach { session ->
                                     session.exerciseId?.let { exerciseId ->
                                         withContext(Dispatchers.IO) {
                                             try {
@@ -341,7 +341,7 @@ fun AnalyticsScreen(
 
                                 val result = CsvExporter.exportWorkoutHistory(
                                     context,
-                                    workoutHistory,
+                                    allWorkoutSessions,
                                     exerciseNames,
                                     weightUnit,
                                     viewModel::formatWeight
@@ -349,7 +349,7 @@ fun AnalyticsScreen(
 
                                 result.onSuccess { uri ->
                                     CsvExporter.shareCSV(context, uri, "workout_history.csv")
-                                    exportMessage = "Workout history exported successfully"
+                                    exportMessage = "All ${allWorkoutSessions.size} workouts exported successfully"
                                     showExportMenu = false
                                 }.onFailure {
                                     exportMessage = "Failed to export workout history"
@@ -365,10 +365,10 @@ fun AnalyticsScreen(
                             pressedElevation = 2.dp
                         )
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Workout history", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Export all workouts", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text(
-                            "Export Workout History",
+                            "Export All Workouts",
                             style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
                             fontWeight = FontWeight.Bold
                         )
