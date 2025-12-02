@@ -104,21 +104,33 @@ fun ActiveWorkoutScreen(
     // Haptic and audio feedback effect
     HapticFeedbackEffect(hapticEvents = hapticEvents, beepsEnabled = userPreferences.beepsEnabled)
 
+    // Navigation guard to prevent double navigateUp() calls (Issue #204)
+    // The LaunchedEffect can re-trigger if workoutParameters changes during navigation,
+    // causing navigateUp() to be called twice (ActiveWorkout → JustLift → Home)
+    var hasNavigatedAway by remember { mutableStateOf(false) }
+
     // Watch for workout completion and navigate back
     // For Just Lift, navigate back when state becomes Idle (after auto-reset)
-    LaunchedEffect(workoutState, workoutParameters) {
+    // Key only on workoutState to avoid re-triggering on workoutParameters changes
+    LaunchedEffect(workoutState) {
+        // Guard against double navigation
+        if (hasNavigatedAway) return@LaunchedEffect
+
         when {
             workoutState is WorkoutState.Completed -> {
                 delay(2000)
+                hasNavigatedAway = true
                 navController.navigateUp()
             }
             workoutState is WorkoutState.Idle && workoutParameters.isJustLift -> {
                 // Just Lift completed and reset to Idle - navigate back to Just Lift screen
+                hasNavigatedAway = true
                 navController.navigateUp()
             }
             workoutState is WorkoutState.Error -> {
                 // Show error for 3 seconds then navigate back
                 delay(3000)
+                hasNavigatedAway = true
                 navController.navigateUp()
             }
         }
