@@ -92,6 +92,13 @@ class VitruvianBleManager(
     @Volatile private var lastTimestamp = 0L
     @Volatile private var strictValidationEnabled = false
 
+    // Smoothed velocity using Exponential Moving Average (EMA) for stall detection (Issue #204)
+    // Raw velocity is noisy due to sensor jitter; smoothing filters out false movement detection
+    @Volatile private var smoothedVelocityA = 0.0
+    @Volatile private var smoothedVelocityB = 0.0
+    // EMA alpha: 0.3 = responsive yet smooth (higher = more responsive, lower = smoother)
+    private val VELOCITY_SMOOTHING_ALPHA = 0.3
+
     // Diagnostic info exposed for Protocol Tester
     @Volatile var detectedFirmwareVersion: String? = null
         private set
@@ -780,6 +787,13 @@ class VitruvianBleManager(
         // Reset position tracking for new workout
         minPositionSeen = Double.MAX_VALUE
         maxPositionSeen = Double.MIN_VALUE
+
+        // Reset velocity tracking for fresh stall detection (Issue #204)
+        lastPositionA = 0.0f
+        lastPositionB = 0.0f
+        lastTimestamp = 0L
+        smoothedVelocityA = 0.0
+        smoothedVelocityB = 0.0
 
         // Reset notification counter for this workout session
         val previousCount = monitorNotificationCount
@@ -1525,17 +1539,26 @@ class VitruvianBleManager(
 
             // Calculate velocity from position delta (mm/s)
             val currentTime = System.currentTimeMillis()
-            val velocityA = if (lastTimestamp > 0L) {
+            val rawVelocityA = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0
                 val deltaPos = positionA - lastPositionA
                 if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
             } else 0.0
 
-            val velocityB = if (lastTimestamp > 0L) {
+            val rawVelocityB = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0
                 val deltaPos = positionB - lastPositionB
                 if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
             } else 0.0
+
+            // Apply Exponential Moving Average (EMA) smoothing to filter sensor noise (Issue #204)
+            // This prevents false movement detection from position jitter when bar is stationary
+            smoothedVelocityA = VELOCITY_SMOOTHING_ALPHA * rawVelocityA + (1 - VELOCITY_SMOOTHING_ALPHA) * smoothedVelocityA
+            smoothedVelocityB = VELOCITY_SMOOTHING_ALPHA * rawVelocityB + (1 - VELOCITY_SMOOTHING_ALPHA) * smoothedVelocityB
+
+            // Use smoothed velocity for WorkoutMetric (used by stall detection)
+            val velocityA = smoothedVelocityA
+            val velocityB = smoothedVelocityB
 
             lastPositionA = positionA
             lastPositionB = positionB
@@ -1545,7 +1568,8 @@ class VitruvianBleManager(
             if (ticks < 100 || ticks % 500 == 0) {
                 Timber.d("=== SAMPLE DATA (${bytes.size} bytes) ===")
                 Timber.d("Position: A=$positionA, B=$positionB")
-                Timber.d("Velocity: A=$velocityA, B=$velocityB (calculated)")
+                Timber.d("Velocity: raw=(${String.format("%.1f", rawVelocityA)}, ${String.format("%.1f", rawVelocityB)}) " +
+                    "smoothed=(${String.format("%.1f", velocityA)}, ${String.format("%.1f", velocityB)}) mm/s")
                 Timber.d("Force: A=$loadA, B=$loadB, Total=${loadA + loadB}")
                 Timber.d("Ticks: $ticks, Status: 0x${status.toString(16)}")
                 Timber.d("================================")
