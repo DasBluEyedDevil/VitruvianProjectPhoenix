@@ -391,6 +391,11 @@ class MainViewModel @Inject constructor(
     private var currentHandleState: com.example.vitruvianredux.data.ble.HandleState =
         com.example.vitruvianredux.data.ble.HandleState.WaitingForRest
 
+    // Velocity-based stall detection for auto-stop (Issue #204)
+    // Official app triggers auto-stop when movement stops for ~3 seconds, even if cables aren't fully retracted
+    // This handles exercises like bench press where bar rests on chest with cables still partially extended
+    private var stallDetectionStartTime: Long? = null
+
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
     private var connectionJob: Job? = null  // Track connection attempt for cancellation
@@ -757,11 +762,58 @@ class MainViewModel @Inject constructor(
         val params = _workoutParameters.value
 
         // Diagnostic: Log when checkAutoStop is called for Just Lift mode
-        if (params.isJustLift && autoStopStartTime == null) {
+        if (params.isJustLift && autoStopStartTime == null && stallDetectionStartTime == null) {
             Timber.d("🎯 Just Lift auto-stop check: hasMeaningful=$hasMeaningful, " +
-                "posA=${metric.positionA}, posB=${metric.positionB}")
+                "posA=${metric.positionA}, posB=${metric.positionB}, " +
+                "velA=${metric.velocityA}, velB=${metric.velocityB}")
         }
 
+        // ==================== VELOCITY-BASED STALL DETECTION (Issue #204) ====================
+        // Official app triggers auto-stop when movement stops for ~3 seconds, even if cables
+        // aren't fully retracted. This handles exercises like bench press where bar rests on
+        // chest with cables still partially extended.
+        val maxVelocity = maxOf(kotlin.math.abs(metric.velocityA), kotlin.math.abs(metric.velocityB))
+        val isStalled = maxVelocity < STALL_VELOCITY_THRESHOLD
+
+        if (isStalled && hasMeaningful) {
+            // Movement has stopped - start or continue stall timer
+            val stallStart = stallDetectionStartTime ?: run {
+                stallDetectionStartTime = System.currentTimeMillis()
+                Timber.d("🛑 Stall detection STARTED - velocity below threshold " +
+                    "(velA=${metric.velocityA}, velB=${metric.velocityB}, threshold=$STALL_VELOCITY_THRESHOLD)")
+                System.currentTimeMillis()
+            }
+
+            val stallElapsed = (System.currentTimeMillis() - stallStart) / 1000f
+
+            // If stalled long enough, trigger auto-stop
+            if (stallElapsed >= STALL_DURATION_SECONDS) {
+                Timber.d("⏹️ Auto-stop TRIGGERED via STALL DETECTION - no movement for ${STALL_DURATION_SECONDS}s")
+                triggerAutoStop()
+                return
+            }
+
+            // Update UI with stall progress (use the longer of stall or position-based timer)
+            val stallProgress = (stallElapsed / STALL_DURATION_SECONDS).coerceIn(0f, 1f)
+            val stallRemaining = (STALL_DURATION_SECONDS - stallElapsed).coerceAtLeast(0f)
+
+            // Only update UI if stall timer is further along than position-based timer
+            if (autoStopStartTime == null || stallElapsed > (System.currentTimeMillis() - autoStopStartTime!!) / 1000f) {
+                _autoStopState.value = AutoStopUiState(
+                    isActive = true,
+                    progress = stallProgress,
+                    secondsRemaining = ceil(stallRemaining).toInt()
+                )
+            }
+        } else {
+            // Movement detected - reset stall timer
+            if (stallDetectionStartTime != null) {
+                Timber.d("🟢 Stall detection RESET - movement detected (vel=$maxVelocity)")
+            }
+            stallDetectionStartTime = null
+        }
+
+        // ==================== POSITION-BASED AUTO-STOP (Original Logic) ====================
         if (!hasMeaningful) {
             if (params.isAMRAP || params.isJustLift) {
                 Timber.d("⚠️ ${if (params.isJustLift) "Just Lift" else "AMRAP"} " +
@@ -855,7 +907,7 @@ class MainViewModel @Inject constructor(
             )
 
             if (elapsed >= AUTO_STOP_DURATION_SECONDS) {
-                Timber.d("⏹️ Auto-stop TRIGGERED - ${AUTO_STOP_DURATION_SECONDS}s elapsed")
+                Timber.d("⏹️ Auto-stop TRIGGERED via POSITION - ${AUTO_STOP_DURATION_SECONDS}s elapsed")
                 triggerAutoStop()
             }
         } else {
@@ -1403,7 +1455,7 @@ class MainViewModel @Inject constructor(
             // Just Lift mode: Auto-advance to next set after showing summary
             if (isJustLift) {
                 Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: IMMEDIATE reset for next set (while showing summary)")
-                
+
                 // 1. Reset logical state immediately
                 repCounter.reset()
                 resetAutoStopState()
@@ -1978,6 +2030,7 @@ class MainViewModel @Inject constructor(
 
     private fun resetAutoStopState() {
         autoStopStartTime = null
+        stallDetectionStartTime = null  // Reset stall detection timer (Issue #204)
         autoStopTriggered.set(false)
         autoStopStopRequested.set(false)
         _autoStopState.value = AutoStopUiState()
@@ -2704,6 +2757,10 @@ class MainViewModel @Inject constructor(
 
     companion object {
         private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
+
+        // Velocity-based stall detection constants (Issue #204)
+        private const val STALL_VELOCITY_THRESHOLD = 15.0  // Velocity below this = "not moving" (mm/s)
+        private const val STALL_DURATION_SECONDS = 3.0f    // How long to stall before auto-stop triggers
 
         /** Prefix for temporary routines created in Single Exercise mode */
         const val TEMP_SINGLE_EXERCISE_PREFIX = "temp_single_exercise_"

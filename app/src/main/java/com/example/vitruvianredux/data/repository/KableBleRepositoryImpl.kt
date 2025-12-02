@@ -1,5 +1,13 @@
 package com.example.vitruvianredux.data.repository
 
+// NOTE: Kable BLE implementation is DISABLED pending migration work.
+// The KableBleScanner and KableBleManager classes were deleted but this file remained.
+// To re-enable Kable support:
+// 1. Re-create KableBleScanner.kt and KableBleManager.kt
+// 2. Uncomment the code below
+// 3. Update KableBleModule.kt accordingly
+
+/*
 import android.annotation.SuppressLint
 import android.content.Context
 import com.example.vitruvianredux.data.ble.BleConnectionState
@@ -410,3 +418,4 @@ class KableBleRepositoryImpl @Inject constructor(
         currentDevice = null
     }
 }
+*/ // End of disabled Kable implementation

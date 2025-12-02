@@ -165,7 +165,7 @@ class VitruvianBleManager(
     // Position-based with velocity check for grab confirmation
     private val HANDLE_GRABBED_THRESHOLD = 8.0   // Position > 8.0 = handles grabbed
     private val HANDLE_REST_THRESHOLD = 5.0      // Position < 5.0 = handles at rest (Increased from 2.5 to handle drift)
-    private val VELOCITY_THRESHOLD = 100.0       // Velocity > 100 units/s = significant movement
+    private val VELOCITY_THRESHOLD = 50.0        // Velocity > 50 mm/s = significant movement (matches official concentric threshold)
 
     // Track position range for tuning (logged at workout end)
     private var minPositionSeen = Double.MAX_VALUE
