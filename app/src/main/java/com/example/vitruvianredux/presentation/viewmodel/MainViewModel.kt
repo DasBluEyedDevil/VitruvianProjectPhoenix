@@ -1486,24 +1486,33 @@ class MainViewModel @Inject constructor(
                     Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Summary interrupted by user action (state is ${_workoutState.value})")
                 }
             } else if (params.isAMRAP) {
-                // AMRAP mode: Restart monitor polling to clear danger zone alarm on machine
-                // This ensures the machine exits danger zone state just like Just Lift mode
-                // Note: We use restartMonitorPolling() which sends monitor commands to clear the alarm
-                // This is CRITICAL for the "red light fix" to prevent machine hanging in fault state
-                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Restarting monitor polling to clear danger zone")
+                // AMRAP mode: Auto-advance to rest timer and next set (like Just Lift)
+                // This mirrors the Just Lift behavior - user can start next set by grabbing handles
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Auto-advancing to rest timer")
+
+                // 1. Reset logical state for next set
+                repCounter.reset()
+                resetAutoStopState()
+
+                // 2. Restart monitor polling to clear machine fault state
                 bleRepository.restartMonitorPolling()
 
-                // Enhanced debug logging for AMRAP set progression (Issue #147 debugging)
-                val routine = _loadedRoutine.value
-                val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
-                Timber.w("🔍 AMRAP SET COMPLETED - DEBUG INFO:")
-                Timber.w("  _currentSetIndex = ${_currentSetIndex.value}")
-                Timber.w("  _currentExerciseIndex = ${_currentExerciseIndex.value}")
-                Timber.w("  exercise.isAMRAP (all sets) = ${currentExercise?.isAMRAP}")
-                Timber.w("  exercise.setReps = ${currentExercise?.setReps}")
-                Timber.w("  params.isAMRAP (current set) = ${params.isAMRAP}")
-                Timber.w("  WorkoutState = ${_workoutState.value}")
-                Timber.w("  User must click 'Continue' to proceed to rest timer and next set")
+                // 3. Enable handle detection for auto-start during rest
+                enableHandleDetection()
+                bleRepository.enableJustLiftWaitingMode()
+
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Machine armed & ready. Showing summary for 5s...")
+
+                // 4. Show summary for 5 seconds (matches Just Lift behavior)
+                delay(5000)
+
+                // 5. Auto-start rest timer if we haven't already started a new set via handle detection
+                if (_workoutState.value is WorkoutState.SetSummary) {
+                    Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Summary complete, starting rest timer")
+                    startRestTimer()
+                } else {
+                    Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Summary interrupted by user action (state is ${_workoutState.value})")
+                }
             }
             // Normal mode or Routine: Wait for user to click "Continue"
 
