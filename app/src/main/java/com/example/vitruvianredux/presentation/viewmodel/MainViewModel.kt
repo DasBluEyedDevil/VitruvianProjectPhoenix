@@ -775,7 +775,13 @@ class MainViewModel @Inject constructor(
         val maxVelocity = maxOf(kotlin.math.abs(metric.velocityA), kotlin.math.abs(metric.velocityB))
         val isStalled = maxVelocity < STALL_VELOCITY_THRESHOLD
 
-        if (isStalled && hasMeaningful) {
+        // Check if handles are actually being used (not just sitting at rest)
+        // This replaces hasMeaningfulRange() check which required 50mm motion range - too restrictive
+        // for exercises like shoulder press with shorter cable extension ranges
+        val maxPosition = maxOf(metric.positionA, metric.positionB)
+        val isActivelyUsing = maxPosition > STALL_MIN_POSITION
+
+        if (isStalled && isActivelyUsing) {
             // Movement has stopped - start or continue stall timer
             val stallStart = stallDetectionStartTime ?: run {
                 stallDetectionStartTime = System.currentTimeMillis()
@@ -2759,8 +2765,12 @@ class MainViewModel @Inject constructor(
         private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
 
         // Velocity-based stall detection constants (Issue #204)
-        private const val STALL_VELOCITY_THRESHOLD = 15.0  // Velocity below this = "not moving" (mm/s)
+        // Threshold: 30mm/s - reduced for better sensitivity (EMA smoothing handles noise)
+        private const val STALL_VELOCITY_THRESHOLD = 30.0  // Velocity below this = "not moving" (mm/s)
         private const val STALL_DURATION_SECONDS = 3.0f    // How long to stall before auto-stop triggers
+        // Min position to consider handles "in use" (Issue #204 fix)
+        // Prevents false auto-stop when handles are at rest position near 0
+        private const val STALL_MIN_POSITION = 10.0        // Position > this = handles are being used (mm)
 
         /** Prefix for temporary routines created in Single Exercise mode */
         const val TEMP_SINGLE_EXERCISE_PREFIX = "temp_single_exercise_"

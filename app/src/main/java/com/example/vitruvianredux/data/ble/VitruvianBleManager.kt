@@ -93,11 +93,13 @@ class VitruvianBleManager(
     @Volatile private var strictValidationEnabled = false
 
     // Smoothed velocity using Exponential Moving Average (EMA) for stall detection (Issue #204)
-    // Raw velocity is noisy due to sensor jitter; smoothing filters out false movement detection
+    // SIGNED velocity: sensor jitter oscillates (+2, -3, +1mm), so signed values average toward 0
+    // Using abs() would make all jitter positive, averaging to ~20mm/s and preventing stall detection
     @Volatile private var smoothedVelocityA = 0.0
     @Volatile private var smoothedVelocityB = 0.0
-    // EMA alpha: 0.3 = responsive yet smooth (higher = more responsive, lower = smoother)
-    private val VELOCITY_SMOOTHING_ALPHA = 0.3
+    // EMA alpha: 0.15 = aggressive smoothing for high-extension exercises (shoulder press)
+    // Lower alpha reduces jitter impact but makes velocity response slightly slower
+    private val VELOCITY_SMOOTHING_ALPHA = 0.15
 
     // Diagnostic info exposed for Protocol Tester
     @Volatile var detectedFirmwareVersion: String? = null
@@ -1379,10 +1381,11 @@ class VitruvianBleManager(
         val currentState = _handleState.value
 
         // Check both handles - support single-handle exercises (Issue #102)
+        // NOTE: Use abs(velocity) since velocity is now signed (Issue #204 fix)
         val handleAGrabbed = posA > HANDLE_GRABBED_THRESHOLD
         val handleBGrabbed = posB > HANDLE_GRABBED_THRESHOLD
-        val handleAMoving = velocityA > VELOCITY_THRESHOLD
-        val handleBMoving = velocityB > VELOCITY_THRESHOLD
+        val handleAMoving = kotlin.math.abs(velocityA) > VELOCITY_THRESHOLD
+        val handleBMoving = kotlin.math.abs(velocityB) > VELOCITY_THRESHOLD
 
         // Simple hysteresis with velocity check (v0.5.1-beta approach)
         return when (currentState) {
@@ -1538,17 +1541,20 @@ class VitruvianBleManager(
             }
 
             // Calculate velocity from position delta (mm/s)
+            // NOTE: Use SIGNED velocity for EMA smoothing (Issue #204 fix)
+            // When bar oscillates due to sensor noise (+2mm, -3mm, +1mm...), signed velocities
+            // average toward zero. Using abs() would make all jitter positive, averaging to ~20mm/s.
             val currentTime = System.currentTimeMillis()
             val rawVelocityA = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0
                 val deltaPos = positionA - lastPositionA
-                if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
+                if (deltaTime > 0) deltaPos / deltaTime else 0.0
             } else 0.0
 
             val rawVelocityB = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0
                 val deltaPos = positionB - lastPositionB
-                if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
+                if (deltaTime > 0) deltaPos / deltaTime else 0.0
             } else 0.0
 
             // Apply Exponential Moving Average (EMA) smoothing to filter sensor noise (Issue #204)
