@@ -1,11 +1,11 @@
 package com.example.vitruvianredux.presentation.screen
 
+import android.content.Context
 import android.media.AudioAttributes
-import android.media.SoundPool
+import android.media.MediaPlayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -38,71 +38,39 @@ fun HapticFeedbackEffect(
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
 
-    // Track which sounds have finished loading (SoundPool.load is async!)
-    val loadedSounds = remember { mutableStateOf(setOf<Int>()) }
-
-    // Create SoundPool for audio cues
-    // Uses USAGE_ASSISTANCE_SONIFICATION for short UI feedback sounds
-    // This prevents our beeps from interrupting other media playback (Issue #180)
-    val soundPool = remember {
-        try {
-            SoundPool.Builder()
-                .setMaxStreams(2)
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                .build().also { pool ->
-                    // Track when sounds finish loading - SoundPool.load() is async!
-                    pool.setOnLoadCompleteListener { _, sampleId, status ->
-                        if (status == 0) {
-                            loadedSounds.value = loadedSounds.value + sampleId
-                            Timber.d("Sound $sampleId loaded successfully (${loadedSounds.value.size} total)")
-                        } else {
-                            Timber.w("Sound $sampleId failed to load with status $status")
-                        }
-                    }
-                }
-        } catch (e: Exception) {
-            Timber.w(e, "Failed to create SoundPool")
-            null
-        }
+    // Map of HapticEvent to raw resource ID
+    // Using MediaPlayer instead of SoundPool to prevent interrupting music playback
+    // Root cause analysis (Issue #180):
+    // - SoundPool with various USAGE types still caused Spotify to pause over Bluetooth
+    // - MediaPlayer with USAGE_NOTIFICATION_EVENT is designed to play alongside music
+    // - Key: We do NOT request audio focus, allowing music to continue playing
+    val soundResources = remember {
+        mapOf(
+            HapticEvent.REP_COMPLETED to R.raw.beep,
+            HapticEvent.WARMUP_COMPLETE to R.raw.beepboop,
+            HapticEvent.WORKOUT_COMPLETE to R.raw.boopbeepbeep,
+            HapticEvent.WORKOUT_START to R.raw.chirpchirp,
+            HapticEvent.WORKOUT_END to R.raw.chirpchirp,
+            HapticEvent.REST_ENDING to R.raw.restover
+            // ERROR: no sound (haptic only)
+        )
     }
 
-    // Load sounds into memory, mapping each HapticEvent to its sound ID
-    // Note: load() returns immediately but actual loading is async - tracked via OnLoadCompleteListener
-    val soundIds = remember(soundPool) {
-        soundPool?.let { pool ->
-            try {
-                mapOf(
-                    HapticEvent.REP_COMPLETED to pool.load(context, R.raw.beep, 1),
-                    HapticEvent.WARMUP_COMPLETE to pool.load(context, R.raw.beepboop, 1),
-                    HapticEvent.WORKOUT_COMPLETE to pool.load(context, R.raw.boopbeepbeep, 1),
-                    HapticEvent.WORKOUT_START to pool.load(context, R.raw.chirpchirp, 1),
-                    HapticEvent.WORKOUT_END to pool.load(context, R.raw.chirpchirp, 1),
-                    HapticEvent.REST_ENDING to pool.load(context, R.raw.restover, 1)
-                    // ERROR: no sound (haptic only)
-                ).also { ids ->
-                    Timber.d("Queued ${ids.size} sounds for loading: $ids")
-                }
-            } catch (e: Exception) {
-                Timber.w(e, "Failed to load sounds")
-                null
-            }
-        }
-    }
+    // Track active MediaPlayers for cleanup
+    val activePlayers = remember { mutableListOf<MediaPlayer>() }
 
-    // Release SoundPool when composable is disposed
+    // Release all MediaPlayers when composable is disposed
     DisposableEffect(Unit) {
         onDispose {
-            try {
-                soundPool?.release()
-                Timber.v("SoundPool released")
-            } catch (e: Exception) {
-                Timber.w(e, "Error releasing SoundPool")
+            activePlayers.forEach { player ->
+                try {
+                    player.release()
+                } catch (e: Exception) {
+                    Timber.w(e, "Error releasing MediaPlayer")
+                }
             }
+            activePlayers.clear()
+            Timber.v("All MediaPlayers released")
         }
     }
 
@@ -110,7 +78,7 @@ fun HapticFeedbackEffect(
         hapticEvents.collect { event ->
             performHapticFeedback(haptic, event)
             if (beepsEnabled) {
-                performAudioCue(soundPool, soundIds, loadedSounds.value, event)
+                playAudioCue(context, soundResources, activePlayers, event)
             }
         }
     }
@@ -154,55 +122,76 @@ private fun performHapticFeedback(haptic: HapticFeedback, event: HapticEvent) {
 }
 
 /**
- * Plays audio cue for workout events using SoundPool.
+ * Plays audio cue for workout events using MediaPlayer.
  *
- * Uses pre-loaded custom sound files for a better user experience
- * compared to generic system tones.
+ * Uses MediaPlayer with USAGE_NOTIFICATION_EVENT to play sounds without
+ * interrupting music playback. The key is NOT requesting audio focus.
  *
- * @param soundPool SoundPool instance for playing sounds
- * @param soundIds Map of HapticEvent to loaded sound IDs
- * @param loadedSounds Set of sound IDs that have finished async loading
+ * @param context Android context for creating MediaPlayer
+ * @param soundResources Map of HapticEvent to raw resource IDs
+ * @param activePlayers List to track active players for cleanup
  * @param event The haptic event to play audio for
  */
-private fun performAudioCue(
-    soundPool: SoundPool?,
-    soundIds: Map<HapticEvent, Int>?,
-    loadedSounds: Set<Int>,
+private fun playAudioCue(
+    context: Context,
+    soundResources: Map<HapticEvent, Int>,
+    activePlayers: MutableList<MediaPlayer>,
     event: HapticEvent
 ) {
-    if (soundPool == null || soundIds == null) return
-
     // ERROR has no sound - haptic only
     if (event == HapticEvent.ERROR) {
         Timber.e("Audio cue: ERROR (haptic only)")
         return
     }
 
-    val soundId = soundIds[event]
-    if (soundId == null || soundId == 0) {
+    val resourceId = soundResources[event]
+    if (resourceId == null) {
         Timber.w("No sound mapped for event: $event")
         return
     }
 
-    // Check if sound has finished async loading
-    if (soundId !in loadedSounds) {
-        Timber.w("Sound $soundId for $event not yet loaded (loaded: ${loadedSounds.size}/${soundIds.size})")
-        return
-    }
-
     try {
-        val streamId = soundPool.play(
-            soundId,
-            0.8f,  // left volume (80%)
-            0.8f,  // right volume (80%)
-            1,     // priority
-            0,     // no loop
-            1.0f   // normal playback rate
-        )
-        if (streamId == 0) {
-            Timber.w("SoundPool.play() returned 0 for $event - sound may have been unloaded")
+        // Create MediaPlayer for this sound
+        // Using USAGE_NOTIFICATION_EVENT which is specifically designed to
+        // play alongside music without interrupting it
+        val player = MediaPlayer.create(context, resourceId)?.apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            setVolume(0.8f, 0.8f)
+
+            // Auto-release when playback completes
+            setOnCompletionListener { mp ->
+                try {
+                    mp.release()
+                    activePlayers.remove(mp)
+                    Timber.v("MediaPlayer released after completion for $event")
+                } catch (e: Exception) {
+                    Timber.w(e, "Error releasing MediaPlayer on completion")
+                }
+            }
+
+            setOnErrorListener { mp, what, extra ->
+                Timber.w("MediaPlayer error for $event: what=$what, extra=$extra")
+                try {
+                    mp.release()
+                    activePlayers.remove(mp)
+                } catch (e: Exception) {
+                    Timber.w(e, "Error releasing MediaPlayer on error")
+                }
+                true
+            }
+        }
+
+        if (player != null) {
+            activePlayers.add(player)
+            player.start()
+            Timber.d("Audio cue: $event (MediaPlayer started)")
         } else {
-            Timber.d("Audio cue: $event (soundId=$soundId, streamId=$streamId)")
+            Timber.w("Failed to create MediaPlayer for $event")
         }
     } catch (e: Exception) {
         Timber.w(e, "Failed to play sound for $event")
