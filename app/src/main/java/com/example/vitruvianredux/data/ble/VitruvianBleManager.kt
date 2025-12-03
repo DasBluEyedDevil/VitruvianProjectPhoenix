@@ -96,8 +96,11 @@ class VitruvianBleManager(
     // Raw velocity is noisy due to sensor jitter; smoothing filters out false movement detection
     @Volatile private var smoothedVelocityA = 0.0
     @Volatile private var smoothedVelocityB = 0.0
-    // EMA alpha: 0.3 = responsive yet smooth (higher = more responsive, lower = smoother)
-    private val VELOCITY_SMOOTHING_ALPHA = 0.3
+    // EMA alpha: 0.2 = more aggressive smoothing to filter persistent noise (lowered from 0.3)
+    private val VELOCITY_SMOOTHING_ALPHA = 0.2
+    // Dead-band threshold: position changes smaller than this are treated as zero (filters sensor jitter)
+    // BLE resolution is 0.1mm, so 0.5mm threshold filters noise while detecting real movement
+    private val POSITION_DEADBAND_MM = 0.5f
 
     // Diagnostic info exposed for Protocol Tester
     @Volatile var detectedFirmwareVersion: String? = null
@@ -1537,22 +1540,28 @@ class VitruvianBleManager(
                 return
             }
 
-            // Calculate velocity from position delta (mm/s)
+            // Calculate velocity from position delta (mm/s) with dead-band filtering (Issue #204)
+            // Dead-band filter: treat tiny position changes as zero to filter sensor jitter
             val currentTime = System.currentTimeMillis()
+            val deltaPosA = positionA - lastPositionA
+            val deltaPosB = positionB - lastPositionB
+
+            // Apply dead-band: if position change is below threshold, treat as no movement
+            val filteredDeltaPosA = if (kotlin.math.abs(deltaPosA) < POSITION_DEADBAND_MM) 0.0 else deltaPosA.toDouble()
+            val filteredDeltaPosB = if (kotlin.math.abs(deltaPosB) < POSITION_DEADBAND_MM) 0.0 else deltaPosB.toDouble()
+
             val rawVelocityA = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0
-                val deltaPos = positionA - lastPositionA
-                if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
+                if (deltaTime > 0) kotlin.math.abs(filteredDeltaPosA / deltaTime) else 0.0
             } else 0.0
 
             val rawVelocityB = if (lastTimestamp > 0L) {
                 val deltaTime = (currentTime - lastTimestamp) / 1000.0
-                val deltaPos = positionB - lastPositionB
-                if (deltaTime > 0) kotlin.math.abs(deltaPos / deltaTime) else 0.0
+                if (deltaTime > 0) kotlin.math.abs(filteredDeltaPosB / deltaTime) else 0.0
             } else 0.0
 
-            // Apply Exponential Moving Average (EMA) smoothing to filter sensor noise (Issue #204)
-            // This prevents false movement detection from position jitter when bar is stationary
+            // Apply Exponential Moving Average (EMA) smoothing to filter remaining noise (Issue #204)
+            // Combined with dead-band filter, this ensures velocity converges to 0 when stationary
             smoothedVelocityA = VELOCITY_SMOOTHING_ALPHA * rawVelocityA + (1 - VELOCITY_SMOOTHING_ALPHA) * smoothedVelocityA
             smoothedVelocityB = VELOCITY_SMOOTHING_ALPHA * rawVelocityB + (1 - VELOCITY_SMOOTHING_ALPHA) * smoothedVelocityB
 
