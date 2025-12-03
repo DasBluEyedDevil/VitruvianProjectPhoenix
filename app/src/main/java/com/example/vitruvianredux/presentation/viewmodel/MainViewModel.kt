@@ -776,10 +776,13 @@ class MainViewModel @Inject constructor(
         val isStalled = maxVelocity < STALL_VELOCITY_THRESHOLD
 
         // Check if handles are actually being used (not just sitting at rest)
-        // This replaces hasMeaningfulRange() check which required 50mm motion range - too restrictive
-        // for exercises like shoulder press with shorter cable extension ranges
+        // Two conditions satisfy "actively using":
+        // 1. Current position > 10mm (handles are extended) - catches shoulder press with short ranges
+        // 2. OR meaningful motion has occurred (50mm range) - catches bench press where rest position
+        //    might be below 10mm but exercise has clearly started (Issue #204 bench press fix)
         val maxPosition = maxOf(metric.positionA, metric.positionB)
-        val isActivelyUsing = maxPosition > STALL_MIN_POSITION
+        val hasExerciseStarted = hasMeaningful  // True if 50mm motion range achieved
+        val isActivelyUsing = maxPosition > STALL_MIN_POSITION || hasExerciseStarted
 
         if (isStalled && isActivelyUsing) {
             // Movement has stopped - start or continue stall timer
