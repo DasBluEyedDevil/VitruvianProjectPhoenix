@@ -2,6 +2,8 @@ package com.example.vitruvianredux.integration
 
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.*
@@ -36,7 +38,9 @@ class WorkoutIntegrationTest {
         bleRepository = mockk(relaxed = true)
         workoutDao = mockk(relaxed = true)
         val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
-        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao)
+        val phaseStatisticsDao = mockk<PhaseStatisticsDao>(relaxed = true)
+        val diagnosticsDao = mockk<DiagnosticsDao>(relaxed = true)
+        workoutRepository = WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
         repCounter = RepCounterFromMachine()
     }
 
@@ -95,8 +99,8 @@ class WorkoutIntegrationTest {
                 timestamp = System.currentTimeMillis() + index * 100L,
                 loadA = 15.0f,
                 loadB = 15.0f,
-                positionA = 1000 + index * 10,
-                positionB = 1000 + index * 10,
+                positionA = 1000f + index * 10f,
+                positionB = 1000f + index * 10f,
                 ticks = index
             )
         }
@@ -205,10 +209,10 @@ class WorkoutIntegrationTest {
         // Simulate 3 warmup reps (need 4 calls - first one initializes the counter)
         repeat(4) { index ->
             repCounter.process(
-                topCounter = index,
-                completeCounter = index,
-                posA = 2000,
-                posB = 2000
+                repsRomCount = index,
+                repsSetCount = index,
+                posA = 2000f,
+                posB = 2000f
             )
         }
 
@@ -221,10 +225,10 @@ class WorkoutIntegrationTest {
         // When: Processing 10 working reps
         repeat(10) { index ->
             repCounter.process(
-                topCounter = 4 + index,
-                completeCounter = 4 + index,
-                posA = 2000,
-                posB = 2000
+                repsRomCount = 4 + index,
+                repsSetCount = 4 + index,
+                posA = 2000f,
+                posB = 2000f
             )
         }
 

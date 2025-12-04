@@ -3,6 +3,8 @@ package com.example.vitruvianredux.repository
 import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.WorkoutMetricEntity
 import com.example.vitruvianredux.data.local.WorkoutSessionEntity
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.repository.WorkoutRepository
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.domain.model.WorkoutSession
@@ -31,7 +33,9 @@ class WorkoutRepositoryTest {
     fun setup() {
         workoutDao = mockk(relaxed = true)
         val personalRecordDao = mockk<com.example.vitruvianredux.data.local.PersonalRecordDao>(relaxed = true)
-        repository = WorkoutRepository(workoutDao, personalRecordDao)
+        val phaseStatisticsDao = mockk<PhaseStatisticsDao>(relaxed = true)
+        val diagnosticsDao = mockk<DiagnosticsDao>(relaxed = true)
+        repository = WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
     }
 
     @After
@@ -84,8 +88,8 @@ class WorkoutRepositoryTest {
                 timestamp = System.currentTimeMillis() + index * 100L,
                 loadA = 15.0f + index * 0.1f,
                 loadB = 15.0f + index * 0.1f,
-                positionA = 1000 + index * 10,
-                positionB = 1000 + index * 10,
+                positionA = 1000f + index * 10f,
+                positionB = 1000f + index * 10f,
                 ticks = index
             )
         }
@@ -207,8 +211,8 @@ class WorkoutRepositoryTest {
                 timestamp = System.currentTimeMillis() + index * 100L,
                 loadA = 20.0f,
                 loadB = 20.0f,
-                positionA = 2000 + index * 10,
-                positionB = 2000 + index * 10,
+                positionA = 2000f + index * 10f,
+                positionB = 2000f + index * 10f,
                 ticks = index
             )
         }
@@ -236,9 +240,9 @@ class WorkoutRepositoryTest {
         // Verify that all workout calculations happen locally
         // Given: Workout metrics with varying loads
         val metrics = listOf(
-            WorkoutMetric(0, loadA = 10f, loadB = 10f, positionA = 1000, positionB = 1000),
-            WorkoutMetric(1, loadA = 15f, loadB = 15f, positionA = 1500, positionB = 1500),
-            WorkoutMetric(2, loadA = 20f, loadB = 20f, positionA = 2000, positionB = 2000)
+            WorkoutMetric(0, loadA = 10f, loadB = 10f, positionA = 1000f, positionB = 1000f),
+            WorkoutMetric(1, loadA = 15f, loadB = 15f, positionA = 1500f, positionB = 1500f),
+            WorkoutMetric(2, loadA = 20f, loadB = 20f, positionA = 2000f, positionB = 2000f)
         )
 
         // When: Calculating total loads (done locally in the model)

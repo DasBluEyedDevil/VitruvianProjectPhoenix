@@ -166,10 +166,10 @@ class AMRAPFeatureTest {
         // Note: First call establishes baseline, so to get 15 counted reps we need 16 calls
         for (i in 0..15) {
             actualRepCounter.process(
-                topCounter = i,
-                completeCounter = if (i > 0) i - 1 else 0,
-                posA = 100,
-                posB = 100
+                repsRomCount = i,
+                repsSetCount = if (i > 0) i - 1 else 0,
+                posA = 100f,
+                posB = 100f
             )
         }
 
@@ -269,10 +269,10 @@ class AMRAPFeatureTest {
         // ACT: Process exactly 10 reps (plus initial baseline call)
         for (i in 0..10) {
             actualRepCounter.process(
-                topCounter = i,
-                completeCounter = if (i > 0) i - 1 else 0,
-                posA = 100,
-                posB = 100
+                repsRomCount = i,
+                repsSetCount = if (i > 0) i - 1 else 0,
+                posA = 100f,
+                posB = 100f
             )
         }
 
