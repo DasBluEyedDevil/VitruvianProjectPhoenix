@@ -160,8 +160,8 @@ class MainViewModelTest {
             timestamp = System.currentTimeMillis(),
             loadA = 15.0f,
             loadB = 15.0f,
-            positionA = 1500,
-            positionB = 1500,
+            positionA = 1500f,
+            positionB = 1500f,
             ticks = 100
         )
 
