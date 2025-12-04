@@ -2779,7 +2779,7 @@ class MainViewModel @Inject constructor(
         // Velocity-based stall detection constants (Issue #204)
         // Threshold: 30mm/s - reduced for better sensitivity (EMA smoothing handles noise)
         private const val STALL_VELOCITY_THRESHOLD = 30.0  // Velocity below this = "not moving" (mm/s)
-        private const val STALL_DURATION_SECONDS = 3.0f    // How long to stall before auto-stop triggers
+        private const val STALL_DURATION_SECONDS = 5.0f    // How long to stall before auto-stop triggers
         // Min position to consider handles "in use" (Issue #204 fix)
         // Prevents false auto-stop when handles are at rest position near 0
         private const val STALL_MIN_POSITION = 10.0        // Position > this = handles are being used (mm)
