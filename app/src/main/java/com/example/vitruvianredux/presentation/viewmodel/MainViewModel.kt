@@ -396,6 +396,11 @@ class MainViewModel @Inject constructor(
     // This handles exercises like bench press where bar rests on chest with cables still partially extended
     private var stallDetectionStartTime: Long? = null
 
+    // Load-based stall detection for auto-stop (Issue #204)
+    // When bar bottoms out on chest, cables go slack and load drops to near-zero ("no tension")
+    // Original Vitruvian app detects this state to trigger auto-stop even with cables partially extended
+    private var lowLoadDetectionStartTime: Long? = null
+
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
     private var connectionJob: Job? = null  // Track connection attempt for cancellation
@@ -762,10 +767,11 @@ class MainViewModel @Inject constructor(
         val params = _workoutParameters.value
 
         // Diagnostic: Log when checkAutoStop is called for Just Lift mode
-        if (params.isJustLift && autoStopStartTime == null && stallDetectionStartTime == null) {
+        if (params.isJustLift && autoStopStartTime == null && stallDetectionStartTime == null && lowLoadDetectionStartTime == null) {
             Timber.d("🎯 Just Lift auto-stop check: hasMeaningful=$hasMeaningful, " +
                 "posA=${metric.positionA}, posB=${metric.positionB}, " +
-                "velA=${metric.velocityA}, velB=${metric.velocityB}")
+                "velA=${metric.velocityA}, velB=${metric.velocityB}, " +
+                "loadA=${metric.loadA}, loadB=${metric.loadB}, totalLoad=${metric.loadA + metric.loadB}")
         }
 
         // ==================== VELOCITY-BASED STALL DETECTION (Issue #204) ====================
@@ -811,6 +817,52 @@ class MainViewModel @Inject constructor(
                 Timber.d("🟢 Stall detection RESET - movement detected (vel=$maxVelocity)")
             }
             stallDetectionStartTime = null
+        }
+
+        // ==================== LOAD-BASED STALL DETECTION (Issue #204) ====================
+        // When bar bottoms out on chest, cables go slack and load drops to near-zero.
+        // Original Vitruvian app detects this "no tension" state to trigger auto-stop,
+        // even when cables are still partially extended (user reported "inch or two exposed").
+        val totalLoad = metric.loadA + metric.loadB
+        val isLowLoad = totalLoad < LOW_LOAD_THRESHOLD_LBS
+
+        if (isLowLoad && hasMeaningful) {
+            // Load is near-zero (cables slack) - start or continue low-load timer
+            val lowLoadStart = lowLoadDetectionStartTime ?: run {
+                lowLoadDetectionStartTime = System.currentTimeMillis()
+                Timber.d("🔻 Low-load detection STARTED - cables slack " +
+                    "(totalLoad=$totalLoad lbs, threshold=$LOW_LOAD_THRESHOLD_LBS)")
+                System.currentTimeMillis()
+            }
+
+            val lowLoadElapsed = (System.currentTimeMillis() - lowLoadStart) / 1000f
+
+            // If low load persists long enough, trigger auto-stop
+            if (lowLoadElapsed >= LOW_LOAD_DURATION_SECONDS) {
+                Timber.d("⏹️ Auto-stop TRIGGERED via LOW LOAD DETECTION - no tension for ${LOW_LOAD_DURATION_SECONDS}s")
+                triggerAutoStop()
+                return
+            }
+
+            // Update UI with low-load progress (use whichever timer is further along)
+            val lowLoadProgress = (lowLoadElapsed / LOW_LOAD_DURATION_SECONDS).coerceIn(0f, 1f)
+            val lowLoadRemaining = (LOW_LOAD_DURATION_SECONDS - lowLoadElapsed).coerceAtLeast(0f)
+
+            // Only update UI if low-load timer is further along than other timers
+            val currentProgress = _autoStopState.value.progress
+            if (lowLoadProgress > currentProgress) {
+                _autoStopState.value = AutoStopUiState(
+                    isActive = true,
+                    progress = lowLoadProgress,
+                    secondsRemaining = ceil(lowLoadRemaining).toInt()
+                )
+            }
+        } else {
+            // Load detected - reset low-load timer
+            if (lowLoadDetectionStartTime != null) {
+                Timber.d("🟢 Low-load detection RESET - tension detected (load=$totalLoad lbs)")
+            }
+            lowLoadDetectionStartTime = null
         }
 
         // ==================== POSITION-BASED AUTO-STOP (Original Logic) ====================
@@ -921,6 +973,8 @@ class MainViewModel @Inject constructor(
 
     private fun resetAutoStopTimer() {
         autoStopStartTime = null
+        stallDetectionStartTime = null
+        lowLoadDetectionStartTime = null
         if (!autoStopTriggered.get()) {
             _autoStopState.value = AutoStopUiState()
         }
@@ -2761,6 +2815,12 @@ class MainViewModel @Inject constructor(
         // Velocity-based stall detection constants (Issue #204)
         private const val STALL_VELOCITY_THRESHOLD = 15.0  // Velocity below this = "not moving" (mm/s)
         private const val STALL_DURATION_SECONDS = 3.0f    // How long to stall before auto-stop triggers
+
+        // Load-based stall detection constants (Issue #204 - handles cable slack when bar bottoms out)
+        // When bar rests on chest, cables go slack and load drops to near-zero
+        // Original Vitruvian app detects this "no tension" state to trigger auto-stop
+        private const val LOW_LOAD_THRESHOLD_LBS = 5.0f    // Total load below this = cables slack
+        private const val LOW_LOAD_DURATION_SECONDS = 3.0f // How long at low load before auto-stop
 
         /** Prefix for temporary routines created in Single Exercise mode */
         const val TEMP_SINGLE_EXERCISE_PREFIX = "temp_single_exercise_"
