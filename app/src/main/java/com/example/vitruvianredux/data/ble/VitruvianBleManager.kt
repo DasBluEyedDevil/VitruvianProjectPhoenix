@@ -97,9 +97,10 @@ class VitruvianBleManager(
     // Using abs() would make all jitter positive, averaging to ~20mm/s and preventing stall detection
     @Volatile private var smoothedVelocityA = 0.0
     @Volatile private var smoothedVelocityB = 0.0
-    // EMA alpha: 0.15 = aggressive smoothing for high-extension exercises (shoulder press)
-    // Lower alpha reduces jitter impact but makes velocity response slightly slower
-    private val VELOCITY_SMOOTHING_ALPHA = 0.15
+    // EMA alpha: 0.3 = balanced smoothing (faster response during direction changes)
+    // Higher alpha reduces zero-crossing dwell time during eccentric/concentric transitions
+    // which prevents false stall detection during controlled tempo movements
+    private val VELOCITY_SMOOTHING_ALPHA = 0.3
 
     // Diagnostic info exposed for Protocol Tester
     @Volatile var detectedFirmwareVersion: String? = null
