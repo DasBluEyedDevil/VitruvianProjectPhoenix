@@ -769,11 +769,13 @@ class MainViewModel @Inject constructor(
         }
 
         // ==================== VELOCITY-BASED STALL DETECTION (Issue #204) ====================
-        // Official app triggers auto-stop when movement stops for ~3 seconds, even if cables
-        // aren't fully retracted. This handles exercises like bench press where bar rests on
-        // chest with cables still partially extended.
+        // Two-tier hysteresis matching trainer (<2.5 stalled, >10 moving):
+        // - Below LOW threshold (<2.5): start/continue stall timer
+        // - Above HIGH threshold (>10): reset stall timer (clear movement)
+        // - Between LOW and HIGH (≥2.5 and ≤10): maintain current state (prevents toggling)
         val maxVelocity = maxOf(kotlin.math.abs(metric.velocityA), kotlin.math.abs(metric.velocityB))
-        val isStalled = maxVelocity < STALL_VELOCITY_THRESHOLD
+        val isDefinitelyStalled = maxVelocity < STALL_VELOCITY_LOW
+        val isDefinitelyMoving = maxVelocity > STALL_VELOCITY_HIGH
 
         // Check if handles are actually being used (not just sitting at rest)
         // Two conditions satisfy "actively using":
@@ -784,15 +786,25 @@ class MainViewModel @Inject constructor(
         val hasExerciseStarted = hasMeaningful  // True if 50mm motion range achieved
         val isActivelyUsing = maxPosition > STALL_MIN_POSITION || hasExerciseStarted
 
-        if (isStalled && isActivelyUsing) {
-            // Movement has stopped - start or continue stall timer
-            val stallStart = stallDetectionStartTime ?: run {
-                stallDetectionStartTime = System.currentTimeMillis()
-                Timber.d("🛑 Stall detection STARTED - velocity below threshold " +
-                    "(velA=${metric.velocityA}, velB=${metric.velocityB}, threshold=$STALL_VELOCITY_THRESHOLD)")
-                System.currentTimeMillis()
-            }
+        // Hysteresis state machine:
+        // - Definitely stalled (< LOW): start timer if not already running
+        // - Definitely moving (> HIGH): reset timer
+        // - Hysteresis band (LOW to HIGH): maintain current state, keep timer running if active
+        if (isDefinitelyStalled && isActivelyUsing && stallDetectionStartTime == null) {
+            // Velocity below LOW threshold - start stall timer
+            stallDetectionStartTime = System.currentTimeMillis()
+            Timber.d("🛑 Stall detection STARTED - velocity below LOW threshold " +
+                "(vel=$maxVelocity, lowThreshold=$STALL_VELOCITY_LOW)")
+        } else if (isDefinitelyMoving && stallDetectionStartTime != null) {
+            // Velocity above HIGH threshold - clear movement detected, reset timer
+            Timber.d("🟢 Stall detection RESET - velocity above HIGH threshold (vel=$maxVelocity)")
+            stallDetectionStartTime = null
+        }
+        // else: velocity in hysteresis band (2.5-10.0) - maintain current timer state
 
+        // If timer is running (regardless of current velocity zone), check progress and update UI
+        val stallStart = stallDetectionStartTime
+        if (stallStart != null) {
             val stallElapsed = (System.currentTimeMillis() - stallStart) / 1000f
 
             // If stalled long enough, trigger auto-stop
@@ -802,11 +814,10 @@ class MainViewModel @Inject constructor(
                 return
             }
 
-            // Update UI with stall progress (use the longer of stall or position-based timer)
+            // Update UI with stall progress (always update when timer is active)
             val stallProgress = (stallElapsed / STALL_DURATION_SECONDS).coerceIn(0f, 1f)
             val stallRemaining = (STALL_DURATION_SECONDS - stallElapsed).coerceAtLeast(0f)
 
-            // Only update UI if stall timer is further along than position-based timer
             if (autoStopStartTime == null || stallElapsed > (System.currentTimeMillis() - autoStopStartTime!!) / 1000f) {
                 _autoStopState.value = AutoStopUiState(
                     isActive = true,
@@ -814,12 +825,6 @@ class MainViewModel @Inject constructor(
                     secondsRemaining = ceil(stallRemaining).toInt()
                 )
             }
-        } else {
-            // Movement detected - reset stall timer
-            if (stallDetectionStartTime != null) {
-                Timber.d("🟢 Stall detection RESET - movement detected (vel=$maxVelocity)")
-            }
-            stallDetectionStartTime = null
         }
 
         // ==================== POSITION-BASED AUTO-STOP (Original Logic) ====================
@@ -2777,9 +2782,12 @@ class MainViewModel @Inject constructor(
         private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
 
         // Velocity-based stall detection constants (Issue #204)
-        // Threshold: 25mm/s - matches trainer behavior
-        // Combined with faster EMA (alpha=0.3), this prevents false stall during direction changes
-        private const val STALL_VELOCITY_THRESHOLD = 25.0  // Velocity below this = "not moving" (mm/s)
+        // Two-tier hysteresis matching trainer (<2.5 stalled, >10 moving):
+        // - Below LOW (<2.5): start/continue stall timer (user is stopped)
+        // - Above HIGH (>10): reset stall timer (user is clearly moving)
+        // - Between LOW and HIGH (≥2.5 and ≤10): maintain current state (prevents toggling)
+        private const val STALL_VELOCITY_LOW = 2.5    // Below this = definitely stalled (mm/s)
+        private const val STALL_VELOCITY_HIGH = 10.0  // Above this = definitely moving (mm/s)
         private const val STALL_DURATION_SECONDS = 5.0f    // How long to stall before auto-stop triggers
         // Min position to consider handles "in use" (Issue #204 fix)
         // Prevents false auto-stop when handles are at rest position near 0
