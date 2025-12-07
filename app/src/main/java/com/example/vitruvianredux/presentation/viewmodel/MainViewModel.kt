@@ -2813,10 +2813,10 @@ class MainViewModel @Inject constructor(
         private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
 
         // Velocity-based stall detection constants (Issue #204)
-        // Threshold set to 20 mm/s - balance between tolerating breathing movement and
-        // detecting intentional stillness. 15 was too sensitive, 30 was too permissive.
-        private const val STALL_VELOCITY_THRESHOLD = 20.0  // Velocity below this = "not moving" (mm/s)
-        private const val STALL_DURATION_SECONDS = 3.0f    // How long to stall before auto-stop triggers
+        // Official app uses 1.2s timer with velocity threshold ~2.5 (different units)
+        // Using 15 mm/s with aggressive filtering (2mm dead-band, 0.1 EMA alpha)
+        private const val STALL_VELOCITY_THRESHOLD = 15.0  // Velocity below this = "not moving" (mm/s)
+        private const val STALL_DURATION_SECONDS = 1.5f    // Closer to official 1.2s
 
         // Load-based stall detection constants (Issue #204 - handles cable slack when bar bottoms out)
         // When bar rests on chest, cables go slack and load drops to near-zero

@@ -96,11 +96,11 @@ class VitruvianBleManager(
     // Raw velocity is noisy due to sensor jitter; smoothing filters out false movement detection
     @Volatile private var smoothedVelocityA = 0.0
     @Volatile private var smoothedVelocityB = 0.0
-    // EMA alpha: 0.2 = more aggressive smoothing to filter persistent noise (lowered from 0.3)
-    private val VELOCITY_SMOOTHING_ALPHA = 0.2
-    // Dead-band threshold: position changes smaller than this are treated as zero (filters sensor jitter)
-    // BLE resolution is 0.1mm, so 0.5mm threshold filters noise while detecting real movement
-    private val POSITION_DEADBAND_MM = 0.5f
+    // EMA alpha: 0.1 = aggressive smoothing (lower = smoother, less responsive to spikes)
+    private val VELOCITY_SMOOTHING_ALPHA = 0.1
+    // Dead-band threshold: position changes smaller than this are treated as zero
+    // Increased to 2.0mm to filter out cable micro-movements at low extension
+    private val POSITION_DEADBAND_MM = 2.0f
 
     // Diagnostic info exposed for Protocol Tester
     @Volatile var detectedFirmwareVersion: String? = null
