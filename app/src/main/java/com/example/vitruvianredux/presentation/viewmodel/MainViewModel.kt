@@ -775,18 +775,20 @@ class MainViewModel @Inject constructor(
         }
 
         // ==================== VELOCITY-BASED STALL DETECTION (Issue #204) ====================
-        // Official app triggers auto-stop when movement stops for ~3 seconds, even if cables
-        // aren't fully retracted. This handles exercises like bench press where bar rests on
-        // chest with cables still partially extended.
+        // Two-tier hysteresis approach matching official app:
+        // - Below STALL_VELOCITY_LOW: start/continue stall timer
+        // - Above STALL_VELOCITY_HIGH: reset stall timer
+        // - Between LOW and HIGH: maintain current state (prevents rapid toggling)
         val maxVelocity = maxOf(kotlin.math.abs(metric.velocityA), kotlin.math.abs(metric.velocityB))
-        val isStalled = maxVelocity < STALL_VELOCITY_THRESHOLD
+        val isDefinitelyStalled = maxVelocity < STALL_VELOCITY_LOW
+        val isDefinitelyMoving = maxVelocity > STALL_VELOCITY_HIGH
 
-        if (isStalled && hasMeaningful) {
-            // Movement has stopped - start or continue stall timer
+        if (isDefinitelyStalled && hasMeaningful) {
+            // Velocity below LOW threshold - start or continue stall timer
             val stallStart = stallDetectionStartTime ?: run {
                 stallDetectionStartTime = System.currentTimeMillis()
-                Timber.d("🛑 Stall detection STARTED - velocity below threshold " +
-                    "(velA=${metric.velocityA}, velB=${metric.velocityB}, threshold=$STALL_VELOCITY_THRESHOLD)")
+                Timber.d("🛑 Stall detection STARTED - velocity below LOW threshold " +
+                    "(vel=$maxVelocity, lowThreshold=$STALL_VELOCITY_LOW)")
                 System.currentTimeMillis()
             }
 
@@ -799,11 +801,10 @@ class MainViewModel @Inject constructor(
                 return
             }
 
-            // Update UI with stall progress (use the longer of stall or position-based timer)
+            // Update UI with stall progress
             val stallProgress = (stallElapsed / STALL_DURATION_SECONDS).coerceIn(0f, 1f)
             val stallRemaining = (STALL_DURATION_SECONDS - stallElapsed).coerceAtLeast(0f)
 
-            // Only update UI if stall timer is further along than position-based timer
             if (autoStopStartTime == null || stallElapsed > (System.currentTimeMillis() - autoStopStartTime!!) / 1000f) {
                 _autoStopState.value = AutoStopUiState(
                     isActive = true,
@@ -811,13 +812,14 @@ class MainViewModel @Inject constructor(
                     secondsRemaining = ceil(stallRemaining).toInt()
                 )
             }
-        } else {
-            // Movement detected - reset stall timer
+        } else if (isDefinitelyMoving) {
+            // Velocity above HIGH threshold - definite movement, reset timer
             if (stallDetectionStartTime != null) {
-                Timber.d("🟢 Stall detection RESET - movement detected (vel=$maxVelocity)")
+                Timber.d("🟢 Stall detection RESET - velocity above HIGH threshold (vel=$maxVelocity)")
             }
             stallDetectionStartTime = null
         }
+        // else: velocity between LOW and HIGH - maintain current state (hysteresis band)
 
         // ==================== LOAD-BASED STALL DETECTION (Issue #204) ====================
         // When bar bottoms out on chest, cables go slack and load drops to near-zero.
@@ -2813,9 +2815,12 @@ class MainViewModel @Inject constructor(
         private const val AUTO_STOP_DURATION_SECONDS = 2.5f  // User observation: ~2.5 seconds (snappier than 5s)
 
         // Velocity-based stall detection constants (Issue #204)
-        // Official app uses 1.2s timer with velocity threshold ~2.5 (different units)
-        // Using 15 mm/s with aggressive filtering (2mm dead-band, 0.1 EMA alpha)
-        private const val STALL_VELOCITY_THRESHOLD = 15.0  // Velocity below this = "not moving" (mm/s)
+        // Two-tier hysteresis matching official app (which uses ≤2.5 / ≥10.0):
+        // - Below LOW: start/continue stall timer (user is stopped)
+        // - Above HIGH: reset stall timer (user is moving)
+        // - Between LOW and HIGH: maintain current state (prevents toggling)
+        private const val STALL_VELOCITY_LOW = 5.0    // Below this = definitely stalled (mm/s)
+        private const val STALL_VELOCITY_HIGH = 15.0  // Above this = definitely moving, reset timer (mm/s)
         private const val STALL_DURATION_SECONDS = 1.5f    // Closer to official 1.2s
 
         // Load-based stall detection constants (Issue #204 - handles cable slack when bar bottoms out)
