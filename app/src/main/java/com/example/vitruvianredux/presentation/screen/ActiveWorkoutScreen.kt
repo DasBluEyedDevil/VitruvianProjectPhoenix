@@ -35,6 +35,8 @@ fun ActiveWorkoutScreen(
     val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
     val loadedRoutine by viewModel.loadedRoutine.collectAsState()
     val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
+    val isBodyweightExercise by viewModel.isCurrentExerciseBodyweight.collectAsState()
+    val bodyweightTimerState by viewModel.bodyweightTimerState.collectAsState()
     val hapticEvents = viewModel.hapticEvents
     val connectionState by viewModel.connectionState.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
@@ -154,6 +156,8 @@ fun ActiveWorkoutScreen(
         loadedRoutine = loadedRoutine,
         currentExerciseIndex = currentExerciseIndex,
         autoplayEnabled = userPreferences.autoplayEnabled,
+        isBodyweightExercise = isBodyweightExercise,
+        bodyweightTimerState = bodyweightTimerState,
         kgToDisplay = viewModel::kgToDisplay,
         displayToKg = viewModel::displayToKg,
         formatWeight = viewModel::formatWeight,

@@ -213,6 +213,14 @@ class MainViewModel @Inject constructor(
     private val _currentSetIndex = MutableStateFlow(0)
     val currentSetIndex: StateFlow<Int> = _currentSetIndex.asStateFlow()
 
+    // Bodyweight exercise state (Issue #218)
+    private val _isCurrentExerciseBodyweight = MutableStateFlow(false)
+    val isCurrentExerciseBodyweight: StateFlow<Boolean> = _isCurrentExerciseBodyweight.asStateFlow()
+
+    // Bodyweight timer state: Pair(remainingSeconds, totalSeconds) or null if not active
+    private val _bodyweightTimerState = MutableStateFlow<Pair<Int, Int>?>(null)
+    val bodyweightTimerState: StateFlow<Pair<Int, Int>?> = _bodyweightTimerState.asStateFlow()
+
     // Weekly Programs
     val weeklyPrograms: StateFlow<List<com.example.vitruvianredux.data.local.WeeklyProgramWithDays>> =
         workoutRepository.getAllPrograms()
@@ -1257,6 +1265,8 @@ class MainViewModel @Inject constructor(
             Timber.d("")
 
             // For bodyweight exercises with duration, skip BLE commands and use timer
+            // Issue #218: Expose bodyweight state to UI for proper timer display
+            _isCurrentExerciseBodyweight.value = isBodyweightDuration
             if (isBodyweightDuration) {
                 val duration = currentExercise?.duration ?: 30
                 Timber.d("BODYWEIGHT EXERCISE DETECTED - Starting ${duration}s timer (no BLE commands)")
@@ -1272,12 +1282,15 @@ class MainViewModel @Inject constructor(
                 // Emit haptic feedback for workout start
                 _hapticEvents.emit(HapticEvent.WORKOUT_START)
 
-                // Start a cancellable timer for bodyweight exercise
-                // Note: Metrics (timestamp, duration, exerciseId) are still collected via saveWorkoutSession()
-                // even though no cable load/rep data is gathered. workingReps will be 0 (expected for bodyweight).
+                // Start a cancellable countdown timer for bodyweight exercise
+                // Issue #218: Emit countdown state to UI so it can display remaining time
                 bodyweightTimerJob?.cancel()  // Cancel any existing timer
                 bodyweightTimerJob = viewModelScope.launch {
-                    delay(duration * 1000L)
+                    for (remaining in duration downTo 1) {
+                        _bodyweightTimerState.value = Pair(remaining, duration)
+                        delay(1000L)
+                    }
+                    _bodyweightTimerState.value = null // Timer complete
                     Timber.d("BODYWEIGHT EXERCISE TIMER COMPLETE (${duration}s) - Auto-completing set")
                     handleSetCompletion()
                 }
@@ -1341,6 +1354,9 @@ class MainViewModel @Inject constructor(
             restTimerJob = null
             bodyweightTimerJob?.cancel()
             bodyweightTimerJob = null
+            // Issue #218: Clear bodyweight state
+            _isCurrentExerciseBodyweight.value = false
+            _bodyweightTimerState.value = null
 
             // Check if current exercise is bodyweight (skip BLE calls if so)
             val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)

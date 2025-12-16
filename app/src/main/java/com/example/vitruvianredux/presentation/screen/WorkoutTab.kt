@@ -58,6 +58,8 @@ fun WorkoutTab(
     loadedRoutine: Routine? = null,
     currentExerciseIndex: Int = 0,
     autoplayEnabled: Boolean = false,
+    isBodyweightExercise: Boolean = false, // Issue #218: Show timer instead of rep counter
+    bodyweightTimerState: Pair<Int, Int>? = null, // Issue #218: (remainingSeconds, totalSeconds)
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     formatWeight: (Float, WeightUnit) -> String,
@@ -416,8 +418,12 @@ fun WorkoutTab(
             // Display state-specific cards (only non-overlay cards)
             when (workoutState) {
                 is WorkoutState.Active -> {
-                    // Show rep counter first (above video) so it's always visible
-                    RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
+                    // Issue #218: Show timer for bodyweight exercises, rep counter for cable exercises
+                    if (isBodyweightExercise) {
+                        BodyweightTimerCard(timerState = bodyweightTimerState)
+                    } else {
+                        RepCounterCard(repCount = repCount, workoutParameters = workoutParameters)
+                    }
 
                     // Show current exercise details
                     CurrentExerciseCard(
@@ -1704,6 +1710,63 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
                     // Full color for confirmed rep (at BOTTOM, completed)
                     MaterialTheme.colorScheme.onPrimaryContainer
                 }
+            )
+        }
+    }
+}
+
+/**
+ * Timer card for bodyweight exercises (Issue #218)
+ * Shows countdown timer instead of rep counter since bodyweight doesn't use cables
+ */
+@Composable
+fun BodyweightTimerCard(timerState: Pair<Int, Int>?) {
+    val (remaining, total) = timerState ?: Pair(0, 0)
+    val progress = if (total > 0) remaining.toFloat() / total else 0f
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+        border = BorderStroke(3.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.large),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "BODYWEIGHT",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Circular progress indicator with time in center
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(120.dp),
+                    strokeWidth = 8.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                )
+                Text(
+                    text = "${remaining}s",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+            Text(
+                text = "of ${total}s",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
             )
         }
     }
