@@ -1197,13 +1197,13 @@ class MainViewModel @Inject constructor(
             val isBodyweight = isBodyweightExercise(currentExercise)
             val isBodyweightDuration = isBodyweight && currentExercise?.duration != null
 
-            // Set warmupReps = 0 for bodyweight exercises (Issue #125)
-            val effectiveWarmupReps = if (isBodyweight) 0 else _workoutParameters.value.warmupReps
-
+            // Issue #218: Don't modify warmupReps in persisted state for bodyweight exercises.
+            // Bodyweight exercises are just timers - no BLE commands, no rep counting.
+            // Modifying warmupReps here would incorrectly carry over to subsequent cable exercises.
             val params = _workoutParameters.value.copy(
                 isJustLift = isJustLiftMode,
-                useAutoStart = if (isJustLiftMode) true else _workoutParameters.value.useAutoStart,
-                warmupReps = effectiveWarmupReps // Skip warmup for bodyweight exercises
+                useAutoStart = if (isJustLiftMode) true else _workoutParameters.value.useAutoStart
+                // warmupReps intentionally NOT modified - preserve for subsequent cable exercises
             )
             Timber.d("⚖️ startWorkout: AFTER copy - weight=${params.weightPerCableKg} kg (${params.weightPerCableKg * 2.20462f} lbs)")
             Timber.d("⚖️ startWorkout: isBodyweight=$isBodyweight, warmupReps=${params.warmupReps}")
@@ -1220,7 +1220,7 @@ class MainViewModel @Inject constructor(
                 repCounter.reset()
             }
             repCounter.configure(
-                warmupTarget = params.warmupReps, // Already 0 for bodyweight
+                warmupTarget = params.warmupReps,
                 workingTarget = workingTarget,
                 isJustLift = params.isJustLift,
                 stopAtTop = params.stopAtTop,
