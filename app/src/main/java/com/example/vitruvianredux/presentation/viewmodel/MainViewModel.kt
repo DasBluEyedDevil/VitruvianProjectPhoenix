@@ -221,6 +221,11 @@ class MainViewModel @Inject constructor(
     private val _bodyweightTimerState = MutableStateFlow<Pair<Int, Int>?>(null)
     val bodyweightTimerState: StateFlow<Pair<Int, Int>?> = _bodyweightTimerState.asStateFlow()
 
+    // Session-level eccentric load: persists across exercises within a workout session
+    // Used as fallback when an exercise has no saved defaults
+    private val _sessionEccentricLoad = MutableStateFlow(EccentricLoad.LOAD_100)
+    val sessionEccentricLoad: StateFlow<EccentricLoad> = _sessionEccentricLoad.asStateFlow()
+
     // Weekly Programs
     val weeklyPrograms: StateFlow<List<com.example.vitruvianredux.data.local.WeeklyProgramWithDays>> =
         workoutRepository.getAllPrograms()
@@ -1137,6 +1142,12 @@ class MainViewModel @Inject constructor(
     fun updateWorkoutParameters(params: WorkoutParameters) {
         Timber.d("⚖️ updateWorkoutParameters: weight=${params.weightPerCableKg} kg (${params.weightPerCableKg * 2.20462f} lbs)")
         _workoutParameters.value = params
+
+        // Update session-level eccentric load for cross-exercise persistence
+        val workoutType = params.workoutType
+        if (workoutType is WorkoutType.Echo) {
+            _sessionEccentricLoad.value = workoutType.eccentricLoad
+        }
 
         // Track if user modified parameters during rest (so we preserve their changes for next set)
         if (_workoutState.value is WorkoutState.Resting) {
