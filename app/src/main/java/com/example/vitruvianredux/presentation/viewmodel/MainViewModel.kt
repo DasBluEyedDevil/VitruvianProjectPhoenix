@@ -1358,7 +1358,9 @@ class MainViewModel @Inject constructor(
 
     fun stopWorkout() {
         viewModelScope.launch {
-            val isJustLift = _workoutParameters.value.isJustLift
+            val params = _workoutParameters.value
+            val isJustLift = params.isJustLift
+            val isAMRAP = params.isAMRAP
 
             // Cancel any running timers to prevent auto-restart
             restTimerJob?.cancel()
@@ -1389,13 +1391,13 @@ class MainViewModel @Inject constructor(
             // Save current progress
             saveWorkoutSession()
 
-            // Reset state
-            repCounter.reset()
-            resetAutoStopState()
-
             // Just Lift mode: Reset to Idle and re-enable auto-start for next set
             // Issue #121: Manual finish must behave the same as auto-stop
             if (isJustLift) {
+                // Reset state
+                repCounter.reset()
+                resetAutoStopState()
+
                 Timber.d("Just Lift mode: Manual finish - resetting to Idle for next set")
                 resetForNewWorkout()
                 _workoutState.value = WorkoutState.Idle  // Back to Idle, ready for next set
@@ -1406,7 +1408,42 @@ class MainViewModel @Inject constructor(
                 // Enable velocity-based wake-up detection for next exercise
                 bleRepository.enableJustLiftWaitingMode()
                 Timber.d("Just Lift mode: Velocity wake-up detection enabled - ready for next set")
+            } else if (isAMRAP) {
+                // Issue #221: AMRAP mode should show set summary and allow progression to next set
+                // This mirrors handleSetCompletion() behavior for auto-stop
+                Timber.d("AMRAP mode: Manual finish - showing set summary for progression")
+
+                // Calculate metrics for summary BEFORE reset (per-cable load, not total)
+                val peakPerCableKg = if (collectedMetrics.isNotEmpty()) {
+                    collectedMetrics.maxOf { it.totalLoad } / 2f
+                } else {
+                    params.weightPerCableKg
+                }
+                val averagePerCableKg = if (collectedMetrics.isNotEmpty()) {
+                    collectedMetrics.map { it.totalLoad / 2f }.average().toFloat()
+                } else {
+                    params.weightPerCableKg
+                }
+                val completedReps = _repCount.value.workingReps
+
+                // Reset state after capturing metrics
+                repCounter.reset()
+                resetAutoStopState()
+
+                // Show set summary - user can click "Continue" to proceed to next set
+                _workoutState.value = WorkoutState.SetSummary(
+                    metrics = collectedMetrics.toList(),
+                    peakPower = peakPerCableKg,
+                    averagePower = averagePerCableKg,
+                    repCount = completedReps
+                )
+
+                Timber.d("AMRAP set summary: peakPerCableKg=$peakPerCableKg, avgPerCableKg=$averagePerCableKg, reps=$completedReps")
             } else {
+                // Reset state
+                repCounter.reset()
+                resetAutoStopState()
+
                 // Normal mode: Mark as completed
                 _workoutState.value = WorkoutState.Completed
             }
@@ -1623,11 +1660,10 @@ class MainViewModel @Inject constructor(
                     Timber.e("⚠️ BUG DETECTED: exercise.isAMRAP=false but ALL setReps are null! setReps=${currentExercise?.setReps}")
                 }
 
-                val result = if (isAMRAPExercise) {
-                    true // AMRAP always has "more sets" - user decides when to move on
-                } else {
-                    currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1
-                }
+                // Issue #221: AMRAP exercises have a finite number of sets defined by setReps.size
+                // The isAMRAP flag only means "user decides when to stop each set" (no rep target)
+                // but the SET count is still defined by the number of entries in setReps
+                val result = currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1
                 Timber.d("  hasMoreSets calculation: currentExercise=$currentExercise, isAMRAPExercise=$isAMRAPExercise, currentSetIndex=${_currentSetIndex.value}, setReps.size=${currentExercise?.setReps?.size}, setReps=${currentExercise?.setReps}, result=$result")
                 result
             } ?: false
