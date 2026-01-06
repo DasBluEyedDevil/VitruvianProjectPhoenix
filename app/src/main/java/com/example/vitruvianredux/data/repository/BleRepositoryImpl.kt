@@ -42,6 +42,7 @@ interface BleRepository {
     val scannedDevices: Flow<ScanResult>
     val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
     val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>
+    val deloadOccurredEvents: Flow<Unit>  // Issue #98: Firmware-based cable release detection
 
     suspend fun startScanning(): Result<Unit>
     suspend fun stopScanning()
@@ -116,6 +117,14 @@ class BleRepositoryImpl @Inject constructor(
 
     private val _heuristicData = MutableStateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>(null)
     override val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?> = _heuristicData.asStateFlow()
+
+    // Issue #98: Firmware-based cable release detection (DELOAD_OCCURRED flag)
+    private val _deloadOccurredEvents = MutableSharedFlow<Unit>(
+        replay = 0,
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    override val deloadOccurredEvents: Flow<Unit> = _deloadOccurredEvents.asSharedFlow()
 
     private var isScanning = false
     
@@ -367,9 +376,11 @@ class BleRepositoryImpl @Inject constructor(
                 // - Only auto-stop timer expiry OR manual Stop should end the exercise
                 // - DO NOT send StopPacket automatically on deload - this was the root cause
                 //   of Just Lift mode failing (premature exercise termination)
+                // Issue #98: Forward deload events to ViewModel for firmware-based auto-stop detection
                 scope.launch {
                     deloadOccurredEvents.collect {
-                        Timber.d("DELOAD_EVENT: Deload occurred (safety holding state) - NOT sending stop, exercise can resume")
+                        Timber.d("DELOAD_EVENT: Deload occurred (safety holding state) - forwarding to ViewModel for auto-stop")
+                        _deloadOccurredEvents.emit(Unit)
                     }
                 }
 
