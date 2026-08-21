@@ -1,0 +1,983 @@
+package com.ninthlevel.phoenix.presentation.screen
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
+import androidx.compose.material3.SheetValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+
+import com.ninthlevel.phoenix.domain.model.EccentricLoad
+import com.ninthlevel.phoenix.domain.model.EchoLevel
+import com.ninthlevel.phoenix.domain.model.RoutineExercise
+import com.ninthlevel.phoenix.domain.model.WeightUnit
+import com.ninthlevel.phoenix.domain.model.WorkoutMode
+import com.ninthlevel.phoenix.presentation.components.ProgressionSlider
+import com.ninthlevel.phoenix.presentation.components.ExpressiveSlider
+import com.ninthlevel.phoenix.presentation.components.ExpressiveCard
+import com.ninthlevel.phoenix.presentation.viewmodel.ExerciseConfigViewModel
+import com.ninthlevel.phoenix.presentation.viewmodel.ExerciseType
+import com.ninthlevel.phoenix.presentation.viewmodel.SetConfiguration
+import com.ninthlevel.phoenix.presentation.viewmodel.SetMode
+import com.ninthlevel.phoenix.ui.theme.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExerciseEditBottomSheet(
+    exercise: RoutineExercise,
+    weightUnit: WeightUnit,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
+    personalRecordRepository: com.ninthlevel.phoenix.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
+    onSave: (RoutineExercise) -> Unit,
+    onDismiss: () -> Unit,
+    buttonText: String = "Save",
+    viewModel: ExerciseConfigViewModel = hiltViewModel()
+) {
+    // Fetch initial PR for exercise (based on workout type from exercise config)
+    var initialPR by remember { mutableStateOf<com.ninthlevel.phoenix.domain.model.PersonalRecord?>(null) }
+    LaunchedEffect(exercise.exercise.id, exercise.workoutType) {
+        exercise.exercise.id?.let { exerciseId ->
+            val workoutMode = exercise.workoutType.toWorkoutMode()
+            if (workoutMode !is WorkoutMode.Echo) {
+                try {
+                    val modeString = when (workoutMode) {
+                        is WorkoutMode.OldSchool -> "Old School"
+                        is WorkoutMode.Pump -> "Pump"
+                        is WorkoutMode.TUT -> "TUT"
+                        is WorkoutMode.TUTBeast -> "TUT Beast"
+                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
+                        else -> null
+                    }
+                    modeString?.let { mode ->
+                        initialPR = personalRecordRepository.getLatestPR(exerciseId, mode)
+                    }
+                } catch (_: Exception) {
+                    initialPR = null
+                }
+            }
+        }
+    }
+
+    // Initialize the ViewModel with the exercise data and PR weight.
+    // This will only run once for a given exercise ID, preventing state wipes on recomposition.
+    LaunchedEffect(exercise, weightUnit, initialPR) {
+        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg, initialPR?.weightPerCableKg)
+    }
+
+    // Collect state from the ViewModel
+    val exerciseType by viewModel.exerciseType.collectAsState()
+    val setMode by viewModel.setMode.collectAsState()
+    val sets by viewModel.sets.collectAsState()
+    val selectedMode by viewModel.selectedMode.collectAsState()
+    val weightChange by viewModel.weightChange.collectAsState()
+    val rest by viewModel.rest.collectAsState()
+    val perSetRestTime by viewModel.perSetRestTime.collectAsState()
+    val eccentricLoad by viewModel.eccentricLoad.collectAsState()
+    val echoLevel by viewModel.echoLevel.collectAsState()
+
+    // Fetch current PR for selected mode (for display in PR card)
+    var currentPR by remember { mutableStateOf<com.ninthlevel.phoenix.domain.model.PersonalRecord?>(null) }
+    LaunchedEffect(exercise.exercise.id, selectedMode) {
+        exercise.exercise.id?.let { exerciseId ->
+            // Don't fetch PR for Echo mode
+            if (selectedMode !is WorkoutMode.Echo) {
+                try {
+                    val modeString = when (selectedMode) {
+                        is WorkoutMode.OldSchool -> "Old School"
+                        is WorkoutMode.Pump -> "Pump"
+                        is WorkoutMode.TUT -> "TUT"
+                        is WorkoutMode.TUTBeast -> "TUT Beast"
+                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
+                        else -> null
+                    }
+                    modeString?.let { mode ->
+                        currentPR = personalRecordRepository.getLatestPR(exerciseId, mode)
+                    }
+                } catch (_: Exception) {
+                    currentPR = null
+                }
+            } else {
+                currentPR = null
+            }
+        }
+    }
+
+    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+    val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
+    val weightStep = if (weightUnit == WeightUnit.LB) 0.5f else 0.25f
+    val maxWeightChange = if (weightUnit == WeightUnit.LB) 10 else 10
+
+    // Prevent accidental dismissal via swipe gestures while allowing button-based dismissal
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { newValue ->
+            // Only allow dismissal through explicit button clicks (onDismiss callback)
+            // Prevent swipe-to-dismiss to avoid losing unsaved changes during parameter adjustment
+            newValue != SheetValue.Hidden
+        }
+    )
+
+    // Coroutine scope for programmatic sheet dismissal via buttons
+    val scope = rememberCoroutineScope()
+
+    // Helper function to dismiss the sheet programmatically
+    val dismissSheet: () -> Unit = {
+        scope.launch {
+            sheetState.hide()
+            viewModel.onDismiss()
+            onDismiss()
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            // This will be blocked by confirmValueChange for swipe gestures
+            // Buttons will use dismissSheet() instead
+            viewModel.onDismiss()
+            onDismiss()
+        },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Material 3 Expressive: Very rounded for bottom sheets
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.small)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Configure Exercise",
+                        style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        exercise.exercise.displayName,
+                        style = MaterialTheme.typography.bodyLarge, // Material 3 Expressive: Larger (was bodyMedium)
+                        fontWeight = FontWeight.Medium, // Material 3 Expressive: Bolder
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(onClick = dismissSheet) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Scrollable content
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                // Personal Record Display - Material 3 Expressive
+                currentPR?.let { pr ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                            ) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = "Personal Record",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        "Personal Record",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable × ${pr.reps} reps",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                            Text(
+                                java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(pr.timestamp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+
+                if (exerciseType == ExerciseType.STANDARD) {
+                    ModeSelector(
+                        selectedMode = selectedMode,
+                        onModeChange = viewModel::onSelectedModeChange
+                    )
+                }
+
+                val isTutMode = selectedMode is WorkoutMode.TUT || selectedMode is WorkoutMode.TUTBeast
+                if (isTutMode) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.small),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Beast Mode",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Switch(
+                                checked = selectedMode is WorkoutMode.TUTBeast,
+                                onCheckedChange = { isBeast ->
+                                    viewModel.onSelectedModeChange(if (isBeast) WorkoutMode.TUTBeast else WorkoutMode.TUT)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                val isEchoMode = selectedMode is WorkoutMode.Echo
+                if (isEchoMode) {
+                    EccentricLoadSelector(
+                        eccentricLoad = eccentricLoad,
+                        onLoadChange = viewModel::onEccentricLoadChange
+                    )
+                    EchoLevelSelector(
+                        level = echoLevel,
+                        onLevelChange = viewModel::onEchoLevelChange
+                    )
+                }
+
+                if (exerciseType == ExerciseType.STANDARD && !isEchoMode) {
+                    ExpressiveCard(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.medium)
+                        ) {
+                            Text(
+                                "Weight Change Per Rep",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.medium))
+
+                            ProgressionSlider(
+                                value = weightChange.toFloat(),
+                                onValueChange = { viewModel.onWeightChange(it.toInt()) },
+                                valueRange = -maxWeightChange.toFloat()..maxWeightChange.toFloat(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                "Negative = Regression, Positive = Progression",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = Spacing.small)
+                            )
+                        }
+                    }
+                }
+
+                SetModeToggle(
+                    setMode = setMode,
+                    onModeChange = viewModel::onSetModeChange
+                )
+
+                // Per Set Rest Time toggle
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.small),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Per Set Rest Time",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (perSetRestTime) FontWeight.Bold else FontWeight.Normal,
+                            color = if (perSetRestTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = perSetRestTime,
+                            onCheckedChange = viewModel::onPerSetRestTimeChange
+                        )
+                    }
+                }
+
+                SetsConfiguration(
+                    sets = sets,
+                    setMode = setMode,
+                    exerciseType = exerciseType,
+                    weightSuffix = weightSuffix,
+                    maxWeight = maxWeight,
+                    weightStep = weightStep,
+                    isEchoMode = isEchoMode,
+                    perSetRestTime = perSetRestTime,
+                    onRepsChange = viewModel::updateReps,
+                    onWeightChange = viewModel::updateWeight,
+                    onDurationChange = viewModel::updateDuration,
+                    onRestChange = viewModel::updateRestTime,
+                    onAddSet = viewModel::addSet,
+                    onDeleteSet = viewModel::deleteSet
+                )
+
+                // Single rest time picker (only shown when perSetRestTime is false)
+                if (!perSetRestTime) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                        shadowElevation = 2.dp
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.small)) {
+                            Text(
+                                "Rest Time: ${rest}s",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                            )
+                            ExpressiveSlider(
+                                value = rest.toFloat(),
+                                onValueChange = { viewModel.onRestChange(it.toInt()) },
+                                valueRange = 0f..300f,
+                                steps = 59, // 5s increments roughly? No, 0-300 is large. Let's use 0 steps for continuous or calculate steps.
+                                // 300 steps is too many ticks. Let's use 0 steps (continuous) or 5s increments (60 steps).
+                                // Using 5s increments: 300/5 = 60 intervals -> 59 steps.
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Bottom actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                TextButton(
+                    onClick = dismissSheet,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Button(
+                    onClick = {
+                        viewModel.onSave(onSave)
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    enabled = sets.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    )
+                ) {
+                    Text(
+                        buttonText,
+                        style = MaterialTheme.typography.titleMedium, // Fixed: Was titleLarge (too big)
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SetModeToggle(
+    setMode: SetMode,
+    onModeChange: (SetMode) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+    ) {
+        Text(
+            "Set Mode",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = Spacing.extraSmall)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = setMode == SetMode.REPS,
+                onClick = { onModeChange(SetMode.REPS) },
+                label = { Text("Reps") },
+                modifier = Modifier.weight(1f)
+            )
+            FilterChip(
+                selected = setMode == SetMode.DURATION,
+                onClick = { onModeChange(SetMode.DURATION) },
+                label = { Text("Duration") },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+fun SetsConfiguration(
+    sets: List<SetConfiguration>,
+    setMode: SetMode,
+    exerciseType: ExerciseType,
+    weightSuffix: String,
+    maxWeight: Float,
+    weightStep: Float = 0.5f,
+    isEchoMode: Boolean = false,
+    perSetRestTime: Boolean = false,
+    onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
+    onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
+    onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
+    onRestChange: (String, Int) -> Unit, // Per-set rest time
+    onAddSet: () -> Unit,
+    onDeleteSet: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+    ) {
+        Text(
+            "Sets & ${if (setMode == SetMode.REPS) "Reps" else "Duration"}",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = Spacing.extraSmall)
+        )
+
+        sets.forEachIndexed { index, setConfig ->
+            key(setConfig.id) { // Use stable ID as key
+                SetRow(
+                    setConfig = setConfig,
+                    setMode = setMode,
+                    exerciseType = exerciseType,
+                    weightSuffix = weightSuffix,
+                    maxWeight = maxWeight,
+                    weightStep = weightStep,
+                    isEchoMode = isEchoMode,
+                    canDelete = sets.size > 1,
+                    onRepsChange = { newReps -> onRepsChange(setConfig.id, newReps) },
+                    onWeightChange = { newWeight -> onWeightChange(setConfig.id, newWeight) },
+                    onDurationChange = { newDuration -> onDurationChange(setConfig.id, newDuration) },
+                    onRestChange = { newRest -> onRestChange(setConfig.id, newRest) },
+                    onDelete = { onDeleteSet(index) }, // Still use index for deletion since it removes by position
+                    perSetRestTime = perSetRestTime
+                )
+            }
+        }
+
+        // Add Set button - Material 3 Expressive
+        OutlinedButton(
+            onClick = onAddSet,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp), // Material 3 Expressive: Taller button
+            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Add set",
+                modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon (was 20dp)
+            )
+            Spacer(modifier = Modifier.width(Spacing.small))
+            Text(
+                "Add Set",
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun SetRow(
+    setConfig: SetConfiguration,
+    setMode: SetMode,
+    exerciseType: ExerciseType,
+    weightSuffix: String,
+    maxWeight: Float,
+    weightStep: Float = 0.5f,
+    isEchoMode: Boolean = false,
+    canDelete: Boolean,
+    onRepsChange: (Int?) -> Unit,  // Changed to nullable for AMRAP support
+    onWeightChange: (Float) -> Unit,
+    onDurationChange: (Int) -> Unit,
+    onRestChange: (Int) -> Unit,  // Per-set rest time
+    onDelete: () -> Unit,
+    perSetRestTime: Boolean = false
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            // Set label and Delete button row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Set ${setConfig.setNumber}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = onDelete,
+                    enabled = canDelete
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete set",
+                        tint = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // AMRAP toggle (only shown for REPS mode, not DURATION)
+            if (setMode == SetMode.REPS) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Switch(
+                        checked = setConfig.reps == null,
+                        onCheckedChange = { isAMRAP ->
+                            onRepsChange(if (isAMRAP) null else 10)
+                        }
+                    )
+                    Text(
+                        text = "AMRAP (As Many Reps As Possible)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (setConfig.reps == null) FontWeight.Bold else FontWeight.Normal,
+                        color = if (setConfig.reps == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.small))
+            }
+
+            // Reps/Duration and Weight (or Bodyweight label) side-by-side
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                // Reps or Duration picker
+                Box(modifier = Modifier.weight(1f)) {
+                    if (setMode == SetMode.REPS) {
+                        // Show reps picker ONLY if NOT AMRAP
+                        if (setConfig.reps != null) {
+                            com.ninthlevel.phoenix.presentation.components.CompactNumberPicker(
+                                value = setConfig.reps,
+                                onValueChange = onRepsChange,
+                                range = 1..50,
+                                label = if (setConfig.setNumber == 1) "Reps" else "",
+                                suffix = "reps",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            // Show AMRAP label when reps is null
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Target",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
+                                Text(
+                                    "AMRAP",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        com.ninthlevel.phoenix.presentation.components.CompactNumberPicker(
+                            value = setConfig.duration,
+                            onValueChange = onDurationChange,
+                            range = 10..300,
+                            label = if (setConfig.setNumber == 1) "Duration" else "",
+                            suffix = "sec",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // Weight picker (for standard exercises) OR Adaptive label (for Echo mode) OR Bodyweight label
+                Box(modifier = Modifier.weight(1f)) {
+                    when {
+                        isEchoMode -> {
+                            // Echo mode: Show "Adaptive" label instead of weight picker
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Force per Cable",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
+                                Text(
+                                    "Adaptive",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        exerciseType == ExerciseType.STANDARD -> {
+                            // Standard exercises: Show weight picker
+                            com.ninthlevel.phoenix.presentation.components.CompactNumberPicker(
+                                value = setConfig.weightPerCable,
+                                onValueChange = onWeightChange,
+                                range = 1f..maxWeight,
+                                step = weightStep,
+                                label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
+                                suffix = weightSuffix,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        else -> {
+                            // Bodyweight exercises: Show "Bodyweight" label
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                if (setConfig.setNumber == 1) {
+                                    Text(
+                                        "Weight",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
+                                Text(
+                                    "Bodyweight",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Rest Time picker (per-set) - only shown when perSetRestTime toggle is enabled
+            if (perSetRestTime) {
+                Text(
+                    "Rest Time: ${setConfig.restSeconds}s",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = Spacing.extraSmall)
+                )
+                ExpressiveSlider(
+                    value = setConfig.restSeconds.toFloat(),
+                    onValueChange = { onRestChange(it.toInt()) },
+                    valueRange = 0f..300f,
+                    steps = 59,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModeSelector(
+    selectedMode: WorkoutMode,
+    onModeChange: (WorkoutMode) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    // All available workout modes (TUTBeast excluded - handled as toggle in TUT mode)
+    val allModes = listOf(
+        WorkoutMode.OldSchool,
+        WorkoutMode.Pump,
+        WorkoutMode.TUT,
+        WorkoutMode.EccentricOnly,
+        WorkoutMode.Echo(EchoLevel.HARDER) // Default Echo level
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        color = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), // Material 3 Expressive: Thicker border (was 1dp)
+        shadowElevation = 8.dp // Material 3 Expressive: Higher elevation (was 4dp)
+    ) {
+        Column(modifier = Modifier.padding(Spacing.medium)) {
+            Text(
+                "Workout Mode",
+                style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was titleSmall)
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = Spacing.small)
+            )
+
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedMode.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    allModes.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.displayName) },
+                            onClick = {
+                                onModeChange(mode)
+                                expanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EccentricLoadSelector(
+    eccentricLoad: EccentricLoad,
+    onLoadChange: (EccentricLoad) -> Unit
+) {
+    ExpressiveCard(
+        onClick = {},
+        enabled = false,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            Text(
+                "Eccentric Load: ${eccentricLoad.percentage}%",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            val eccentricLoadValues = listOf(
+                EccentricLoad.LOAD_0,
+                EccentricLoad.LOAD_50,
+                EccentricLoad.LOAD_75,
+                EccentricLoad.LOAD_100,
+                EccentricLoad.LOAD_125,
+                EccentricLoad.LOAD_150
+            )
+            val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let {
+                if (it < 0) 3 else it
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "0%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "150%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            ExpressiveSlider(
+                value = currentIndex.toFloat(),
+                onValueChange = { value ->
+                    val index = value.toInt().coerceIn(0, eccentricLoadValues.size - 1)
+                    onLoadChange(eccentricLoadValues[index])
+                },
+                valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
+                steps = eccentricLoadValues.size - 2,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            Text(
+                "Load percentage applied during eccentric (lowering) phase",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun EchoLevelSelector(
+    level: EchoLevel,
+    onLevelChange: (EchoLevel) -> Unit
+) {
+    ExpressiveCard(
+        onClick = {},
+        enabled = false,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            Text(
+                "Echo Level",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val levels = EchoLevel.entries
+                levels.forEachIndexed { index, echoLevel ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = levels.size),
+                        onClick = {
+                            onLevelChange(echoLevel)
+                        },
+                        selected = level == echoLevel
+                    ) {
+                        Text(echoLevel.displayName, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}

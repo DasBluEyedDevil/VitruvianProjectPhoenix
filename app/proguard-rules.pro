@@ -21,8 +21,8 @@
 #-renamesourcefileattribute SourceFile
 
 # Keep Room classes
--keep class com.example.vitruvianredux.data.local.** { *; }
--keep class com.example.vitruvianredux.data.local.entity.** { *; }
+-keep class com.ninthlevel.phoenix.data.local.** { *; }
+-keep class com.ninthlevel.phoenix.data.local.entity.** { *; }
 -keep class * extends androidx.room.RoomDatabase
 -keep class * extends androidx.room.RoomDatabase {
     public static <methods>;
@@ -30,16 +30,16 @@
 -keep @androidx.room.Entity class *
 
 # Keep Hilt/Dagger
--keep class com.example.vitruvianredux.di.** { *; }
+-keep class com.ninthlevel.phoenix.di.** { *; }
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
 
 # Keep BLE classes
--keep class com.example.vitruvianredux.data.ble.** { *; }
+-keep class com.ninthlevel.phoenix.data.ble.** { *; }
 -keep class no.nordicsemi.android.ble.** { *; }
 
 # Keep data models used in reflection or serialization
--keep class com.example.vitruvianredux.domain.model.** { *; }
+-keep class com.ninthlevel.phoenix.domain.model.** { *; }
 
 # Keep Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
