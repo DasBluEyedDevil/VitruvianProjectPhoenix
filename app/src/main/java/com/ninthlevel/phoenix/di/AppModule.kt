@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.ninthlevel.phoenix.data.local.WorkoutDatabase
 import com.ninthlevel.phoenix.data.local.WorkoutDao
 import com.ninthlevel.phoenix.data.local.ExerciseDao
+import com.ninthlevel.phoenix.data.local.seed.ExerciseCatalogMigration
 
 import com.ninthlevel.phoenix.data.local.PersonalRecordDao
 import com.ninthlevel.phoenix.data.local.ConnectionLogDao
@@ -766,18 +767,11 @@ object AppModule {
 
     /**
      * Migration from version 26 to 27: Replace the exercise catalogue with a slim seed table.
+     * Remaps matching catalogue ids onto the seed before dropping the old table.
      */
     internal val MIGRATION_26_27 = object : Migration(26, 27) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            db.execSQL("DROP TABLE IF EXISTS exercise_videos")
-            db.execSQL("DROP TABLE IF EXISTS exercises")
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `exercises` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `muscleGroups` TEXT NOT NULL,
-                  `equipment` TEXT NOT NULL, `defaultCableConfig` TEXT NOT NULL, `aliases` TEXT NOT NULL,
-                  `isFavorite` INTEGER NOT NULL, `timesPerformed` INTEGER NOT NULL, `lastPerformed` INTEGER, PRIMARY KEY(`id`))
-                """.trimIndent()
-            )
+            ExerciseCatalogMigration.migrate26to27(db)
         }
     }
 

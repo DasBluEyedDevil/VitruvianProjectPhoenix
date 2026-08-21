@@ -1,6 +1,7 @@
 package com.ninthlevel.phoenix
 
 import android.app.Application
+import com.ninthlevel.phoenix.data.local.seed.ExerciseIdRemapApplier
 import com.ninthlevel.phoenix.data.repository.ExerciseRepository
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,9 @@ class PhoenixApp : Application() {
 
     @Inject
     lateinit var exerciseRepository: ExerciseRepository
+
+    @Inject
+    lateinit var exerciseIdRemapApplier: ExerciseIdRemapApplier
 
     // Application-level coroutine scope
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -32,6 +36,7 @@ class PhoenixApp : Application() {
         applicationScope.launch {
             try {
                 exerciseRepository.seedDefaultExercises()
+                exerciseIdRemapApplier.applyPendingDataStoreRemap()
             } catch (e: Exception) {
                 Timber.e(e, "Error during exercise seed")
             }

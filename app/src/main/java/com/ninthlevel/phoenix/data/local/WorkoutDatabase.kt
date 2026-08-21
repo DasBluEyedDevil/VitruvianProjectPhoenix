@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
  * Room database for workout history
  *
  * Version history:
- * - v27: Dropped exercise media and unused exercise metadata columns
+ * - v27: Dropped exercise media/catalogue; remapped matching exercise ids onto the slim seed
  * - v22: Added aliases and defaultCableConfig to exercises
  * - v21: Added exerciseName to WorkoutSessionEntity
  * - v20: Added isAMRAP to routine_exercises for AMRAP workout mode
