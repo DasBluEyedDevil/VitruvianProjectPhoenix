@@ -8,7 +8,6 @@
 .externalNativeBuild
 .cxx
 local.properties
-/reference
 
 # Claude Code / Quadrumvirate
 .skills
@@ -20,14 +19,15 @@ docs/LAST_SESSION.md
 # Session memory files (root directory)
 LAST_SESSION.md
 CHANGELOG.md
-/vitruvian-[removed]ed/
 /scripts/
-/[removed].jar
-/nul
-/[removed]
 /.devilmcp/
 .aider*
 /.kotlin/
+
+# Build and log junk
+*.log
+build_*.txt
+*_log.txt
 
 # Test output files
 test_output.txt

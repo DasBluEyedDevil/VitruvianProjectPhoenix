@@ -4,5 +4,5 @@
     <cache-path name="exported_logs" path="." />
 
     <!-- External downloads for backup files (Android 9 and below) -->
-    <external-path name="external_downloads" path="Download/VitruvianRedux" />
+    <external-path name="external_downloads" path="Download/ProjectPhoenix" />
 </paths>

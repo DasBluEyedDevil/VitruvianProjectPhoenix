@@ -1,0 +1,888 @@
+package com.ninthlevel.phoenix.di
+
+import android.content.Context
+import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.ninthlevel.phoenix.data.local.WorkoutDatabase
+import com.ninthlevel.phoenix.data.local.WorkoutDao
+import com.ninthlevel.phoenix.data.local.ExerciseDao
+import com.ninthlevel.phoenix.data.local.seed.ExerciseCatalogMigration
+
+import com.ninthlevel.phoenix.data.local.PersonalRecordDao
+import com.ninthlevel.phoenix.data.local.ConnectionLogDao
+import com.ninthlevel.phoenix.data.local.dao.PhaseStatisticsDao
+import com.ninthlevel.phoenix.data.local.dao.DiagnosticsDao
+import com.ninthlevel.phoenix.data.ble.TrainerBleManager
+import com.ninthlevel.phoenix.data.logger.ConnectionLogger
+import com.ninthlevel.phoenix.data.preferences.PreferencesManager
+import com.ninthlevel.phoenix.data.repository.BleRepository
+import com.ninthlevel.phoenix.data.repository.BleRepositoryImpl
+import com.ninthlevel.phoenix.data.repository.WorkoutRepository
+import com.ninthlevel.phoenix.data.repository.ExerciseRepository
+import com.ninthlevel.phoenix.data.repository.ExerciseRepositoryImpl
+import com.ninthlevel.phoenix.data.repository.PersonalRecordRepository
+import com.ninthlevel.phoenix.domain.usecase.RepCounterFromMachine
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+
+    /**
+     * Migration from version 1 to 2: Add routine tables
+     */
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Create routines table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS routines (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    createdAt INTEGER NOT NULL,
+                    lastUsed INTEGER,
+                    useCount INTEGER NOT NULL DEFAULT 0
+                )
+            """.trimIndent())
+
+            // Create routine_exercises table with foreign key
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS routine_exercises (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    routineId TEXT NOT NULL,
+                    exerciseName TEXT NOT NULL,
+                    orderIndex INTEGER NOT NULL,
+                    sets INTEGER NOT NULL,
+                    reps INTEGER NOT NULL,
+                    weightPerCableKg REAL NOT NULL,
+                    progressionKg REAL NOT NULL DEFAULT 0.0,
+                    restSeconds INTEGER NOT NULL DEFAULT 60,
+                    notes TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY(routineId) REFERENCES routines(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create index on routineId for performance
+            database.execSQL("""
+                CREATE INDEX IF NOT EXISTS index_routine_exercises_routineId
+                ON routine_exercises(routineId)
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 2 to 3: Add cable configuration to exercises
+     */
+    private val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add cableConfig column with default value "DOUBLE" for existing rows
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN cableConfig TEXT NOT NULL DEFAULT 'DOUBLE'
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 3 to 4: Replace sets/reps with setReps array
+     */
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add setReps column with default value "10,10,10"
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN setReps TEXT NOT NULL DEFAULT '10,10,10'
+            """.trimIndent())
+
+            // Populate setReps from existing sets and reps columns
+            // Creates a comma-separated string like "10,10,10" for 3 sets of 10 reps
+            database.execSQL("""
+                UPDATE routine_exercises
+                SET setReps = (
+                    SELECT GROUP_CONCAT(reps, ',')
+                    FROM (
+                        SELECT reps
+                        FROM (SELECT 1 AS n UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) numbers
+                        JOIN routine_exercises re ON re.id = routine_exercises.id
+                        WHERE numbers.n <= re.sets
+                    )
+                )
+            """.trimIndent())
+
+            // Note: We don't drop the old 'sets' and 'reps' columns to maintain backwards compatibility
+            // Room will ignore them since they're not in the entity definition
+        }
+    }
+
+    /**
+     * Migration from version 4 to 5: Add equipment type
+     */
+    private val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add equipment column with default value 'LONG_BAR'
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN equipment TEXT NOT NULL DEFAULT 'LONG_BAR'
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 5 to 6: Add exercise library tables
+     */
+    private val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Create exercises table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS exercises (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    created TEXT NOT NULL,
+                    muscleGroups TEXT NOT NULL,
+                    muscles TEXT NOT NULL,
+                    equipment TEXT NOT NULL,
+                    movement TEXT,
+                    sidedness TEXT,
+                    grip TEXT,
+                    gripWidth TEXT,
+                    minRepRange REAL,
+                    popularity REAL NOT NULL,
+                    archived INTEGER NOT NULL,
+                    isFavorite INTEGER NOT NULL DEFAULT 0,
+                    timesPerformed INTEGER NOT NULL DEFAULT 0,
+                    lastPerformed INTEGER
+                )
+            """.trimIndent())
+
+            // Create exercise_videos table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS exercise_videos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    exerciseId TEXT NOT NULL,
+                    angle TEXT NOT NULL,
+                    videoUrl TEXT NOT NULL,
+                    thumbnailUrl TEXT NOT NULL,
+                    FOREIGN KEY(exerciseId) REFERENCES exercises(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create index on exerciseId for performance
+            database.execSQL("""
+                CREATE INDEX IF NOT EXISTS index_exercise_videos_exerciseId
+                ON exercise_videos(exerciseId)
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 6 to 7: Add exercise detail fields to routine_exercises
+     * Supports Exercise data class (previously enum)
+     */
+    private val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add exercise detail columns with default values
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseMuscleGroup TEXT NOT NULL DEFAULT 'Full Body'
+            """.trimIndent())
+
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseEquipment TEXT NOT NULL DEFAULT ''
+            """.trimIndent())
+
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseDefaultCableConfig TEXT NOT NULL DEFAULT 'DOUBLE'
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 8 to 9: Rename progressionKg to progressionRegressionKg in workout_sessions
+     * and add personal_records table
+     */
+    private val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // 1. Fix workout_sessions table: rename progressionKg ? progressionRegressionKg
+            // Create new table with correct schema
+            database.execSQL("""
+                CREATE TABLE `workout_sessions_new` (
+                    `id` TEXT NOT NULL,
+                    `timestamp` INTEGER NOT NULL,
+                    `mode` TEXT NOT NULL,
+                    `reps` INTEGER NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `progressionRegressionKg` REAL NOT NULL,
+                    `duration` INTEGER NOT NULL,
+                    `totalReps` INTEGER NOT NULL,
+                    `warmupReps` INTEGER NOT NULL,
+                    `workingReps` INTEGER NOT NULL,
+                    `isJustLift` INTEGER NOT NULL,
+                    `stopAtTop` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+            """.trimIndent())
+
+            // 2. Copy data from old table (progressionKg ? progressionRegressionKg)
+            database.execSQL("""
+                INSERT INTO `workout_sessions_new` (
+                    id, timestamp, mode, reps, weightPerCableKg, progressionRegressionKg,
+                    duration, totalReps, warmupReps, workingReps, isJustLift, stopAtTop
+                )
+                SELECT
+                    id, timestamp, mode, reps, weightPerCableKg, progressionKg,
+                    duration, totalReps, warmupReps, workingReps, isJustLift, stopAtTop
+                FROM `workout_sessions`
+            """.trimIndent())
+
+            // 3. Drop old table
+            database.execSQL("DROP TABLE `workout_sessions`")
+
+            // 4. Rename new table
+            database.execSQL("ALTER TABLE `workout_sessions_new` RENAME TO `workout_sessions`")
+
+            // 5. Create personal_records table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS `personal_records` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `exerciseId` TEXT NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `reps` INTEGER NOT NULL,
+                    `timestamp` INTEGER NOT NULL,
+                    `workoutMode` TEXT NOT NULL
+                )
+            """.trimIndent())
+
+            // 6. Create unique index on exerciseId and workoutMode
+            database.execSQL("""
+                CREATE UNIQUE INDEX `index_personal_records_exerciseId_workoutMode`
+                ON `personal_records` (`exerciseId`, `workoutMode`)
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 9 to 10: Add exerciseId column to routine_exercises
+     * Stores the exercise library id
+     */
+    private val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add exerciseId column with NULL default (for existing rows)
+            database.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN exerciseId TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 10 to 11: Add weekly programs and program days tables
+     * Supports weekly program scheduling with routines assigned to specific days
+     */
+    private val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Create weekly_programs table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS weekly_programs (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    title TEXT NOT NULL,
+                    notes TEXT,
+                    isActive INTEGER NOT NULL DEFAULT 0,
+                    lastUsed INTEGER,
+                    createdAt INTEGER NOT NULL
+                )
+            """.trimIndent())
+
+            // Create program_days table
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS program_days (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    programId TEXT NOT NULL,
+                    dayOfWeek INTEGER NOT NULL,
+                    routineId TEXT NOT NULL,
+                    FOREIGN KEY(programId) REFERENCES weekly_programs(id) ON DELETE CASCADE,
+                    FOREIGN KEY(routineId) REFERENCES routines(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create indices
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_program_days_programId ON program_days(programId)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_program_days_routineId ON program_days(routineId)")
+        }
+    }
+
+    /**
+     * Migration from version 11 to 12: Add per-set weights, mode, eccentricLoad, echoLevel, duration
+     * to routine_exercises
+     */
+    private val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add setWeights column to store comma-separated per-set weights
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN setWeights TEXT NOT NULL DEFAULT ''
+                """.trimIndent()
+            )
+
+            // Add mode column for selected workout mode per exercise
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN mode TEXT NOT NULL DEFAULT 'OldSchool'
+                """.trimIndent()
+            )
+
+            // Add eccentricLoad (percentage) and echoLevel (difficulty level) columns
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN eccentricLoad INTEGER NOT NULL DEFAULT 100
+                """.trimIndent()
+            )
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN echoLevel INTEGER NOT NULL DEFAULT 2
+                """.trimIndent()
+            )
+
+            // Add duration column for duration-based sets (in seconds)
+            database.execSQL(
+                """
+                ALTER TABLE routine_exercises
+                ADD COLUMN duration INTEGER DEFAULT NULL
+                """.trimIndent()
+            )
+        }
+    }
+
+    /**
+     * Migration from version 12 to 13: Add Echo mode fields to workout_sessions
+     * Adds eccentricLoad and echoLevel to persist Echo mode configuration in workout history
+     */
+    private val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add eccentricLoad column (percentage: 0, 50, 75, 100, 125, 150)
+            database.execSQL(
+                """
+                ALTER TABLE workout_sessions
+                ADD COLUMN eccentricLoad INTEGER NOT NULL DEFAULT 100
+                """.trimIndent()
+            )
+
+            // Add echoLevel column (difficulty: 1=Hard, 2=Harder, 3=Hardest, 4=Epic)
+            database.execSQL(
+                """
+                ALTER TABLE workout_sessions
+                ADD COLUMN echoLevel INTEGER NOT NULL DEFAULT 2
+                """.trimIndent()
+            )
+        }
+    }
+
+    /**
+     * Migration from version 13 to 14: Add connection_logs table for Bluetooth debugging
+     */
+    private val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS connection_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    eventType TEXT NOT NULL,
+                    level TEXT NOT NULL,
+                    deviceAddress TEXT,
+                    deviceName TEXT,
+                    message TEXT NOT NULL,
+                    details TEXT,
+                    metadata TEXT
+                )
+            """.trimIndent())
+
+            // Create index on timestamp for efficient queries
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_connection_logs_timestamp ON connection_logs(timestamp)")
+        }
+    }
+
+    /**
+     * Migration from version 14 to 15: Add exerciseId to workout_sessions for PR tracking
+     * This enables tracking which exercise was performed in each workout session
+     */
+    private val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add exerciseId column to workout_sessions
+            database.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN exerciseId TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 15 to 16: Add routine tracking to workout_sessions
+     * Adds routineSessionId and routineName for grouping routine sets in history
+     */
+    private val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Add routineSessionId column
+            database.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN routineSessionId TEXT DEFAULT NULL
+            """.trimIndent())
+
+            // Add routineName column
+            database.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN routineName TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 16 to 17: Add per-set rest time support
+     * Adds setRestSeconds as JSON array to routine_exercises, migrating existing restSeconds values
+     */
+    internal val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add new setRestSeconds column (JSON array of integers)
+            db.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN setRestSeconds TEXT NOT NULL DEFAULT '[]'
+            """.trimIndent())
+
+            // Migrate existing data: Convert single restSeconds to array
+            // Use SQL UPDATE with CASE to build JSON array based on set count
+            db.execSQL("""
+                UPDATE routine_exercises
+                SET setRestSeconds =
+                    '[' || restSeconds ||
+                    CASE
+                        WHEN setReps GLOB '*,*,*,*,*' THEN ',' || restSeconds || ',' || restSeconds || ',' || restSeconds || ',' || restSeconds || ',' || restSeconds
+                        WHEN setReps GLOB '*,*,*,*' THEN ',' || restSeconds || ',' || restSeconds || ',' || restSeconds || ',' || restSeconds
+                        WHEN setReps GLOB '*,*,*' THEN ',' || restSeconds || ',' || restSeconds || ',' || restSeconds
+                        WHEN setReps GLOB '*,*' THEN ',' || restSeconds || ',' || restSeconds
+                        ELSE ''
+                    END || ']'
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 17 to 18: Add perSetRestTime toggle flag
+     * Adds perSetRestTime boolean to routine_exercises for toggleable per-set rest time feature
+     */
+    internal val MIGRATION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add perSetRestTime column (defaults to false)
+            db.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN perSetRestTime INTEGER NOT NULL DEFAULT 0
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 18 to 19: Schema cleanup
+     * Forces fresh database creation to fix schema inconsistencies from earlier migrations
+     */
+    internal val MIGRATION_18_19 = object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // This migration intentionally empty - v19 forces destructive migration
+            // to fix SQL DEFAULT mismatches between fresh installs and migrated databases
+        }
+    }
+
+    /**
+     * Migration from version 19 to 20: Add isAMRAP column for AMRAP workout mode
+     */
+    internal val MIGRATION_19_20 = object : Migration(19, 20) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add isAMRAP column (defaults to false)
+            db.execSQL("""
+                ALTER TABLE routine_exercises
+                ADD COLUMN isAMRAP INTEGER NOT NULL DEFAULT 0
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 20 to 21: Add exerciseName to workout_sessions
+     * Allows displaying exercise name in history list without joining tables
+     */
+    internal val MIGRATION_20_21 = object : Migration(20, 21) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add exerciseName column (defaults to NULL or empty string)
+            db.execSQL("""
+                ALTER TABLE workout_sessions
+                ADD COLUMN exerciseName TEXT DEFAULT NULL
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 21 to 22: Add aliases, defaultCableConfig, and media metadata
+     *
+     * Enhancements:
+     * 1. aliases - Comma-separated alternative names for improved search
+     * 2. defaultCableConfig - Derived from sidedness (bilateral=DOUBLE, unilateral=SINGLE, alternating=EITHER)
+     * 3. isTutorial flag on historical media rows
+     */
+    internal val MIGRATION_21_22 = object : Migration(21, 22) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add aliases column to exercises table
+            db.execSQL("""
+                ALTER TABLE exercises
+                ADD COLUMN aliases TEXT NOT NULL DEFAULT ''
+            """.trimIndent())
+
+            // Add defaultCableConfig column to exercises table
+            // Derive from sidedness: bilateral→DOUBLE, unilateral→SINGLE, alternating→EITHER
+            db.execSQL("""
+                ALTER TABLE exercises
+                ADD COLUMN defaultCableConfig TEXT NOT NULL DEFAULT 'DOUBLE'
+            """.trimIndent())
+
+            // Update defaultCableConfig based on existing sidedness values
+            db.execSQL("""
+                UPDATE exercises
+                SET defaultCableConfig =
+                    CASE LOWER(sidedness)
+                        WHEN 'bilateral' THEN 'DOUBLE'
+                        WHEN 'unilateral' THEN 'SINGLE'
+                        WHEN 'alternating' THEN 'EITHER'
+                        ELSE 'DOUBLE'
+                    END
+                WHERE sidedness IS NOT NULL
+            """.trimIndent())
+
+            // Add isTutorial column to exercise_videos table
+            db.execSQL("""
+                ALTER TABLE exercise_videos
+                ADD COLUMN isTutorial INTEGER NOT NULL DEFAULT 0
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 7 to 8: Fix routine_exercises schema
+     * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
+     */
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // 1. Create new table with correct schema (13 columns)
+            database.execSQL("""
+                CREATE TABLE `routine_exercises_new` (
+                    `id` TEXT NOT NULL,
+                    `routineId` TEXT NOT NULL,
+                    `exerciseName` TEXT NOT NULL,
+                    `exerciseMuscleGroup` TEXT NOT NULL,
+                    `exerciseEquipment` TEXT NOT NULL,
+                    `exerciseDefaultCableConfig` TEXT NOT NULL,
+                    `cableConfig` TEXT NOT NULL,
+                    `orderIndex` INTEGER NOT NULL,
+                    `setReps` TEXT NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `progressionKg` REAL NOT NULL,
+                    `restSeconds` INTEGER NOT NULL,
+                    `notes` TEXT NOT NULL,
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // 2. Copy data (IFNULL handles NULL values from failed v7 migration)
+            database.execSQL("""
+                INSERT INTO `routine_exercises_new` (
+                    id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
+                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
+                )
+                SELECT
+                    id,
+                    routineId,
+                    exerciseName,
+                    IFNULL(exerciseMuscleGroup, ''),
+                    IFNULL(exerciseEquipment, ''),
+                    IFNULL(exerciseDefaultCableConfig, ''),
+                    cableConfig,
+                    orderIndex,
+                    setReps,
+                    weightPerCableKg,
+                    progressionKg,
+                    restSeconds,
+                    notes
+                FROM `routine_exercises`
+            """.trimIndent())
+
+            // 3. Drop old table
+            database.execSQL("DROP TABLE `routine_exercises`")
+
+            // 4. Rename new table
+            database.execSQL("ALTER TABLE `routine_exercises_new` RENAME TO `routine_exercises`")
+
+            // 5. Recreate index
+            database.execSQL("CREATE INDEX `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
+        }
+    }
+
+    /**
+     * Migration from version 22 to 23: Add safety tracking, phase statistics, and diagnostics
+     */
+    internal val MIGRATION_22_23 = object : Migration(22, 23) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add safety tracking columns to workout_sessions
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN safetyFlags INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN deloadWarningCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN romViolationCount INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN spotterActivations INTEGER NOT NULL DEFAULT 0")
+
+            // Create phase_statistics table
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS phase_statistics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    sessionId TEXT NOT NULL,
+                    concentricKgAvg REAL NOT NULL,
+                    concentricKgMax REAL NOT NULL,
+                    concentricVelAvg REAL NOT NULL,
+                    concentricVelMax REAL NOT NULL,
+                    concentricWattAvg REAL NOT NULL,
+                    concentricWattMax REAL NOT NULL,
+                    eccentricKgAvg REAL NOT NULL,
+                    eccentricKgMax REAL NOT NULL,
+                    eccentricVelAvg REAL NOT NULL,
+                    eccentricVelMax REAL NOT NULL,
+                    eccentricWattAvg REAL NOT NULL,
+                    eccentricWattMax REAL NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    FOREIGN KEY(sessionId) REFERENCES workout_sessions(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // Create index on sessionId for phase_statistics
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_phase_statistics_sessionId ON phase_statistics(sessionId)")
+
+            // Create diagnostics_history table
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS diagnostics_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    runtimeSeconds INTEGER NOT NULL,
+                    faultMask INTEGER NOT NULL,
+                    temp1 INTEGER NOT NULL,
+                    temp2 INTEGER NOT NULL,
+                    temp3 INTEGER NOT NULL,
+                    temp4 INTEGER NOT NULL,
+                    temp5 INTEGER NOT NULL,
+                    temp6 INTEGER NOT NULL,
+                    temp7 INTEGER NOT NULL,
+                    temp8 INTEGER NOT NULL,
+                    containsFaults INTEGER NOT NULL,
+                    timestamp INTEGER NOT NULL
+                )
+            """.trimIndent())
+        }
+    }
+
+    /**
+     * Migration from version 23 to 24: Add status column to workout_metrics
+     * Stores machine status flags (e.g. deload, spotter active)
+     */
+    internal val MIGRATION_23_24 = object : Migration(23, 24) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE workout_metrics ADD COLUMN status INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    /**
+     * Migration from version 24 to 25: Add dual PR tracking
+     * - Add prType column (MAX_WEIGHT or MAX_VOLUME)
+     * - Add volume column (weight × reps for easy querying)
+     * - Update unique index to include prType
+     */
+    internal val MIGRATION_24_25 = object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // 1. Add new columns
+            db.execSQL("ALTER TABLE personal_records ADD COLUMN prType TEXT NOT NULL DEFAULT 'MAX_WEIGHT'")
+            db.execSQL("ALTER TABLE personal_records ADD COLUMN volume REAL NOT NULL DEFAULT 0")
+
+            // 2. Populate volume for existing records
+            db.execSQL("UPDATE personal_records SET volume = weightPerCableKg * reps")
+
+            // 3. Drop old unique index and create new one
+            // Note: SQLite doesn't support DROP INDEX IF EXISTS, so we use a try-catch approach
+            // The old index was on (exerciseId, workoutMode), new one includes prType
+            try {
+                db.execSQL("DROP INDEX IF EXISTS index_personal_records_exerciseId_workoutMode")
+            } catch (e: Exception) {
+                // Index might not exist or have a different name, continue
+            }
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_personal_records_exerciseId_workoutMode_prType ON personal_records (exerciseId, workoutMode, prType)")
+        }
+    }
+
+    /**
+     * Migration from version 25 to 26: Change position columns from INTEGER to REAL
+     * - positionA and positionB in workout_metrics now store Float (mm) instead of Int
+     * - This fixes Issue #197: position indicators maxing out during high-extension exercises
+     */
+    internal val MIGRATION_25_26 = object : Migration(25, 26) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // SQLite doesn't support ALTER COLUMN, so we need to recreate the table
+            // 1. Create new table with REAL columns for position
+            db.execSQL("""
+                CREATE TABLE workout_metrics_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    sessionId TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    loadA REAL NOT NULL,
+                    loadB REAL NOT NULL,
+                    positionA REAL NOT NULL,
+                    positionB REAL NOT NULL,
+                    ticks INTEGER NOT NULL,
+                    status INTEGER NOT NULL DEFAULT 0
+                )
+            """.trimIndent())
+
+            // 2. Copy data from old table (INTEGER positions are implicitly converted to REAL)
+            db.execSQL("""
+                INSERT INTO workout_metrics_new (id, sessionId, timestamp, loadA, loadB, positionA, positionB, ticks, status)
+                SELECT id, sessionId, timestamp, loadA, loadB, positionA, positionB, ticks, status
+                FROM workout_metrics
+            """.trimIndent())
+
+            // 3. Drop old table
+            db.execSQL("DROP TABLE workout_metrics")
+
+            // 4. Rename new table to original name
+            db.execSQL("ALTER TABLE workout_metrics_new RENAME TO workout_metrics")
+        }
+    }
+
+    /**
+     * Migration from version 26 to 27: Replace the exercise catalogue with a slim seed table.
+     * Remaps matching catalogue ids onto the seed before dropping the old table.
+     */
+    internal val MIGRATION_26_27 = object : Migration(26, 27) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            ExerciseCatalogMigration.migrate26to27(db)
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideConnectionLogDao(database: WorkoutDatabase): ConnectionLogDao {
+        return database.connectionLogDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideConnectionLogger(connectionLogDao: ConnectionLogDao): ConnectionLogger {
+        return ConnectionLogger(connectionLogDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideBleRepository(
+        impl: BleRepositoryImpl // Hilt will provide BleRepositoryImpl
+    ): BleRepository = impl
+    
+    @Provides
+    @Singleton
+    fun provideTrainerBleManager(
+        @ApplicationContext context: Context,
+        connectionLogger: ConnectionLogger
+    ): TrainerBleManager {
+        return TrainerBleManager(context, connectionLogger)
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkoutDatabase(
+        @ApplicationContext context: Context
+    ): WorkoutDatabase {
+        return Room.databaseBuilder(
+            context,
+            WorkoutDatabase::class.java,
+            // Existing install filename; MIGRATION_26_27 must run against this DB.
+            "vitruvian_workout_db"
+        )
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27)
+        .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkoutDao(database: WorkoutDatabase): WorkoutDao {
+        return database.workoutDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkoutRepository(
+        workoutDao: WorkoutDao,
+        personalRecordDao: PersonalRecordDao,
+        phaseStatisticsDao: PhaseStatisticsDao,
+        diagnosticsDao: DiagnosticsDao
+    ): WorkoutRepository {
+        return WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
+    }
+
+    @Provides
+    fun provideRepCounterFromMachine(): RepCounterFromMachine {
+        return RepCounterFromMachine()
+    }
+
+    @Provides
+    @Singleton
+    fun providePreferencesManager(
+        @ApplicationContext context: Context
+    ): PreferencesManager {
+        return PreferencesManager(context)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideExerciseDao(database: WorkoutDatabase): ExerciseDao {
+        return database.exerciseDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideExerciseRepository(
+        exerciseDao: ExerciseDao,
+        workoutDao: WorkoutDao
+    ): ExerciseRepository {
+        return ExerciseRepositoryImpl(exerciseDao, workoutDao)
+    }
+
+    @Provides
+    @Singleton
+    fun providePersonalRecordDao(database: WorkoutDatabase): PersonalRecordDao {
+        return database.personalRecordDao()
+    }
+
+    @Provides
+    @Singleton
+    fun providePersonalRecordRepository(personalRecordDao: PersonalRecordDao): PersonalRecordRepository {
+        return PersonalRecordRepository(personalRecordDao)
+    }
+
+    @Provides
+    @Singleton
+    fun providePhaseStatisticsDao(database: WorkoutDatabase): PhaseStatisticsDao {
+        return database.phaseStatisticsDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDiagnosticsDao(database: WorkoutDatabase): DiagnosticsDao {
+        return database.diagnosticsDao()
+    }
+}

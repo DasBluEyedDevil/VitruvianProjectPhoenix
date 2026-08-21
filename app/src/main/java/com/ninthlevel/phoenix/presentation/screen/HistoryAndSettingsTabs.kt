@@ -1,0 +1,1716 @@
+package com.ninthlevel.phoenix.presentation.screen
+
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.ninthlevel.phoenix.data.repository.ExerciseRepository
+import com.ninthlevel.phoenix.domain.model.WeightUnit
+import com.ninthlevel.phoenix.domain.model.WorkoutSession
+import com.ninthlevel.phoenix.presentation.viewmodel.HistoryItem
+import com.ninthlevel.phoenix.util.ColorScheme
+import com.ninthlevel.phoenix.util.ColorSchemes
+import kotlinx.coroutines.launch
+import com.ninthlevel.phoenix.presentation.components.EmptyState
+import com.ninthlevel.phoenix.presentation.components.LedColorSchemeCard
+import com.ninthlevel.phoenix.ui.theme.*
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import java.text.SimpleDateFormat
+import java.util.*
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.ninthlevel.phoenix.util.ImportResult
+
+@Composable
+fun HistoryTab(
+    groupedWorkoutHistory: List<HistoryItem>,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    onDeleteWorkout: (String) -> Unit,
+    exerciseRepository: ExerciseRepository,
+    onRefresh: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    @Suppress("UNUSED_VARIABLE")  // Kept for future pull-to-refresh implementation
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(Spacing.medium)
+    ) {
+        // Header removed for global scaffold integration
+        // Refresh functionality should be handled automatically or via pull-to-refresh if needed
+        
+        /*
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Workout History",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            IconButton(
+                onClick = {
+                    isRefreshing = true
+                    onRefresh()
+                    kotlinx.coroutines.MainScope().launch {
+                        kotlinx.coroutines.delay(1000)
+                        isRefreshing = false
+                    }
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh workout history",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = if (isRefreshing) {
+                        Modifier.rotate(360f)
+                    } else {
+                        Modifier
+                    }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.medium))
+        */
+
+        if (groupedWorkoutHistory.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.History,
+                title = "No Workout History Yet",
+                message = "Complete your first workout to see it here"
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(Spacing.small)
+            ) {
+                items(groupedWorkoutHistory.size, key = { index ->
+                    when (val item = groupedWorkoutHistory[index]) {
+                        is com.ninthlevel.phoenix.presentation.viewmodel.SingleSessionHistoryItem -> item.session.id
+                        is com.ninthlevel.phoenix.presentation.viewmodel.GroupedRoutineHistoryItem -> item.routineSessionId
+                    }
+                }) { index ->
+                    when (val item = groupedWorkoutHistory[index]) {
+                        is com.ninthlevel.phoenix.presentation.viewmodel.SingleSessionHistoryItem -> {
+                            WorkoutHistoryCard(
+                                session = item.session,
+                                weightUnit = weightUnit,
+                                formatWeight = formatWeight,
+                                exerciseRepository = exerciseRepository,
+                                onDelete = { onDeleteWorkout(item.session.id) }
+                            )
+                        }
+                        is com.ninthlevel.phoenix.presentation.viewmodel.GroupedRoutineHistoryItem -> {
+                            GroupedRoutineCard(
+                                groupedItem = item,
+                                weightUnit = weightUnit,
+                                formatWeight = formatWeight,
+                                exerciseRepository = exerciseRepository,
+                                onDelete = { sessionId -> onDeleteWorkout(sessionId) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WorkoutHistoryCard(
+    session: WorkoutSession,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.ninthlevel.phoenix.data.repository.ExerciseRepository,
+    onDelete: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.98f)
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+            stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
+        ),
+        label = "scale"
+    )
+
+    // Get exercise name from session (no DB lookup needed!)
+    val exerciseName = session.exerciseName ?: if (session.isJustLift) "Just Lift" else "Unknown Exercise"
+
+    Card(
+        onClick = { isPressed = true },
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            // Header: "Single Exercise"
+            Text(
+                "Single Exercise",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Exercise Name (or "Just Lift" if Just Lift mode)
+            Text(
+                exerciseName ?: "Just Lift",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Date and Time (no label, just the timestamp)
+            Text(
+                formatTimestamp(session.timestamp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Total Reps | Total Sets
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Total Reps",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    session.totalReps.toString(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Total Sets",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (session.reps == 0) "1" // AMRAP = single set with variable reps
+                    else if (session.workingReps > 0) (session.workingReps / session.reps.coerceAtLeast(1)).toString()
+                    else "0",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Highest Weight Per Cable | Workout Mode
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Highest Weight Per Cable",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (session.mode.contains("Echo", ignoreCase = true)) "Adaptive" else formatWeight(session.weightPerCableKg, weightUnit),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Workout Mode",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    session.mode,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Divider
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Action Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete workout",
+                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 18dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+
+    // Material 3 Expressive: Delete dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { 
+                Text(
+                    "Delete Workout?",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
+}
+
+/**
+ * Data class to hold grouped exercise information within a routine
+ */
+private data class ExerciseGroup(
+    val exerciseId: String,
+    val exerciseName: String,
+    val totalReps: Int,
+    val totalSets: Int,
+    val weightPerCableKg: Float,
+    val mode: String
+)
+
+/**
+ * Card showing a grouped routine session with multiple exercises
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GroupedRoutineCard(
+    groupedItem: com.ninthlevel.phoenix.presentation.viewmodel.GroupedRoutineHistoryItem,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.ninthlevel.phoenix.data.repository.ExerciseRepository,
+    onDelete: (String) -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.98f)
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
+            stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
+        ),
+        label = "scale"
+    )
+
+    // Group sessions by exerciseId and use exerciseName directly (no DB lookup needed!)
+    val exercisesWithNames = remember(groupedItem.sessions) {
+        groupedItem.sessions.groupBy { it.exerciseId ?: "just_lift" }
+            .map { (exerciseId, sessions) ->
+                val totalReps = sessions.sumOf { it.totalReps }
+                val totalSets = sessions.size
+                val weightPerCableKg = sessions.maxOfOrNull { it.weightPerCableKg } ?: 0f
+                val mode = sessions.firstOrNull()?.mode ?: "Unknown"
+                // Use exerciseName from the session (stored when workout was saved)
+                val exerciseName = sessions.firstOrNull()?.exerciseName ?: "Unknown Exercise"
+
+                ExerciseGroup(
+                    exerciseId = exerciseId,
+                    exerciseName = exerciseName,
+                    totalReps = totalReps,
+                    totalSets = totalSets,
+                    weightPerCableKg = weightPerCableKg,
+                    mode = mode
+                )
+            }
+    }
+
+    Card(
+        onClick = { isPressed = true },
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            // Header: "Daily Routine"
+            Text(
+                "Daily Routine",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Routine Name
+            Text(
+                groupedItem.routineName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Date and Time (no label, just the timestamp)
+            Text(
+                formatTimestamp(groupedItem.timestamp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Display each exercise group
+            exercisesWithNames.forEachIndexed { index, exerciseGroup ->
+                // Exercise Name
+                Text(
+                    exerciseGroup.exerciseName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                // Total Reps | Total Sets
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Total Reps",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.totalReps.toString(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Total Sets",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.totalSets.toString(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                // Highest Weight Per Cable | Workout Mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Highest Weight Per Cable",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (exerciseGroup.mode.contains("Echo", ignoreCase = true)) "Adaptive" else formatWeight(exerciseGroup.weightPerCableKg, weightUnit),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "Workout Mode",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        exerciseGroup.mode,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Add spacing between exercises (except for the last one)
+                if (index < exercisesWithNames.size - 1) {
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Divider
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Action Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete routine session",
+                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 18dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        "Delete All Sets",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+
+    // Material 3 Expressive: Delete dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { 
+                Text(
+                    "Delete Routine Session?",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "This will delete all ${groupedItem.sessions.size} sets from this routine. This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // Delete all sessions in the routine
+                        groupedItem.sessions.forEach { session ->
+                            onDelete(session.id)
+                        }
+                        showDeleteDialog = false
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
+}
+
+/**
+ * Compact version of WorkoutHistoryCard for displaying within the expanded GroupedRoutineCard
+ */
+@Composable
+fun WorkoutSessionCard(
+    session: WorkoutSession,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    exerciseRepository: com.ninthlevel.phoenix.data.repository.ExerciseRepository,
+    onDelete: () -> Unit
+) {
+    var exerciseName by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(session.exerciseId) {
+        session.exerciseId?.let { id ->
+            exerciseName = exerciseRepository.resolveExerciseName(id)
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.small),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    exerciseName ?: "Just Lift",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "${formatWeight(session.weightPerCableKg, weightUnit)}/cable • ${session.totalReps} reps • ${session.mode}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                formatDuration(session.duration),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun MetricItem(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun SettingsTab(
+    weightUnit: WeightUnit,
+    autoplayEnabled: Boolean,
+    stopAtTop: Boolean,
+    beepsEnabled: Boolean,
+    onWeightUnitChange: (WeightUnit) -> Unit,
+    onAutoplayChange: (Boolean) -> Unit,
+    onStopAtTopChange: (Boolean) -> Unit,
+    onBeepsEnabledChange: (Boolean) -> Unit,
+    onColorSchemeChange: (Int) -> Unit,
+    onDeleteAllWorkouts: () -> Unit,
+    onNavigateToConnectionLogs: () -> Unit = {},
+    onNavigateToProtocolTester: () -> Unit = {},
+    isExporting: Boolean = false,
+    isImporting: Boolean = false,
+    importResult: ImportResult? = null,
+    showImportResultDialog: Boolean = false,
+    onExportData: () -> Unit = {},
+    onImportData: (Uri) -> Unit = {},
+    onDismissImportResult: () -> Unit = {},
+    isAutoConnecting: Boolean = false,
+    connectionError: String? = null,
+    onClearConnectionError: () -> Unit = {},
+    onCancelAutoConnecting: () -> Unit = {},
+    onSetTitle: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
+    // Optimistic UI state for immediate visual feedback
+    var localWeightUnit by remember(weightUnit) { mutableStateOf(weightUnit) }
+    // Track selected LED color scheme (defaults to Blue = 0)
+    var selectedColorSchemeIndex by remember { mutableStateOf(0) }
+
+    // Set global title
+    LaunchedEffect(Unit) {
+        onSetTitle("Settings")
+    }
+
+    // Context for opening URLs
+    val context = LocalContext.current
+
+    // Import file picker launcher
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { onImportData(it) }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(Spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+    ) {
+        // Header removed for global scaffold integration
+
+    // Weight Unit Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA))
+                            ),
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Scale,
+                        contentDescription = "Weight unit settings",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Weight Unit",
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
+                    FilterChip(
+                        selected = localWeightUnit == WeightUnit.KG,
+                        onClick = { 
+                            localWeightUnit = WeightUnit.KG
+                            onWeightUnitChange(WeightUnit.KG) 
+                        },
+                        label = { Text("kg") },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    FilterChip(
+                        selected = localWeightUnit == WeightUnit.LB,
+                        onClick = { 
+                            localWeightUnit = WeightUnit.LB
+                            onWeightUnitChange(WeightUnit.LB) 
+                        },
+                        label = { Text("lbs") },
+                        modifier = Modifier.weight(1f),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            }
+        }
+
+    // Workout Preferences Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+                            ),
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { 
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = "Advanced settings",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Workout Preferences",
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                // Autoplay toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Autoplay Routines",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Automatically advance to next exercise after rest timer",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoplayEnabled,
+                        onCheckedChange = onAutoplayChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Stop At Top toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Stop At Top",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Release tension at contracted position instead of extended position",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = stopAtTop,
+                        onCheckedChange = onStopAtTopChange
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                // Workout Beeps toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            "Workout Beeps",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Play audio cues for rep completion and workout events (won't interrupt music)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = beepsEnabled,
+                        onCheckedChange = onBeepsEnabledChange
+                    )
+                }
+            }
+        }
+
+    // LED Color Scheme Section - Enhanced with animated preview
+    LedColorSchemeCard(
+        selectedSchemeIndex = selectedColorSchemeIndex,
+        onSchemeSelected = { index ->
+            selectedColorSchemeIndex = index
+            onColorSchemeChange(index)
+        }
+    )
+
+    // Backup & Restore Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.medium)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF3B82F6), Color(0xFF8B5CF6))
+                            ),
+                            RoundedCornerShape(20.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.CloudUpload,
+                        contentDescription = "Backup and restore",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Backup & Restore",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(modifier = Modifier.height(Spacing.small))
+            Text(
+                "Export your data to migrate between devices or back up your workout history",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            // Export button
+            OutlinedButton(
+                onClick = onExportData,
+                enabled = !isExporting && !isImporting,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                if (isExporting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Upload,
+                        contentDescription = "Export data",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.small))
+                Text(
+                    if (isExporting) "Exporting..." else "Export Data",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.small))
+
+            // Import button
+            OutlinedButton(
+                onClick = { importLauncher.launch(arrayOf("application/json")) },
+                enabled = !isExporting && !isImporting,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                if (isImporting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = "Import data",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(Spacing.small))
+                Text(
+                    if (isImporting) "Importing..." else "Import Data",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+
+    // Data Management Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border, error color for destructive action
+    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFF97316), Color(0xFFEF4444))
+                            ),
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { 
+                    Icon(
+                        Icons.Default.DeleteForever,
+                        contentDescription = "Clear workout history",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Data Management",
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                Button(
+                    onClick = { showDeleteAllDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete all workouts",
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Text(
+                        "Delete All Workouts",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+    // Developer Tools Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFFF59E0B), Color(0xFFEF4444))
+                            ),
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { 
+                    Icon(
+                        Icons.Default.BugReport,
+                        contentDescription = "View connection logs",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "Developer Tools",
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+                Spacer(modifier = Modifier.height(Spacing.small))
+
+                OutlinedButton(
+                    onClick = onNavigateToConnectionLogs,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Icon(
+                        Icons.Default.Timeline,
+                        contentDescription = "Connection logs",
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Text(
+                        "Connection Logs",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "View Bluetooth connection debug logs to diagnose connectivity issues",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                OutlinedButton(
+                    onClick = onNavigateToProtocolTester,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Science,
+                        contentDescription = "Protocol Tester",
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Text(
+                        "Protocol Tester",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Test different BLE connection protocols to find what works best for your device",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+    // App Info Section - Material 3 Expressive
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(20.dp)), // Material 3 Expressive: More shadow, more rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+    ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.medium)
+            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp) // Material 3 Expressive: Larger (was 40dp)
+                        .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF22C55E), Color(0xFF3B82F6))
+                            ),
+                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) { 
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "App information",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+                    ) 
+                }
+                Spacer(modifier = Modifier.width(Spacing.medium))
+                Text(
+                    "App Info",
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+                Spacer(modifier = Modifier.height(Spacing.small))
+                Text("Version: ${com.ninthlevel.phoenix.BuildConfig.VERSION_NAME}", color = MaterialTheme.colorScheme.onSurface)
+                Text("Build: ${com.ninthlevel.phoenix.BuildConfig.BUILD_TYPE_LABEL}", color = MaterialTheme.colorScheme.onSurface)
+                Spacer(modifier = Modifier.height(Spacing.small))
+                Text(
+                    "Open source community project to control cable trainers locally.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    // Material 3 Expressive: Delete All dialog
+    if (showDeleteAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllDialog = false },
+            title = { 
+                Text(
+                    "Delete All Workouts?",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
+            text = { 
+                Text(
+                    "This will permanently delete all workout history. This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                ) 
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
+            shape = RoundedCornerShape(28.dp), // Material 3 Expressive: Very rounded for dialogs (was 16dp)
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteAllWorkouts()
+                        showDeleteAllDialog = false
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Delete All",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAllDialog = false },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                ) {
+                    Text(
+                        "Cancel",
+                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        )
+    }
+
+    // Auto-connect UI overlays (same as other screens)
+    if (isAutoConnecting) {
+        com.ninthlevel.phoenix.presentation.components.ConnectingOverlay(
+            onCancel = onCancelAutoConnecting
+        )
+    }
+
+    connectionError?.let { error ->
+        com.ninthlevel.phoenix.presentation.components.ConnectionErrorDialog(
+            message = error,
+            onDismiss = onClearConnectionError
+        )
+    }
+
+    // Import Result Dialog
+    if (showImportResultDialog && importResult != null) {
+        AlertDialog(
+            onDismissRequest = onDismissImportResult,
+            title = {
+                Text(
+                    "Import Complete",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "Successfully imported data:",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.small))
+                    Text(
+                        "Workout Sessions: ${importResult.sessionsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Workout Metrics: ${importResult.metricsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Routines: ${importResult.routinesImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Routine Exercises: ${importResult.routineExercisesImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Weekly Programs: ${importResult.programsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Program Days: ${importResult.programDaysImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "Personal Records: ${importResult.personalRecordsImported}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    if (importResult.totalSkipped > 0) {
+                        Spacer(modifier = Modifier.height(Spacing.small))
+                        Text(
+                            "Skipped ${importResult.totalSkipped} duplicate records",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            shape = RoundedCornerShape(28.dp),
+            confirmButton = {
+                TextButton(
+                    onClick = onDismissImportResult,
+                    modifier = Modifier.height(56.dp),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Text(
+                        "OK",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        )
+    }
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val sdf = SimpleDateFormat("MMM dd, yyyy 'at' HH:mm", Locale.getDefault())
+    return sdf.format(Date(timestamp))
+}
+
+@Suppress("unused")  // Available for future UI enhancements
+private fun formatRelativeTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    val daysDiff = diff / (24 * 60 * 60 * 1000)
+    
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("MMM dd", Locale.getDefault())
+    
+    return when {
+        daysDiff == 0L -> "Today at ${timeFormat.format(Date(timestamp))}"
+        daysDiff == 1L -> "Yesterday at ${timeFormat.format(Date(timestamp))}"
+        daysDiff < 7 -> "${dateFormat.format(Date(timestamp))} at ${timeFormat.format(Date(timestamp))}"
+        else -> dateFormat.format(Date(timestamp))
+    }
+}
+
+@Composable
+fun EnhancedMetricItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = "Workout session icon",
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(Spacing.extraSmall))
+        Column(horizontalAlignment = Alignment.Start) {
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun formatDuration(millis: Long): String {
+    val totalSeconds = millis / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
+
+/**
+ * Compact color scheme chip with visual preview
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ColorSchemeChip(
+    scheme: ColorScheme,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "scale"
+    )
+    
+    // Convert RGB colors to Compose Color
+    val composeColors = scheme.colors.map { rgbColor ->
+        Color(rgbColor.r, rgbColor.g, rgbColor.b)
+    }
+    
+    // Create gradient from the color scheme
+    val gradientColors = if (composeColors.size >= 2) {
+        composeColors
+    } else {
+        listOf(composeColors.firstOrNull() ?: Color.Gray, Color.DarkGray)
+    }
+    
+    Surface(
+        onClick = {
+            isPressed = true
+            onClick()
+        },
+        modifier = Modifier
+            .width(80.dp)
+            .height(100.dp)
+            .scale(scale)
+            .shadow(if (isSelected) 8.dp else 4.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = if (isSelected) 3.dp else 2.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        ),
+        tonalElevation = if (isSelected) 4.dp else 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(gradientColors),
+                    RoundedCornerShape(16.dp)
+                )
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Color preview (gradient box)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(
+                        Brush.horizontalGradient(gradientColors),
+                        RoundedCornerShape(8.dp)
+                    )
+            )
+            
+            // Color name
+            Text(
+                text = scheme.name,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            
+            // Selected indicator
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+    
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            kotlinx.coroutines.delay(100)
+            isPressed = false
+        }
+    }
+}

@@ -1,0 +1,245 @@
+package com.ninthlevel.phoenix.presentation.screen
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavController
+import com.ninthlevel.phoenix.data.repository.ExerciseRepository
+import com.ninthlevel.phoenix.domain.model.*
+import com.ninthlevel.phoenix.presentation.viewmodel.MainViewModel
+import com.ninthlevel.phoenix.ui.theme.Spacing
+import kotlinx.coroutines.delay
+
+/**
+ * Active Workout screen - displays workout controls and metrics during an active workout.
+ * This screen is shown when a workout is in progress.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ActiveWorkoutScreen(
+    navController: NavController,
+    viewModel: MainViewModel,
+    exerciseRepository: ExerciseRepository
+) {
+    val workoutState by viewModel.workoutState.collectAsState()
+    val currentMetric by viewModel.currentMetric.collectAsState()
+    val currentHeuristicKgMax by viewModel.currentHeuristicKgMax.collectAsState()
+    val workoutParameters by viewModel.workoutParameters.collectAsState()
+    val repCount by viewModel.repCount.collectAsState()
+    val repRanges by viewModel.repRanges.collectAsState()
+    val autoStopState by viewModel.autoStopState.collectAsState()
+    val weightUnit by viewModel.weightUnit.collectAsState()
+    val loadedRoutine by viewModel.loadedRoutine.collectAsState()
+    val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
+    val isBodyweightExercise by viewModel.isCurrentExerciseBodyweight.collectAsState()
+    val bodyweightTimerState by viewModel.bodyweightTimerState.collectAsState()
+    val hapticEvents = viewModel.hapticEvents
+    val connectionState by viewModel.connectionState.collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+    val connectionError by viewModel.connectionError.collectAsState()
+    val userPreferences by viewModel.userPreferences.collectAsState()
+
+    // State for confirmation dialog
+    var showExitConfirmation by remember { mutableStateOf(false) }
+
+    // PR Celebration state
+    var prCelebrationEvent by remember { mutableStateOf<PRCelebrationEvent?>(null) }
+    LaunchedEffect(Unit) {
+        viewModel.prCelebrationEvent.collect { event ->
+            prCelebrationEvent = event
+        }
+    }
+
+    // Dynamic title based on workout type
+    val screenTitle = remember(loadedRoutine, workoutParameters.isJustLift) {
+        when {
+            loadedRoutine != null -> loadedRoutine?.name ?: "Routine"
+            workoutParameters.isJustLift -> "Just Lift"
+            else -> "Single Exercise"
+        }
+    }
+
+    // Set global title
+    LaunchedEffect(screenTitle) {
+        viewModel.updateTopBarTitle(screenTitle)
+    }
+
+    // Handle Back Button (System + Top Bar)
+    LaunchedEffect(Unit) {
+        val onBack: () -> Unit = {
+            // Show confirmation if workout is active
+            if (viewModel.workoutState.value is WorkoutState.Active ||
+                viewModel.workoutState.value is WorkoutState.Resting ||
+                viewModel.workoutState.value is WorkoutState.Countdown
+            ) {
+                showExitConfirmation = true
+            } else {
+                navController.navigateUp()
+            }
+        }
+        viewModel.setTopBarBackAction(onBack)
+    }
+
+    // Clean up back action
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearTopBarBackAction()
+        }
+    }
+
+    // System Back Handler
+    androidx.activity.compose.BackHandler(enabled = true) {
+        if (workoutState is WorkoutState.Active ||
+            workoutState is WorkoutState.Resting ||
+            workoutState is WorkoutState.Countdown
+        ) {
+            showExitConfirmation = true
+        } else {
+            navController.navigateUp()
+        }
+    }
+
+    // Haptic and audio feedback effect
+    HapticFeedbackEffect(hapticEvents = hapticEvents, beepsEnabled = userPreferences.beepsEnabled)
+
+    // Navigation guard to prevent double navigateUp() calls (Issue #204)
+    // The LaunchedEffect can re-trigger if workoutParameters changes during navigation,
+    // causing navigateUp() to be called twice (ActiveWorkout → JustLift → Home)
+    var hasNavigatedAway by remember { mutableStateOf(false) }
+
+    // Watch for workout completion and navigate back
+    // For Just Lift, navigate back when state becomes Idle (after auto-reset)
+    // Key only on workoutState to avoid re-triggering on workoutParameters changes
+    LaunchedEffect(workoutState) {
+        // Guard against double navigation
+        if (hasNavigatedAway) return@LaunchedEffect
+
+        when {
+            workoutState is WorkoutState.Completed -> {
+                delay(2000)
+                hasNavigatedAway = true
+                navController.navigateUp()
+            }
+            workoutState is WorkoutState.Idle && workoutParameters.isJustLift -> {
+                // Just Lift completed and reset to Idle - navigate back to Just Lift screen
+                hasNavigatedAway = true
+                navController.navigateUp()
+            }
+            workoutState is WorkoutState.Error -> {
+                // Show error for 3 seconds then navigate back
+                delay(3000)
+                hasNavigatedAway = true
+                navController.navigateUp()
+            }
+        }
+    }
+
+    WorkoutTab(
+        connectionState = connectionState,
+        workoutState = workoutState,
+        currentMetric = currentMetric,
+        currentHeuristicKgMax = currentHeuristicKgMax,
+        workoutParameters = workoutParameters,
+        repCount = repCount,
+        repRanges = repRanges,
+        autoStopState = autoStopState,
+        weightUnit = weightUnit,
+        beepsEnabled = userPreferences.beepsEnabled,
+        exerciseRepository = exerciseRepository,
+        isWorkoutSetupDialogVisible = false,
+        hapticEvents = hapticEvents,
+        loadedRoutine = loadedRoutine,
+        currentExerciseIndex = currentExerciseIndex,
+        autoplayEnabled = userPreferences.autoplayEnabled,
+        isBodyweightExercise = isBodyweightExercise,
+        bodyweightTimerState = bodyweightTimerState,
+        kgToDisplay = viewModel::kgToDisplay,
+        displayToKg = viewModel::displayToKg,
+        formatWeight = viewModel::formatWeight,
+        onScan = { viewModel.startScanning() },
+        onDisconnect = { viewModel.disconnect() },
+        onStartWorkout = {
+            viewModel.ensureConnection(
+                onConnected = { viewModel.startWorkout() },
+                onFailed = { /* Error shown via StateFlow */ }
+            )
+        },
+        onStopWorkout = { showExitConfirmation = true },
+        onSkipRest = { viewModel.skipRest() },
+        onProceedFromSummary = { viewModel.proceedFromSummary() },
+        onResetForNewWorkout = { viewModel.resetForNewWorkout() },
+        onStartNextExercise = { viewModel.advanceToNextExercise() },
+        onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
+        onShowWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
+        onHideWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
+        showConnectionCard = false,
+        showWorkoutSetupCard = false
+    )
+
+    // Exit confirmation dialog
+    if (showExitConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirmation = false },
+            title = { Text("Exit Workout?") },
+            text = { Text("The workout is currently active. Are you sure you want to exit?") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.medium,
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.stopWorkout()
+                        showExitConfirmation = false
+                        navController.navigateUp()
+                    }
+                ) {
+                    Text("Exit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitConfirmation = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Auto-connect UI overlays (same as other screens)
+    if (isAutoConnecting) {
+        com.ninthlevel.phoenix.presentation.components.ConnectingOverlay(
+            onCancel = { viewModel.cancelAutoConnecting() }
+        )
+    }
+
+    connectionError?.let { error ->
+        com.ninthlevel.phoenix.presentation.components.ConnectionErrorDialog(
+            message = error,
+            onDismiss = { viewModel.clearConnectionError() }
+        )
+    }
+
+    // PR Celebration Dialog
+    prCelebrationEvent?.let { event ->
+        // Convert PRType list to PRDisplayType
+        val prDisplayType = when {
+            event.isBothPRs -> com.ninthlevel.phoenix.presentation.components.PRDisplayType.BOTH
+            event.isVolumePR -> com.ninthlevel.phoenix.presentation.components.PRDisplayType.VOLUME
+            else -> com.ninthlevel.phoenix.presentation.components.PRDisplayType.WEIGHT
+        }
+
+        // Calculate volume (weight per cable × reps × 2 cables)
+        val totalVolume = event.weightPerCableKg * event.reps * 2
+        val volumeFormatted = "${viewModel.formatWeight(totalVolume, weightUnit)} total"
+
+        com.ninthlevel.phoenix.presentation.components.PRCelebrationDialog(
+            show = true,
+            exerciseName = event.exerciseName,
+            weight = "${viewModel.formatWeight(event.weightPerCableKg, weightUnit)}/cable × ${event.reps} reps",
+            prType = prDisplayType,
+            volume = volumeFormatted,
+            onDismiss = { prCelebrationEvent = null }
+        )
+    }
+}

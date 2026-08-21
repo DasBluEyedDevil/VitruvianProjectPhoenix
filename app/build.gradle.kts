@@ -8,10 +8,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.vitruvianredux"
+    namespace = "com.ninthlevel.phoenix"
     compileSdk = 36
 
     defaultConfig {
+        // Keep the published ID so this APK replaces existing installs.
+        // Source namespace is com.ninthlevel.phoenix independently.
         applicationId = "com.example.vitruvianredux"
         minSdk = 26
         targetSdk = 36
@@ -173,9 +175,6 @@ dependencies {
 
     // Accompanist - Permissions
     implementation(libs.accompanist.permissions)
-
-    // Coil - Image Loading
-    implementation(libs.coil.compose)
 
     // Testing
     testImplementation(libs.junit)
