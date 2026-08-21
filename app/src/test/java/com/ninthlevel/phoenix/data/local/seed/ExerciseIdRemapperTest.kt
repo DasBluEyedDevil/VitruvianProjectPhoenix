@@ -1,6 +1,10 @@
 package com.ninthlevel.phoenix.data.local.seed
 
+import com.ninthlevel.phoenix.data.local.BackupContent
 import com.ninthlevel.phoenix.data.local.PRType
+import com.ninthlevel.phoenix.data.local.PersonalRecordBackup
+import com.ninthlevel.phoenix.data.local.RoutineExerciseBackup
+import com.ninthlevel.phoenix.data.local.WorkoutSessionBackup
 import com.ninthlevel.phoenix.data.local.seed.ExerciseIdRemapper.LegacyExercise
 import com.ninthlevel.phoenix.data.local.seed.ExerciseIdRemapper.PersonalRecordSnapshot
 import org.junit.Assert.assertEquals
@@ -109,6 +113,60 @@ class ExerciseIdRemapperTest {
         assertEquals(2L, weight.id)
         assertEquals(300f, volume.volume)
         assertEquals(3L, volume.id)
+    }
+
+    @Test
+    fun remapBackupContentRewritesLegacyIdsUsingSessionAndRoutineNames() {
+        val content = BackupContent(
+            workoutSessions = listOf(
+                WorkoutSessionBackup(
+                    id = "s1",
+                    timestamp = 1,
+                    mode = "OldSchool",
+                    reps = 10,
+                    weightPerCableKg = 20f,
+                    progressionKg = 0f,
+                    duration = 1,
+                    totalReps = 10,
+                    warmupReps = 0,
+                    workingReps = 10,
+                    isJustLift = false,
+                    stopAtTop = false,
+                    exerciseId = "old-bench",
+                    exerciseName = "Bench Press"
+                )
+            ),
+            routineExercises = listOf(
+                RoutineExerciseBackup(
+                    id = "re1",
+                    routineId = "r1",
+                    exerciseName = "Cable Fly",
+                    exerciseMuscleGroup = "Chest",
+                    exerciseDefaultCableConfig = "DOUBLE",
+                    exerciseId = "old-fly",
+                    cableConfig = "DOUBLE",
+                    orderIndex = 0,
+                    setReps = "10,10,10",
+                    weightPerCableKg = 10f
+                )
+            ),
+            personalRecords = listOf(
+                PersonalRecordBackup(
+                    id = 1,
+                    exerciseId = "old-bench",
+                    weightPerCableKg = 50f,
+                    reps = 5,
+                    timestamp = 1,
+                    workoutMode = "OldSchool",
+                    prType = PRType.MAX_WEIGHT.name,
+                    volume = 250f
+                )
+            )
+        )
+        val remapped = ExerciseIdRemapper.remapBackupContent(content)
+        assertEquals("cable-bench-press", remapped.workoutSessions.single().exerciseId)
+        assertEquals("cable-chest-fly", remapped.routineExercises.single().exerciseId)
+        assertEquals("cable-bench-press", remapped.personalRecords.single().exerciseId)
     }
 
     @Test
