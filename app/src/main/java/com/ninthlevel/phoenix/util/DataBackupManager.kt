@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.ninthlevel.phoenix.BuildConfig
 import com.ninthlevel.phoenix.data.local.*
+import com.ninthlevel.phoenix.data.local.seed.ExerciseIdRemapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -200,6 +201,8 @@ class DataBackupManager @Inject constructor(
                 Timber.w("Backup version ${backup.version} is newer than supported (1)")
             }
 
+            val data = ExerciseIdRemapper.remapBackupContent(backup.data)
+
             // Get existing IDs for duplicate detection
             val existingSessionIds = workoutDao.getAllSessionIds().toSet()
             val existingRoutineIds = workoutDao.getAllRoutineIds().toSet()
@@ -209,7 +212,7 @@ class DataBackupManager @Inject constructor(
             // Import sessions (skip existing)
             var sessionsImported = 0
             var sessionsSkipped = 0
-            backup.data.workoutSessions.forEach { session ->
+            data.workoutSessions.forEach { session ->
                 if (session.id !in existingSessionIds) {
                     workoutDao.insertSessionIgnore(session.toEntity())
                     sessionsImported++
@@ -220,12 +223,12 @@ class DataBackupManager @Inject constructor(
 
             // Import metrics (only for imported sessions)
             var metricsImported = 0
-            val importedSessionIds = backup.data.workoutSessions
+            val importedSessionIds = data.workoutSessions
                 .filter { it.id !in existingSessionIds }
                 .map { it.id }
                 .toSet()
 
-            backup.data.workoutMetrics.forEach { metric ->
+            data.workoutMetrics.forEach { metric ->
                 if (metric.sessionId in importedSessionIds) {
                     workoutDao.insertMetricIgnore(metric.toEntity())
                     metricsImported++
@@ -235,7 +238,7 @@ class DataBackupManager @Inject constructor(
             // Import routines (skip existing)
             var routinesImported = 0
             var routinesSkipped = 0
-            backup.data.routines.forEach { routine ->
+            data.routines.forEach { routine ->
                 if (routine.id !in existingRoutineIds) {
                     workoutDao.insertRoutineIgnore(routine.toEntity())
                     routinesImported++
@@ -246,12 +249,12 @@ class DataBackupManager @Inject constructor(
 
             // Import routine exercises (only for imported routines)
             var routineExercisesImported = 0
-            val importedRoutineIds = backup.data.routines
+            val importedRoutineIds = data.routines
                 .filter { it.id !in existingRoutineIds }
                 .map { it.id }
                 .toSet()
 
-            backup.data.routineExercises.forEach { exercise ->
+            data.routineExercises.forEach { exercise ->
                 if (exercise.routineId in importedRoutineIds) {
                     workoutDao.insertRoutineExerciseIgnore(exercise.toEntity())
                     routineExercisesImported++
@@ -261,7 +264,7 @@ class DataBackupManager @Inject constructor(
             // Import weekly programs (skip existing)
             var programsImported = 0
             var programsSkipped = 0
-            backup.data.weeklyPrograms.forEach { program ->
+            data.weeklyPrograms.forEach { program ->
                 if (program.id !in existingProgramIds) {
                     workoutDao.insertProgramIgnore(program.toEntity())
                     programsImported++
@@ -272,12 +275,12 @@ class DataBackupManager @Inject constructor(
 
             // Import program days (only for imported programs)
             var programDaysImported = 0
-            val importedProgramIds = backup.data.weeklyPrograms
+            val importedProgramIds = data.weeklyPrograms
                 .filter { it.id !in existingProgramIds }
                 .map { it.id }
                 .toSet()
 
-            backup.data.programDays.forEach { day ->
+            data.programDays.forEach { day ->
                 if (day.programId in importedProgramIds) {
                     workoutDao.insertProgramDayIgnore(day.toEntity())
                     programDaysImported++
@@ -287,7 +290,7 @@ class DataBackupManager @Inject constructor(
             // Import personal records (skip existing)
             var personalRecordsImported = 0
             var personalRecordsSkipped = 0
-            backup.data.personalRecords.forEach { pr ->
+            data.personalRecords.forEach { pr ->
                 if (pr.id !in existingPRIds) {
                     personalRecordDao.insertPRIgnore(pr.toEntity())
                     personalRecordsImported++

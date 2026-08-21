@@ -1,7 +1,9 @@
 package com.ninthlevel.phoenix.data.local.seed
 
+import com.ninthlevel.phoenix.data.local.BackupContent
 import com.ninthlevel.phoenix.data.local.ExerciseEntity
 import com.ninthlevel.phoenix.data.local.PRType
+import com.ninthlevel.phoenix.data.local.PersonalRecordBackup
 
 /**
  * Maps v26 catalogue exercise ids onto the v27 slim seed by exact normalized name/alias.
@@ -111,6 +113,66 @@ object ExerciseIdRemapper {
             .groupBy { Triple(it.exerciseId, it.workoutMode, it.prType) }
             .values
             .map { group -> pickWinningPr(group) }
+    }
+
+    /**
+     * Rewrite v26 catalogue ids in a backup onto the slim seed using names on sessions/routines.
+     */
+    fun remapBackupContent(content: BackupContent): BackupContent {
+        val legacy = buildList {
+            content.workoutSessions.forEach { session ->
+                val id = session.exerciseId ?: return@forEach
+                val name = session.exerciseName ?: return@forEach
+                if (id.isNotBlank() && name.isNotBlank()) {
+                    add(LegacyExercise(id = id, name = name))
+                }
+            }
+            content.routineExercises.forEach { row ->
+                val id = row.exerciseId ?: return@forEach
+                if (id.isNotBlank() && row.exerciseName.isNotBlank()) {
+                    add(LegacyExercise(id = id, name = row.exerciseName))
+                }
+            }
+        }
+        val oldToNew = buildOldToNewIdMap(legacy)
+        if (oldToNew.isEmpty()) return content
+
+        val remappedPrs = mergePersonalRecords(
+            content.personalRecords.map { pr ->
+                PersonalRecordSnapshot(
+                    id = pr.id,
+                    exerciseId = pr.exerciseId,
+                    weightPerCableKg = pr.weightPerCableKg,
+                    reps = pr.reps,
+                    timestamp = pr.timestamp,
+                    workoutMode = pr.workoutMode,
+                    prType = pr.prType,
+                    volume = pr.volume
+                )
+            },
+            oldToNew
+        ).map { snap ->
+            PersonalRecordBackup(
+                id = snap.id,
+                exerciseId = snap.exerciseId,
+                weightPerCableKg = snap.weightPerCableKg,
+                reps = snap.reps,
+                timestamp = snap.timestamp,
+                workoutMode = snap.workoutMode,
+                prType = snap.prType,
+                volume = snap.volume
+            )
+        }
+
+        return content.copy(
+            workoutSessions = content.workoutSessions.map { session ->
+                session.copy(exerciseId = oldToNew[session.exerciseId] ?: session.exerciseId)
+            },
+            routineExercises = content.routineExercises.map { row ->
+                row.copy(exerciseId = row.exerciseId?.let { oldToNew[it] ?: it })
+            },
+            personalRecords = remappedPrs
+        )
     }
 
     internal fun pickWinningPr(rows: List<PersonalRecordSnapshot>): PersonalRecordSnapshot {
