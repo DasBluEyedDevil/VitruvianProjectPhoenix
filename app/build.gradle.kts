@@ -12,7 +12,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.ninthlevel.phoenix"
+        // Keep the published ID so this APK replaces existing installs.
+        // Source namespace is com.ninthlevel.phoenix independently.
+        applicationId = "com.example.vitruvianredux"
         minSdk = 26
         targetSdk = 36
         versionCode = 11
