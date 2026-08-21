@@ -1,0 +1,185 @@
+package com.ninthlevel.phoenix.data.repository
+
+import com.ninthlevel.phoenix.data.local.PRType
+import com.ninthlevel.phoenix.data.local.PersonalRecordDao
+import com.ninthlevel.phoenix.data.local.PersonalRecordEntity
+import com.ninthlevel.phoenix.domain.model.PersonalRecord
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Repository for managing personal records (PRs)
+ * Supports two PR types: MAX_WEIGHT and MAX_VOLUME
+ */
+@Singleton
+class PersonalRecordRepository @Inject constructor(
+    private val personalRecordDao: PersonalRecordDao
+) {
+
+    /**
+     * Get the weight PR for an exercise in a specific workout mode
+     */
+    suspend fun getWeightPR(exerciseId: String, workoutMode: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getPR(exerciseId, workoutMode, PRType.MAX_WEIGHT.name)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get weight PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Get the volume PR for an exercise in a specific workout mode
+     */
+    suspend fun getVolumePR(exerciseId: String, workoutMode: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getPR(exerciseId, workoutMode, PRType.MAX_VOLUME.name)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get volume PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Legacy: Get the latest PR for an exercise in a specific workout mode
+     * Returns the MAX_WEIGHT PR for backwards compatibility
+     */
+    suspend fun getLatestPR(exerciseId: String, workoutMode: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getLatestPR(exerciseId, workoutMode)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Get all PRs for an exercise across all workout modes
+     */
+    fun getPRsForExercise(exerciseId: String): Flow<List<PersonalRecord>> {
+        return personalRecordDao.getPRsForExercise(exerciseId).map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
+    }
+
+    /**
+     * Get the best weight PR for an exercise across all modes
+     */
+    suspend fun getBestWeightPR(exerciseId: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getBestWeightPR(exerciseId)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get best weight PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Get the best volume PR for an exercise across all modes
+     */
+    suspend fun getBestVolumePR(exerciseId: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getBestVolumePR(exerciseId)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get best volume PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Legacy: Get the best PR for an exercise across all modes
+     */
+    suspend fun getBestPR(exerciseId: String): PersonalRecord? {
+        return try {
+            personalRecordDao.getBestPR(exerciseId)?.toPersonalRecord()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get best PR for exercise $exerciseId")
+            null
+        }
+    }
+
+    /**
+     * Get all personal records
+     */
+    fun getAllPRs(): Flow<List<PersonalRecord>> {
+        return personalRecordDao.getAllPRs().map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
+    }
+
+    /**
+     * Get all personal records grouped by exercise (for analytics)
+     */
+    fun getAllPRsGrouped(): Flow<List<PersonalRecord>> {
+        return personalRecordDao.getAllPRsGrouped().map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
+    }
+
+    /**
+     * Update PRs if the new performance is better
+     * Returns a list of PR types that were broken (can be empty, one, or both)
+     */
+    suspend fun updatePRsIfBetter(
+        exerciseId: String,
+        weightPerCableKg: Float,
+        reps: Int,
+        workoutMode: String,
+        timestamp: Long
+    ): Result<List<PRType>> {
+        return try {
+            val brokenPRs = personalRecordDao.updatePRsIfBetter(
+                exerciseId = exerciseId,
+                weightPerCableKg = weightPerCableKg,
+                reps = reps,
+                workoutMode = workoutMode,
+                timestamp = timestamp
+            )
+            Result.success(brokenPRs)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update PRs for exercise $exerciseId")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Legacy: Update PR if the new performance is better
+     * Returns Result.success(true) if any PR was set, Result.success(false) otherwise
+     */
+    suspend fun updatePRIfBetter(
+        exerciseId: String,
+        weightPerCableKg: Float,
+        reps: Int,
+        workoutMode: String,
+        timestamp: Long
+    ): Result<Boolean> {
+        return try {
+            val isNewPR = personalRecordDao.updatePRIfBetter(
+                exerciseId = exerciseId,
+                weightPerCableKg = weightPerCableKg,
+                reps = reps,
+                workoutMode = workoutMode,
+                timestamp = timestamp
+            )
+            Result.success(isNewPR)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to update PR for exercise $exerciseId")
+            Result.failure(e)
+        }
+    }
+}
+
+// Extension functions for mapping between entities and domain models
+private fun PersonalRecordEntity.toPersonalRecord() = PersonalRecord(
+    id = id,
+    exerciseId = exerciseId,
+    weightPerCableKg = weightPerCableKg,
+    reps = reps,
+    timestamp = timestamp,
+    workoutMode = workoutMode,
+    prType = try { PRType.valueOf(prType) } catch (e: Exception) { PRType.MAX_WEIGHT },
+    volume = volume
+)
