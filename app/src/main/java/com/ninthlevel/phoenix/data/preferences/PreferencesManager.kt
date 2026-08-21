@@ -361,6 +361,37 @@ class PreferencesManager @Inject constructor(
     }
 
     /**
+     * Rewrite per-exercise defaults from catalogue ids onto the v27 seed ids.
+     * If two old ids collapse onto one seed id, the later map entry wins.
+     */
+    suspend fun remapExerciseIds(oldToNew: Map<String, String>) {
+        if (oldToNew.isEmpty()) return
+        exerciseDefaultsSaveMutex.withLock {
+            context.dataStore.edit { preferences ->
+                val existingJson = preferences[SINGLE_EXERCISE_DEFAULTS_KEY] ?: return@edit
+                val existingMap: Map<String, SingleExerciseDefaults> = try {
+                    Json.decodeFromString<Map<String, SingleExerciseDefaults>>(existingJson)
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to parse exercise defaults during id remap")
+                    return@edit
+                }
+                val remapped = linkedMapOf<String, SingleExerciseDefaults>()
+                existingMap.forEach { (_, defaults) ->
+                    val newId = oldToNew[defaults.exerciseId] ?: defaults.exerciseId
+                    val updated = if (newId == defaults.exerciseId) {
+                        defaults
+                    } else {
+                        defaults.copy(exerciseId = newId)
+                    }
+                    remapped[getExerciseKey(updated.exerciseId, updated.cableConfig)] = updated
+                }
+                preferences[SINGLE_EXERCISE_DEFAULTS_KEY] = Json.encodeToString(remapped)
+            }
+        }
+        Timber.d("Remapped single-exercise defaults for ${oldToNew.size} catalogue ids")
+    }
+
+    /**
      * Clear all saved Single Exercise defaults
      * Useful for testing or resetting to system defaults
      */
