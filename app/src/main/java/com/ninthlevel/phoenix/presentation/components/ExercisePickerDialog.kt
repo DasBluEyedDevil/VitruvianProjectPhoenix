@@ -54,10 +54,10 @@ import com.ninthlevel.phoenix.data.repository.ExerciseRepository
 import com.ninthlevel.phoenix.domain.model.Equipment
 import com.ninthlevel.phoenix.domain.model.MuscleGroup
 import com.ninthlevel.phoenix.domain.model.matchesEquipmentFilter
-import kotlinx.coroutines.FlowPreview
+import com.ninthlevel.phoenix.domain.model.matchesMuscleFilter
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExercisePickerDialog(
     showDialog: Boolean,
@@ -74,17 +74,19 @@ fun ExercisePickerDialog(
     var selectedEquipmentFilter by remember { mutableStateOf("All") }
     var showFavoritesOnly by remember { mutableStateOf(false) }
 
-    val allExercises by remember(searchQuery, selectedMuscleFilter, showFavoritesOnly) {
+    val allExercises by remember(searchQuery, showFavoritesOnly) {
         when {
             showFavoritesOnly -> exerciseRepository.getFavorites()
             searchQuery.isNotBlank() -> exerciseRepository.searchExercises(searchQuery)
-            selectedMuscleFilter != "All" -> exerciseRepository.filterByMuscleGroup(selectedMuscleFilter)
             else -> exerciseRepository.getAllExercises()
         }
     }.collectAsState(initial = emptyList())
 
-    val exercises = remember(allExercises, selectedEquipmentFilter) {
-        allExercises.filter { matchesEquipmentFilter(it.equipment, selectedEquipmentFilter) }
+    val exercises = remember(allExercises, selectedEquipmentFilter, selectedMuscleFilter) {
+        allExercises.filter {
+            matchesEquipmentFilter(it.equipment, selectedEquipmentFilter) &&
+                matchesMuscleFilter(it.muscleGroups, selectedMuscleFilter)
+        }
     }
 
     if (fullScreen) {

@@ -36,3 +36,10 @@ fun matchesEquipmentFilter(equipmentCsv: String, filter: String): Boolean {
         .map { it.trim() }
         .any { it.equals(filter, ignoreCase = false) }
 }
+
+fun matchesMuscleFilter(muscleGroupsCsv: String, filter: String): Boolean {
+    if (filter.isBlank() || filter == "All") return true
+    return muscleGroupsCsv.split(",")
+        .map { it.trim() }
+        .any { it.equals(filter, ignoreCase = false) }
+}
