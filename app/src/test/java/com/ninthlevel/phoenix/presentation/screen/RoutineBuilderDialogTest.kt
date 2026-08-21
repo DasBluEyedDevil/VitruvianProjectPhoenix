@@ -1,6 +1,7 @@
 package com.ninthlevel.phoenix.presentation.screen
 
 import com.ninthlevel.phoenix.domain.model.CableConfiguration
+import com.ninthlevel.phoenix.domain.model.Equipment
 import com.ninthlevel.phoenix.domain.model.Exercise
 import com.ninthlevel.phoenix.domain.model.RoutineExercise
 import com.ninthlevel.phoenix.domain.model.WorkoutType
@@ -44,6 +45,14 @@ class RoutineBuilderDialogTest {
     fun `formatReps handles AMRAP reps`() {
         val result = formatReps(listOf(null, null))
         assertThat(result).isEqualTo("2 x AMRAP")
+    }
+
+    @Test
+    fun `isBodyweightEquipment accepts empty and canonical token`() {
+        assertThat(isBodyweightEquipment("")).isTrue()
+        assertThat(isBodyweightEquipment(Equipment.Bodyweight)).isTrue()
+        assertThat(isBodyweightEquipment("bodyweight")).isTrue()
+        assertThat(isBodyweightEquipment("Handles")).isFalse()
     }
 
     @Test

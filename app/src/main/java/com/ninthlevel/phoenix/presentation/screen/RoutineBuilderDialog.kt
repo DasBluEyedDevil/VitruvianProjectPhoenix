@@ -323,7 +323,8 @@ fun ExerciseListItem(
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-                val isBodyweight = exercise.exercise.equipment.isEmpty() && exercise.duration != null
+                val isBodyweight = isBodyweightEquipment(exercise.exercise.equipment) &&
+                    exercise.duration != null
 
                 // For Echo mode, show "Adaptive" instead of weight (Issue #109)
                 val weightDisplay = when {
@@ -403,6 +404,10 @@ fun ExerciseListItem(
     LaunchedEffect(isPressed) {
         if (isPressed) { kotlinx.coroutines.delay(100); isPressed = false }
     }
+}
+
+internal fun isBodyweightEquipment(equipment: String): Boolean {
+    return equipment.isEmpty() || equipment.equals(Equipment.Bodyweight, ignoreCase = true)
 }
 
 internal fun formatReps(setReps: List<Int?>): String {
