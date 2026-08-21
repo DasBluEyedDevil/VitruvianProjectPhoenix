@@ -56,18 +56,19 @@ fun SingleExerciseScreen(
     var showFavoritesOnly by remember { mutableStateOf(false) }
 
     // Get exercises from repository
-    val allExercises by remember(searchQuery, selectedMuscleFilter, showFavoritesOnly) {
+    val allExercises by remember(searchQuery, showFavoritesOnly) {
         when {
             showFavoritesOnly -> exerciseRepository.getFavorites()
             searchQuery.isNotBlank() -> exerciseRepository.searchExercises(searchQuery)
-            selectedMuscleFilter != "All" -> exerciseRepository.filterByMuscleGroup(selectedMuscleFilter)
             else -> exerciseRepository.getAllExercises()
         }
     }.collectAsState(initial = emptyList())
 
-    // Apply equipment filter
-    val exercises = remember(allExercises, selectedEquipmentFilter) {
-        allExercises.filter { matchesEquipmentFilter(it.equipment, selectedEquipmentFilter) }
+    val exercises = remember(allExercises, selectedEquipmentFilter, selectedMuscleFilter) {
+        allExercises.filter {
+            matchesEquipmentFilter(it.equipment, selectedEquipmentFilter) &&
+                matchesMuscleFilter(it.muscleGroups, selectedMuscleFilter)
+        }
     }
 
     // Set global title
