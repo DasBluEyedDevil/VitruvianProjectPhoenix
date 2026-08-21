@@ -503,7 +503,7 @@ class TrainerBleManager(
                 Timber.w("⚠️ This mimics trainer behavior (raw BLE has no such callback)")
                 Timber.w("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                // Log but DON'T disconnect - keep existing references  does
+                // Log but DON'T disconnect - keep existing characteristic references
                 connectionLogger?.log(
                     eventType = "SERVICES_INVALIDATED_IGNORED",
                     level = com.ninthlevel.phoenix.data.logger.ConnectionLogger.Level.WARNING,
