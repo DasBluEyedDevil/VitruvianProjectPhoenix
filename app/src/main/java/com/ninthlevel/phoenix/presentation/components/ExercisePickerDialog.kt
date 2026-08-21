@@ -291,8 +291,7 @@ fun ExercisePickerContent(
                 ) {
                     val hasActiveFilters = searchQuery.isNotBlank() ||
                         selectedMuscleFilter != "All" ||
-                        selectedEquipmentFilter != "All" ||
-                        showFavoritesOnly
+                        selectedEquipmentFilter != "All"
 
                     when {
                         showFavoritesOnly -> {
