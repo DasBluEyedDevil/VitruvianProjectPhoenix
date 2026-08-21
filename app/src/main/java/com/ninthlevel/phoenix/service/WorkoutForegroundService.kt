@@ -18,7 +18,8 @@ import timber.log.Timber
 class WorkoutForegroundService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "phoenix_workout_channel"
+        // Keep the published channel ID so mute/disable settings survive the rebrand.
+        const val CHANNEL_ID = "vitruvian_workout_channel"
         const val NOTIFICATION_ID = 1
         const val ACTION_START_WORKOUT = "com.ninthlevel.phoenix.START_WORKOUT"
         const val ACTION_STOP_WORKOUT = "com.ninthlevel.phoenix.STOP_WORKOUT"
