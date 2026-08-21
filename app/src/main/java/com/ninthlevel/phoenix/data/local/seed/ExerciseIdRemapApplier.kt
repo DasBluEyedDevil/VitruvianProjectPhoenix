@@ -7,23 +7,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Applies the one-shot v26→v27 exercise-id remap to DataStore keys, then drops the helper table.
+ * Applies the v26→v27 exercise-id remap to DataStore keys.
+ * Keeps [ExerciseCatalogMigration.REMAP_TABLE] so later backup imports can remap PR-only rows.
  */
 @Singleton
 class ExerciseIdRemapApplier @Inject constructor(
     private val database: WorkoutDatabase,
     private val preferencesManager: PreferencesManager
 ) {
+    fun deviceRemap(): Map<String, String> {
+        return ExerciseCatalogMigration.readRemapTable(database.openHelper.readableDatabase)
+    }
+
     suspend fun applyPendingDataStoreRemap() {
-        val sqlite = database.openHelper.writableDatabase
-        val oldToNew = ExerciseCatalogMigration.readRemapTable(sqlite)
-        if (oldToNew.isEmpty()) {
-            sqlite.execSQL("DROP TABLE IF EXISTS ${ExerciseCatalogMigration.REMAP_TABLE}")
-            return
-        }
+        val oldToNew = deviceRemap()
+        if (oldToNew.isEmpty()) return
         try {
             preferencesManager.remapExerciseIds(oldToNew)
-            sqlite.execSQL("DROP TABLE IF EXISTS ${ExerciseCatalogMigration.REMAP_TABLE}")
             Timber.d("Remapped ${oldToNew.size} catalogue exercise ids in saved defaults")
         } catch (e: Exception) {
             Timber.e(e, "Failed to remap single-exercise defaults")
