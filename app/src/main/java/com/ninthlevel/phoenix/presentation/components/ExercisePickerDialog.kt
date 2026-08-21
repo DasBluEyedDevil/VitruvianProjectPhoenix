@@ -291,21 +291,32 @@ fun ExercisePickerContent(
                 ) {
                     val hasActiveFilters = searchQuery.isNotBlank() ||
                         selectedMuscleFilter != "All" ||
-                        selectedEquipmentFilter != "All"
+                        selectedEquipmentFilter != "All" ||
+                        showFavoritesOnly
 
-                    if (hasActiveFilters) {
-                        Text(
-                            text = "No exercises found",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        CircularProgressIndicator()
-                        Text(
-                            text = "Loading exercises...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    when {
+                        showFavoritesOnly -> {
+                            Text(
+                                text = "No favorites yet",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        hasActiveFilters -> {
+                            Text(
+                                text = "No exercises found",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        else -> {
+                            CircularProgressIndicator()
+                            Text(
+                                text = "Loading exercises...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
