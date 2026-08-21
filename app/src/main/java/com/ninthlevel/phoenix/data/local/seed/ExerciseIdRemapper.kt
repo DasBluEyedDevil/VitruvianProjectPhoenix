@@ -117,8 +117,12 @@ object ExerciseIdRemapper {
 
     /**
      * Rewrite v26 catalogue ids in a backup onto the slim seed using names on sessions/routines.
+     * [extraOldToNew] fills gaps for PR-only rows (same-device remap table).
      */
-    fun remapBackupContent(content: BackupContent): BackupContent {
+    fun remapBackupContent(
+        content: BackupContent,
+        extraOldToNew: Map<String, String> = emptyMap()
+    ): BackupContent {
         val legacy = buildList {
             content.workoutSessions.forEach { session ->
                 val id = session.exerciseId ?: return@forEach
@@ -134,7 +138,7 @@ object ExerciseIdRemapper {
                 }
             }
         }
-        val oldToNew = buildOldToNewIdMap(legacy)
+        val oldToNew = extraOldToNew + buildOldToNewIdMap(legacy)
         if (oldToNew.isEmpty()) return content
 
         val remappedPrs = mergePersonalRecords(

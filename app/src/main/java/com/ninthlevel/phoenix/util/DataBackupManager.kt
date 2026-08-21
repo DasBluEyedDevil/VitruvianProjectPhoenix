@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.ninthlevel.phoenix.BuildConfig
 import com.ninthlevel.phoenix.data.local.*
+import com.ninthlevel.phoenix.data.local.seed.ExerciseIdRemapApplier
 import com.ninthlevel.phoenix.data.local.seed.ExerciseIdRemapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +56,8 @@ data class ImportResult(
 class DataBackupManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val workoutDao: WorkoutDao,
-    private val personalRecordDao: PersonalRecordDao
+    private val personalRecordDao: PersonalRecordDao,
+    private val exerciseIdRemapApplier: ExerciseIdRemapApplier
 ) {
     private val json = Json {
         prettyPrint = true
@@ -201,13 +203,15 @@ class DataBackupManager @Inject constructor(
                 Timber.w("Backup version ${backup.version} is newer than supported (1)")
             }
 
-            val data = ExerciseIdRemapper.remapBackupContent(backup.data)
+            val data = ExerciseIdRemapper.remapBackupContent(
+                backup.data,
+                extraOldToNew = exerciseIdRemapApplier.deviceRemap()
+            )
 
             // Get existing IDs for duplicate detection
             val existingSessionIds = workoutDao.getAllSessionIds().toSet()
             val existingRoutineIds = workoutDao.getAllRoutineIds().toSet()
             val existingProgramIds = workoutDao.getAllProgramIds().toSet()
-            val existingPRIds = personalRecordDao.getAllPRIds().toSet()
 
             // Import sessions (skip existing)
             var sessionsImported = 0
@@ -287,15 +291,57 @@ class DataBackupManager @Inject constructor(
                 }
             }
 
-            // Import personal records (skip existing)
+            // Import personal records by logical key (exerciseId, workoutMode, prType).
             var personalRecordsImported = 0
             var personalRecordsSkipped = 0
             data.personalRecords.forEach { pr ->
-                if (pr.id !in existingPRIds) {
-                    personalRecordDao.insertPRIgnore(pr.toEntity())
-                    personalRecordsImported++
+                val incoming = pr.toEntity()
+                val existing = personalRecordDao.getPR(
+                    incoming.exerciseId,
+                    incoming.workoutMode,
+                    incoming.prType
+                )
+                if (existing == null) {
+                    val rowId = personalRecordDao.insertPRIgnore(incoming.copy(id = 0))
+                    if (rowId != -1L) personalRecordsImported++ else personalRecordsSkipped++
                 } else {
-                    personalRecordsSkipped++
+                    val winner = ExerciseIdRemapper.mergePersonalRecords(
+                        listOf(
+                            ExerciseIdRemapper.PersonalRecordSnapshot(
+                                id = existing.id,
+                                exerciseId = existing.exerciseId,
+                                weightPerCableKg = existing.weightPerCableKg,
+                                reps = existing.reps,
+                                timestamp = existing.timestamp,
+                                workoutMode = existing.workoutMode,
+                                prType = existing.prType,
+                                volume = existing.volume
+                            ),
+                            ExerciseIdRemapper.PersonalRecordSnapshot(
+                                id = incoming.id,
+                                exerciseId = incoming.exerciseId,
+                                weightPerCableKg = incoming.weightPerCableKg,
+                                reps = incoming.reps,
+                                timestamp = incoming.timestamp,
+                                workoutMode = incoming.workoutMode,
+                                prType = incoming.prType,
+                                volume = incoming.volume
+                            )
+                        ),
+                        oldToNew = emptyMap()
+                    ).single()
+                    if (winner.weightPerCableKg != existing.weightPerCableKg ||
+                        winner.reps != existing.reps ||
+                        winner.volume != existing.volume ||
+                        winner.timestamp != existing.timestamp
+                    ) {
+                        personalRecordDao.upsertPR(
+                            incoming.copy(id = existing.id)
+                        )
+                        personalRecordsImported++
+                    } else {
+                        personalRecordsSkipped++
+                    }
                 }
             }
 

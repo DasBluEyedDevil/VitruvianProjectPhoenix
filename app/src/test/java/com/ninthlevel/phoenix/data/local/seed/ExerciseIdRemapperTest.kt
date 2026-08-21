@@ -170,6 +170,39 @@ class ExerciseIdRemapperTest {
     }
 
     @Test
+    fun remapBackupContentUsesExtraMapForPrOnlyRows() {
+        val content = BackupContent(
+            personalRecords = listOf(
+                PersonalRecordBackup(
+                    id = 1,
+                    exerciseId = "opaque-old-id",
+                    weightPerCableKg = 40f,
+                    reps = 8,
+                    timestamp = 1,
+                    workoutMode = "OldSchool",
+                    prType = PRType.MAX_WEIGHT.name,
+                    volume = 320f
+                )
+            )
+        )
+        val remapped = ExerciseIdRemapper.remapBackupContent(
+            content,
+            extraOldToNew = mapOf("opaque-old-id" to "cable-bench-press")
+        )
+        assertEquals("cable-bench-press", remapped.personalRecords.single().exerciseId)
+    }
+
+    @Test
+    fun mergePersonalRecordsKeepsInstalledWinnerWhenBetter() {
+        val installed = pr(10, "cable-bench-press", weight = 60f, reps = 3, volume = 180f, type = PRType.MAX_WEIGHT, time = 5)
+        val backup = pr(99, "cable-bench-press", weight = 50f, reps = 5, volume = 250f, type = PRType.MAX_WEIGHT, time = 9)
+        val merged = ExerciseIdRemapper.mergePersonalRecords(listOf(installed, backup), emptyMap())
+        assertEquals(1, merged.size)
+        assertEquals(10L, merged.single().id)
+        assertEquals(60f, merged.single().weightPerCableKg)
+    }
+
+    @Test
     fun seedCatalogKeysDoNotCollideAcrossExercises() {
         val owners = mutableMapOf<String, MutableSet<String>>()
         DefaultExercises.all.forEach { exercise ->
